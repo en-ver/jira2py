@@ -1,4 +1,4 @@
-from .jira_base import JiraBase
+from .jirabase import JiraBase
 from pydantic import validate_call
 
 """
