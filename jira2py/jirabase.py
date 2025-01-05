@@ -1,17 +1,13 @@
+import requests, json
 from requests.auth import HTTPBasicAuth
-import json, os, requests
-from decimal import Decimal
 from abc import ABC
 
 
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        return super().default(obj)
-
-
 class JiraBase(ABC):
+
+    def _set_jira_auth(self, auth_kwargs: tuple):
+
+        self._jira_url, self._jira_user, self._jira_api_token = auth_kwargs
 
     def _request_jira(
         self,
@@ -19,24 +15,25 @@ class JiraBase(ABC):
         context_path: str,
         params: dict | None = None,
         data: dict | None = None,
-    ) -> any:
-
-        jira_url = os.getenv("_JIRA_URL", None)
-        jira_user = os.getenv("_JIRA_USER", None)
-        jira_api_token = os.getenv("_JIRA_API_TOKEN", None)
+    ):
 
         try:
             response = requests.request(
                 method=method,
-                url=f'{jira_url}/rest/api/3/{context_path.strip("/")}',
+                url=f'{self._jira_url}/rest/api/3/{context_path.strip("/")}',
                 params=params,
-                data=json.dumps(data, cls=DecimalEncoder) if data else None,
+                data=json.dumps(data) if data else None,
                 headers={
                     "Accept": "application/json",
                     "Content-Type": "application/json",
                 },
-                auth=HTTPBasicAuth(jira_user, jira_api_token),
+                auth=HTTPBasicAuth(self._jira_user, self._jira_api_token),
             )
+            response.raise_for_status()
             return response.json()
+        except requests.exceptions.HTTPError as http_err:
+            raise ValueError(f"HTTP error occurred: {http_err}") from http_err
+        except requests.exceptions.RequestException as req_err:
+            raise ValueError(f"Request error: {req_err}") from req_err
         except Exception as e:
-            raise e
+            raise ValueError(f"Unexpected error: {e}") from e
