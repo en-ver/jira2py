@@ -1,9 +1,0 @@
-requests
-python-dotenv
-
-pydantic
-pydantic[email]
-
-setuptools
-wheel
-twine
