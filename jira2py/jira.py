@@ -1,4 +1,5 @@
 from pydantic import validate_call, EmailStr, HttpUrl
+from warnings import deprecated
 
 """
 This module provides the main `Jira` class for interacting with a Jira instance.
@@ -62,6 +63,9 @@ class Jira:
 
         return Issue(auth_kwargs=self._auth_kwargs, key_id=id_key)
 
+    @deprecated(
+        "The method is not maintained starting from 1.0.0. Use `issue_search()` instead."
+    )
     @validate_call
     def jql(self, jql: str):
         """
@@ -80,18 +84,20 @@ class Jira:
 
         return JQL(auth_kwargs=self._auth_kwargs, jql=jql)
 
-    @validate_call
+    @deprecated(
+        "The method is not maintained starting from 1.0.0. Use `issue_fields()` instead."
+    )
     def fields(self):
-        """
-        Retrieve metadata about Jira fields.
-
-        This method provides access to Jira fields, including information about
-        custom fields. Use it to retrieve a comprehensive list of fields available
-        in your Jira instance.
-
-        Returns:
-            Fields: An object for managing field-related data.
-        """
         from .fields import Fields
 
         return Fields(auth_kwargs=self._auth_kwargs)
+
+    @validate_call
+    def issue_fields(self):
+        """
+        This resource represents issue fields, both system and custom fields. Use it to get fields, field configurations, and create custom fields.
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-fields/#api-group-issue-fields
+        """
+        from .issue_fields import IssueFields
+
+        return IssueFields(auth_kwargs=self._auth_kwargs)

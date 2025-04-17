@@ -1,8 +1,9 @@
 from jira2py import Jira
 from dotenv import load_dotenv
 import os
+import pprint
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 jira = Jira(
     jira_url=os.environ.get("JIRA_URL"),
@@ -11,15 +12,9 @@ jira = Jira(
 )
 
 """Create fields instance"""
-fields = jira.fields()
+fields = jira.issue_fields()
 
 """Get the list of Jira fields with its metadata"""
-jira_fields = fields.get()
+jira_fields = fields.get_fields()
 
-"""Get the field id by its name"""
-field_ids = fields.get_field_id(["Summary", "Reporter", "Parent"])
-
-"""Get the field id by its id"""
-field_names = fields.get_field_name(["summary", "reporter", "parent"])
-
-"""Follow https://en-ver.github.io/jira2py/ for more details"""
+pprint.pprint(jira_fields)
