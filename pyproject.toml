@@ -18,11 +18,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "email_validator==2.2.0",
-    "pydantic==2.10.4",
-    "pydantic_core==2.27.2",
-    "python-dotenv==1.0.1",
-    "requests==2.32.3",
+    "email-validator>=2.2.0",
+    "pydantic>=2.10.6",
+    "pydantic-core>=2.27.2",
+    "python-dotenv>=1.1.0",
+    "requests>=2.32.3",
 ]
 
 [project.urls]
