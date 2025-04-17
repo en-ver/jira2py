@@ -1,14 +1,18 @@
 from .jirabase import JiraBase
-from pydantic import validate_call
 from warnings import deprecated
 
 
+@deprecated(
+    "The class is not maintained starting from 1.0.0. Use `IssueFields` instead."
+)
 class Fields(JiraBase):
 
+    @deprecated("The method is not maintained starting from 1.0.0")
     def __init__(self, auth_kwargs: tuple):
 
         self._set_jira_auth(auth_kwargs)
 
+    @deprecated("The method is not maintained starting from 1.0.0")
     def _load_fields(self):
 
         kwargs = {"method": "GET", "context_path": "field"}
@@ -48,7 +52,3 @@ class Fields(JiraBase):
         return self._get_field_attr(
             in_attr_name="id", in_attr_values=field_ids, out_attr_name="name"
         )
-
-    def get_fields(self):
-
-        return self._load_fields()
