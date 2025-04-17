@@ -13,4 +13,5 @@ def get_all_fields():
 
 
 if __name__ == "__main__":
-    get_all_fields()
+    pass
+    # get_all_fields()

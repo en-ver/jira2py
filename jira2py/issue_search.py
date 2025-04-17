@@ -17,8 +17,7 @@ class IssueSearch(JiraBase):
         fail_fast: bool = False,
         reconcile_issues: list[int] | None = [],
     ) -> list[dict]:
-        """
-        Searches for issues using JQL.
+        """Searches for issues using JQL.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
 
         Args:
@@ -35,6 +34,7 @@ class IssueSearch(JiraBase):
         Returns:
             dict: A dictionary containing the search results, including issues and metadata.
         """
+
         kwargs = {
             "method": "POST",
             "context_path": "search/jql",
