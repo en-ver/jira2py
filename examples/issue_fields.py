@@ -2,6 +2,7 @@ from jira2py import IssueFields
 from dotenv import load_dotenv
 import pprint
 
+# Make sure to set the environment variables in the .env file
 load_dotenv()
 fields = IssueFields()
 
@@ -14,4 +15,4 @@ def get_all_fields():
 
 if __name__ == "__main__":
     pass
-    # get_all_fields()
+    get_all_fields()

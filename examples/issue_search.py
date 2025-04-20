@@ -2,6 +2,7 @@ from jira2py import IssueSearch
 from dotenv import load_dotenv
 import pprint
 
+# Make sure to set the environment variables in the .env file
 load_dotenv()
 
 jql = "project IN (PR) AND statuscategory IN ('In Progress')"
@@ -16,4 +17,4 @@ def enhanced_search():
 
 if __name__ == "__main__":
     pass
-    # enhanced_search()
+    enhanced_search()
