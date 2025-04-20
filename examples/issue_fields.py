@@ -15,4 +15,5 @@ def get_all_fields():
 
 if __name__ == "__main__":
     pass
-    get_all_fields()
+    # Uncomment the function you want to test
+    # get_all_fields()

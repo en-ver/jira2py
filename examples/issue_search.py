@@ -4,9 +4,10 @@ import pprint
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
-
-jql = "project IN (PR) AND statuscategory IN ('In Progress')"
 search = IssueSearch()
+
+# Change the JQL query to the one you want to test
+jql = "project IN (PR) AND statuscategory IN ('In Progress')"
 
 
 # Search for issues using JQL
@@ -17,4 +18,5 @@ def enhanced_search():
 
 if __name__ == "__main__":
     pass
-    enhanced_search()
+    # Uncomment the function you want to test
+    # enhanced_search()

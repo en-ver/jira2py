@@ -4,8 +4,9 @@ import pprint
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
-
 issues = Issues()
+
+# Change the issue ID to the one you want to test
 issue_id = "PR-24446"
 
 
@@ -32,6 +33,7 @@ def edit_issue():
 
 if __name__ == "__main__":
     pass
-    get_issue()
-    get_changelogs()
-    edit_issue()
+    # Uncomment the function you want to test
+    # get_issue()
+    # get_changelogs()
+    # edit_issue()
