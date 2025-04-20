@@ -1,8 +1,7 @@
 import requests, json, os
 from requests.auth import HTTPBasicAuth
 from abc import ABC
-from pydantic import EmailStr, HttpUrl, validate_call, ValidationError
-from typing import Union, Dict, Any
+from pydantic import EmailStr, HttpUrl, validate_call
 
 
 class JiraBase(ABC):
