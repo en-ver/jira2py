@@ -1,3 +1,43 @@
 [build-system]
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "jira2py"
+version = "0.3.0"
+description = "The Python library to interact with Atlassian Jira REST API"
+readme = "README.md"
+authors = [
+    {name = "nEver1", email = "7fhhwpuuo@mozmail.com"}
+]
+license = "MIT"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "email-validator==2.2.0",
+    "pydantic==2.11.4",
+    "pydantic-core==2.33.2",
+    "python-dotenv==1.1.0",
+    "requests==2.32.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/en-ver/jira2py"
+Repository = "https://github.com/en-ver/jira2py"
+
+[project.optional-dependencies]
+deployment = [
+    "setuptools>=42",
+    "wheel",
+    "twine",
+    "build",
+]
+dev = [
+    "ipykernel",
+]
+
+[tool.setuptools]
+packages = ["jira2py"]
