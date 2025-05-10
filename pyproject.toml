@@ -30,16 +30,14 @@ Homepage = "https://github.com/en-ver/jira2py"
 Repository = "https://github.com/en-ver/jira2py"
 
 [project.optional-dependencies]
-dev = [
-    "setuptools",
+deployment = [
+    "setuptools>=42",
     "wheel",
     "twine",
+    "build",
+]
+dev = [
     "ipykernel",
-    "email-validator",
-    "pydantic",
-    "pydantic-core",
-    "python-dotenv",
-    "requests",
 ]
 
 [tool.setuptools]
