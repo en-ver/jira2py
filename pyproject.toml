@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jira2py"
-version = "0.3.0"
+version = "0.3.1"
 description = "The Python library to interact with Atlassian Jira REST API"
 readme = "README.md"
 authors = [

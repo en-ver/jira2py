@@ -77,7 +77,7 @@ class JiraBase(ABC):
         try:
             response = requests.request(
                 method=method,
-                url=f"{self._jira_url}/rest/api/3/{context_path.strip("/")}",
+                url=f"{self._jira_url}/rest/api/3/{context_path.strip('/')}",
                 params=params,
                 data=json.dumps(data) if data else None,
                 headers={
