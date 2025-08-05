@@ -5,6 +5,7 @@ jira2py documentation
 
 .. toctree::
    :maxdepth: 2
+   :caption: Contents:
 
    modules
 
@@ -32,6 +33,11 @@ API Reference
    :show-inheritance:
 
 .. automodule:: jira2py.issues
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: jira2py.jira_base
    :members:
    :undoc-members:
    :show-inheritance:
