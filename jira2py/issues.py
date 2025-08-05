@@ -4,6 +4,7 @@ from pydantic import validate_call
 
 
 class Issues(JiraBase):
+    """A class to interact with Jira's issues API."""
 
     @validate_call
     def get_issue(

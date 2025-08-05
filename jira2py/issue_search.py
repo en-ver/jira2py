@@ -3,6 +3,7 @@ from pydantic import validate_call
 
 
 class IssueSearch(JiraBase):
+    """A class to interact with Jira's issue search API."""
 
     @validate_call
     def enhanced_search(

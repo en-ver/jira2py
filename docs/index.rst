@@ -1,17 +1,38 @@
-.. jira2py documentation master file, created by
-   sphinx-quickstart on Tue Jan 21 19:34:28 2025.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+.. jira2py documentation master file
 
 jira2py documentation
 =====================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
-
-
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+
+   modules
+
+API Reference
+=============
+
+.. automodule:: jira2py
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: jira2py.issue_comments
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: jira2py.issue_fields
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: jira2py.issue_search
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: jira2py.issues
+   :members:
+   :undoc-members:
+   :show-inheritance:
 

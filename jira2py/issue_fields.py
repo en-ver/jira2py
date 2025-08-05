@@ -3,6 +3,7 @@ from pydantic import validate_call
 
 
 class IssueFields(JiraBase):
+    """A class to interact with Jira's issue fields API."""
 
     @validate_call
     def get_fields(self) -> list[dict]:

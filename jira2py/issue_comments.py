@@ -4,6 +4,7 @@ from typing import Literal
 
 
 class IssueComments(JiraBase):
+    """A class to interact with Jira's issue comments API."""
 
     @validate_call
     def get_comments(
