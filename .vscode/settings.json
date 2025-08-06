@@ -1,0 +1,23 @@
+{
+  // Disable Pylance's built-in linting to avoid conflicts with Ruff
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportGeneralTypeIssues": "none",
+    "reportUndefinedVariable": "none",
+    "reportMissingImports": "none",
+    "reportUnusedImport": "none"
+  },
+  // Use Ruff as the default formatter
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "python.analysis.include": [
+    "${workspaceFolder}/**/*.py"
+  ],
+  // Enable Ruff to fix lint violations and organize imports on save
+  "editor.codeActionsOnSave": {
+    "source.fixAll.ruff": "explicit",
+    "source.organizeImports.ruff": "explicit"
+  },
+  // Also enable general formatting on save
+  "editor.formatOnSave": true
+}
