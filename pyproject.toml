@@ -52,7 +52,9 @@ dev = [
     "pydantic",
     "pydantic-core",
     "python-dotenv",
-    "requests"
+    "requests",
+    "pytest>=8.0.0",
+    "pytest-cov",  
 ]
 
 [tool.setuptools]
