@@ -1,5 +1,0 @@
-email-validator
-pydantic
-pydantic-core
-python-dotenv
-requests
