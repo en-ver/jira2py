@@ -1,5 +1,6 @@
-from .jira_base import JiraBase
 from pydantic import validate_call
+
+from .jira_base import JiraBase
 
 
 class IssueFields(JiraBase):
