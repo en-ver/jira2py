@@ -6,14 +6,16 @@ build-backend = "setuptools.build_meta"
 name = "jira2py"
 version = "0.3.1"
 description = "The Python library to interact with Atlassian Jira REST API"
-readme = "README.md"
+readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
     {name = "nEver1", email = "7fhhwpuuo@mozmail.com"}
 ]
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 keywords = ["jira", "atlassian", "api", "rest", "issue-tracking"]
 classifiers = [
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
