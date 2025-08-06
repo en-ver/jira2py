@@ -15,6 +15,11 @@ class IssueFields(JiraBase):
             list[dict]: List of issue fields
         """
 
-        kwargs = {"method": "GET", "context_path": "field"}
+        kwargs = {
+            "method": "GET", 
+            "context_path": "field",
+            "params": None,
+            "data": None
+        }
 
         return self._request_jira(**kwargs)
