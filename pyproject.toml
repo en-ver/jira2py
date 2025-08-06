@@ -37,6 +37,11 @@ deployment = [
 ]
 dev = [
     "ipykernel",
+    "email-validator",
+    "pydantic",
+    "pydantic-core",
+    "python-dotenv",
+    "requests"
 ]
 
 [tool.setuptools]
