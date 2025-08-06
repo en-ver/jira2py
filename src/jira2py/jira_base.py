@@ -88,7 +88,7 @@ class JiraBase(ABC):
                     "Accept": "application/json",
                     "Content-Type": "application/json",
                 },
-                auth=HTTPBasicAuth(self._jira_user, self._jira_api_token),
+                auth=HTTPBasicAuth(self._jira_user or "", self._jira_api_token or ""),
             )
 
             if self._raw_response:
