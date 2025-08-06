@@ -45,4 +45,5 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["src/jira2py"]
+packages = ["jira2py"]
+package-dir = {"" = "src"}
