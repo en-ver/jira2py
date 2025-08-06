@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools >= 77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -14,6 +14,9 @@ license = "MIT"
 requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -30,7 +33,7 @@ Repository = "https://github.com/en-ver/jira2py"
 
 [project.optional-dependencies]
 deployment = [
-    "setuptools>=42",
+    "setuptools>=77.0.3",
     "wheel",
     "twine",
     "build",
