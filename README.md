@@ -10,3 +10,4 @@
 - **JIRA Query Language (JQL) Support**: Search for issues using powerful JQL expressions.
 - **Field Management**: Fetch metadata about JIRA fields and map between field names and IDs.
 - **Changelog Retrieval**: Retrieve the history of changes for specific issues.
+- **Issue Comments**: Retrieve comments from JIRA issues.
