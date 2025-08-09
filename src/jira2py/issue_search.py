@@ -36,8 +36,7 @@ class IssueSearch(JiraBase):
             dict: A dictionary containing the search results, including issues and metadata.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
-            ValueError: If the response status code is not 200 or 204.
+            ValueError: If the API request fails or returns an error status code.
         """
 
         return self._request_jira(

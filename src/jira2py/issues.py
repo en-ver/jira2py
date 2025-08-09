@@ -32,7 +32,7 @@ class Issues(JiraBase):
             dict: A dictionary containing the issue details including fields, transitions, editmeta, changelog, and operations.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            ValueError: If the API request fails or returns an error status code.
         """
 
         return self._request_jira(
@@ -67,7 +67,7 @@ class Issues(JiraBase):
             list[dict]: A list of dictionaries containing the changelog history for the issue.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            ValueError: If the API request fails or returns an error status code.
         """
 
         return self._request_jira(
@@ -116,7 +116,7 @@ class Issues(JiraBase):
             dict: The updated issue details.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            ValueError: If the API request fails or returns an error status code.
         """
         return self._request_jira(
             method="PUT",

@@ -118,9 +118,9 @@ class JiraBase(ABC):
             elif response.status_code == 204:
                 return True
             else:
-                # For non-200/204 responses, raise an error
+                # For non-200/204 responses, raise an error with structured message
                 raise ValueError(
-                    f"HTTP error occurred: {response.status_code} - {response.text}"
+                    f"Jira API error: status_code={response.status_code}, message={response.text}"
                 )
 
         except requests.exceptions.RequestException as req_err:
