@@ -27,15 +27,16 @@ In several methods, there are parameters that are collected but never used. For 
 ### c. Redundant Code ✅ *(Completed)*
 
 The `kwargs` construction pattern was repeated in every method. This has been simplified by:
+
 1. Removing the redundant `kwargs` dictionary construction
 2. Directly passing parameters to the `_request_jira` method
 3. Adding a `_build_request_kwargs` helper method in `JiraBase` for future use if needed
 
 ## 3. Documentation Improvements
 
-### a. Missing Docstrings
+### a. Missing Docstrings ✅ *(Completed)*
 
-Many methods lack comprehensive docstrings, particularly for return values and exceptions.
+Many methods lack comprehensive docstrings, particularly for return values and exceptions. This has been addressed by adding detailed docstrings with Args, Returns, and Raises sections to all methods.
 
 ### b. Examples Not Runnable
 

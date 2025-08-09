@@ -13,6 +13,10 @@ class IssueFields(JiraBase):
 
         Returns:
             list[dict]: List of issue fields
+
+        Raises:
+            requests.exceptions.RequestException: If the API request fails.
+            ValueError: If the response status code is not 200 or 204.
         """
 
         return self._request_jira(

@@ -34,6 +34,10 @@ class IssueSearch(JiraBase):
 
         Returns:
             dict: A dictionary containing the search results, including issues and metadata.
+
+        Raises:
+            requests.exceptions.RequestException: If the API request fails.
+            ValueError: If the response status code is not 200 or 204.
         """
 
         return self._request_jira(
@@ -48,6 +52,6 @@ class IssueSearch(JiraBase):
                 "properties": properties,
                 "fieldsByKeys": fields_by_keys,
                 "failFast": fail_fast,
-                "reconcileIssues": reconcile_issues or [],
+                "reconcileIssues": reconcile_issues if reconcile_issues is not None else [],
             },
         )
