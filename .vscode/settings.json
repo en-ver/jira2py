@@ -8,7 +8,6 @@
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
   "ruff.interpreter": ["${workspaceFolder}/.venv/bin/python"],
-  "python.analysis.typeCheckingMode": "standard",
   "[markdown]": {
     "editor.formatOnSave": true,
     "editor.formatOnPaste": true,
@@ -16,6 +15,5 @@
       "source.fixAll.markdownlint": "explicit"
     }
   },
-  "markdownlint.configFile": "${workspaceFolder}/.markdownlint-cli2.jsonc",
   "markdownlint.run": "onSave",
 }
