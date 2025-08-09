@@ -44,19 +44,19 @@ The examples in the `examples/` directory are not runnable as-is since they're c
 
 ## 4. Dependency Management
 
-### a. Version Pinning Strategy
+### a. Version Pinning Strategy ✅ *(Completed)*
 
-All dependencies are pinned to exact versions, which can cause issues with security updates. Consider using compatible version ranges for non-breaking updates.
+All dependencies are now using compatible version ranges (e.g., `>=X.Y.Z,<X.Y+1.0`) instead of exact pins, allowing for non-breaking security updates while maintaining stability.
 
-### b. Development Dependencies Duplication
+### b. Development Dependencies Duplication ✅ *(Completed)*
 
-The `dev` dependencies repeat the main dependencies, which is redundant.
+Removed duplicated dependencies from the `dev` section since they are already included via the main dependencies.
 
 ## 5. Error Handling
 
-### a. Inconsistent Error Handling
+### a. Inconsistent Error Handling ✅ *(Completed)*
 
-The error handling in `_request_jira` could be improved to provide more specific exception types rather than generic `ValueError`.
+The error handling in `_request_jira` has been improved to provide more structured error messages that include the HTTP status code, making it easier for users to understand what went wrong. The exception type remains `ValueError` but the message now follows a consistent format: `Jira API error: status_code=<code>, message=<text>`. Additionally, the docstrings in all methods that call `_request_jira` have been updated to accurately reflect that they raise `ValueError` exceptions.
 
 ## 6. API Completeness
 
@@ -74,13 +74,28 @@ The library only covers a subset of the Jira API. Consider expanding to include 
 
 ## 7. Performance Improvements
 
-### a. Connection Reuse
+### a. Connection Reuse ✅ *(Completed)*
 
-The current implementation creates a new HTTP connection for each request. Consider using a session object to reuse connections.
+The current implementation now uses a session object to reuse HTTP connections across multiple requests. This is implemented by:
 
-### b. Rate Limiting
+1. Adding a `requests.Session` object in the `JiraBase` class initialization
+2. Modifying the `_request_jira` method to use the session instead of `requests.request`
+3. Adding proper resource management with a `close()` method and context manager support (`__enter__` and `__exit__`)
+4. Updating all example files to demonstrate proper usage patterns with context managers
 
-Add support for handling rate limiting from the Jira API.
+This improvement should provide better performance for applications making multiple requests to the Jira API by reusing connections.
+
+### b. Rate Limiting ✅ *(Completed)*
+
+Add support for handling rate limiting from the Jira API. The implementation includes:
+
+1. Automatic detection of HTTP 429 responses from Jira
+2. Respect for `Retry-After` and `Beta-Retry-After` headers
+3. Exponential backoff with jitter to prevent thundering herd
+4. Configurable retry parameters (max retries, initial delay, max delay)
+5. Proper error handling when max retries are exceeded
+
+The rate limiting support is built into the `JiraBase` class and is automatically available to all subclasses.
 
 ## 8. Configuration Improvements
 
