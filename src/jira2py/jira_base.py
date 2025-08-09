@@ -91,20 +91,20 @@ class JiraBase(ABC):
                 auth=HTTPBasicAuth(self._jira_user or "", self._jira_api_token or ""),
             )
 
+            # If raw_response is True, return the raw response object regardless of status code
             if self._raw_response:
                 return response
 
+            # Handle specific status codes when not in raw_response mode
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 204:
                 return True
-
-            # For non-200/204 responses, either return raw response or raise error
-            if self._raw_response:
-                return response
-            raise ValueError(
-                f"HTTP error occurred: {response.status_code} - {response.text}"
-            )
+            else:
+                # For non-200/204 responses, raise an error
+                raise ValueError(
+                    f"HTTP error occurred: {response.status_code} - {response.text}"
+                )
 
         except requests.exceptions.RequestException as req_err:
             if self._raw_response:
