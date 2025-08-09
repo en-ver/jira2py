@@ -21,6 +21,12 @@ class Issues(JiraBase):
 
         Args:
             issue_id (str): The ID or key of the issue to retrieve.
+            fields (str, optional): A comma-separated list of fields to retrieve. Defaults to all fields.
+            fields_by_keys (bool, optional): Whether to reference fields by their keys instead of IDs. Defaults to False.
+            expand (str, optional): A comma-separated list of properties to expand.
+            properties (list[str], optional): A list of properties to include in the response.
+            update_history (bool, optional): Whether to update the history of the issue. Defaults to False.
+            fail_fast (bool, optional): Whether to fail fast if the issue does not exist. Defaults to False.
 
         Returns:
             dict: A dictionary containing the issue details including fields, transitions, editmeta, changelog, and operations.
@@ -56,6 +62,8 @@ class Issues(JiraBase):
 
         Args:
             issue_id (str): The ID or key of the issue to get changelogs for.
+            start_at (int, optional): The index of the first item to return. Defaults to 0.
+            max_results (int, optional): The maximum number of items to return. Defaults to 50.
 
         Returns:
             list[dict]: A list of dictionaries containing the changelog history for the issue.
@@ -85,11 +93,11 @@ class Issues(JiraBase):
         expand: str | None = None,
         override_screen_security: bool = False,
         override_editable_flag: bool = False,
-        history_metadata: Any | None = None,
-        properties: list[Any] | None = None,
-        transitions: Any | None = None,
+        history_metadata: dict[str, Any] | None = None,
+        properties: list[dict[str, Any]] | None = None,
+        transitions: list[dict[str, Any]] | None = None,
         update: dict | None = None,
-        additional_properties: Any | None = None,
+        additional_properties: dict[str, Any] | None = None,
     ) -> dict:
         """Edit a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put
@@ -102,11 +110,11 @@ class Issues(JiraBase):
             expand (str, optional): A comma-separated list of properties to expand.
             override_screen_security (bool, optional): Whether to override screen security. Defaults to False.
             override_editable_flag (bool, optional): Whether to override the editable flag. Defaults to False.
-            history_metadata (Any, optional): The history metadata.
-            properties (list[Any], optional): The properties.
-            transitions (Any, optional): The transitions.
+            history_metadata (dict[str, Any], optional): The history metadata.
+            properties (list[dict[str, Any]], optional): The properties.
+            transitions (list[dict[str, Any]], optional): The transitions.
             update (dict, optional): The update.
-            additional_properties (Any, optional): The additional properties.
+            additional_properties (dict[str, Any], optional): The additional properties.
 
         Returns:
             dict: The updated issue details.
