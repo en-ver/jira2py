@@ -56,6 +56,31 @@ class JiraBase(ABC):
                 "(JIRA_URL, JIRA_USER, JIRA_API_TOKEN)"
             )
 
+        # Create a session for connection reuse
+        self._session = requests.Session()
+        self._session.auth = HTTPBasicAuth(
+            self._jira_user or "", self._jira_api_token or ""
+        )
+        self._session.headers.update(
+            {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+        )
+
+    def __enter__(self):
+        """Enter the runtime context for the Jira client."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit the runtime context for the Jira client, ensuring the session is closed."""
+        self.close()
+
+    def close(self):
+        """Close the session and free up resources."""
+        if hasattr(self, "_session") and self._session:
+            self._session.close()
+
     def _request_jira(
         self,
         method: str,
@@ -96,16 +121,11 @@ class JiraBase(ABC):
             api_path = context_path.strip("/")
             url = f"{base_url}/rest/api/3/{api_path}"
 
-            response = requests.request(
+            response = self._session.request(
                 method=method,
                 url=url,
                 params=filtered_params,
                 data=json.dumps(filtered_data) if filtered_data else None,
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
-                auth=HTTPBasicAuth(self._jira_user or "", self._jira_api_token or ""),
             )
 
             # If raw_response is True, return the raw response object regardless of status code

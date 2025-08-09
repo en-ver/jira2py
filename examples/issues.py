@@ -4,7 +4,6 @@ import pprint
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
-issues = Issues()
 
 # Change the issue ID to the one you want to test
 issue_id = "PR-24446"
@@ -12,23 +11,36 @@ issue_id = "PR-24446"
 
 # Get an issue by its ID
 def get_issue():
-    issue = issues.get_issue(issue_id)
-    pprint.pprint(issue)
+    with Issues() as issues:
+        issue = issues.get_issue(issue_id)
+        pprint.pprint(issue)
 
 
 def get_changelogs():
-    changelogs = issues.get_changelogs(issue_id)
-    pprint.pprint(changelogs)
+    with Issues() as issues:
+        changelogs = issues.get_changelogs(issue_id)
+        pprint.pprint(changelogs)
 
 
 def edit_issue():
-    issue = issues.edit_issue(
-        issue_id=issue_id,
-        fields={"summary": "New summary"},
-        notify_users=False,
-        return_issue=True,
-    )
-    pprint.pprint(issue)
+    with Issues() as issues:
+        issue = issues.edit_issue(
+            issue_id=issue_id,
+            fields={"summary": "New summary"},
+            notify_users=False,
+            return_issue=True,
+        )
+        pprint.pprint(issue)
+
+
+# Alternative usage without context manager (manual resource management)
+def get_issue_manual():
+    issues = Issues()
+    try:
+        issue = issues.get_issue(issue_id)
+        pprint.pprint(issue)
+    finally:
+        issues.close()
 
 
 if __name__ == "__main__":
@@ -37,3 +49,4 @@ if __name__ == "__main__":
     # get_issue()
     # get_changelogs()
     # edit_issue()
+    # get_issue_manual()

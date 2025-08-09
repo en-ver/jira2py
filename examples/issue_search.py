@@ -4,19 +4,36 @@ import pprint
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
-search = IssueSearch()
 
-# Change the JQL query to the one you want to test
-jql = "project IN (PR) AND statuscategory IN ('In Progress')"
+jql_query = "project = PR ORDER BY created DESC"
 
 
-# Search for issues using JQL
 def enhanced_search():
-    search_results = search.enhanced_search(jql=jql, fields=["summary"])
-    pprint.pprint(search_results)
+    with IssueSearch() as issue_search:
+        results = issue_search.enhanced_search(
+            jql=jql_query,
+            max_results=5,
+            fields=["summary", "status", "assignee"],
+        )
+        pprint.pprint(results)
+
+
+# Alternative usage without context manager (manual resource management)
+def enhanced_search_manual():
+    issue_search = IssueSearch()
+    try:
+        results = issue_search.enhanced_search(
+            jql=jql_query,
+            max_results=5,
+            fields=["summary", "status", "assignee"],
+        )
+        pprint.pprint(results)
+    finally:
+        issue_search.close()
 
 
 if __name__ == "__main__":
     pass
     # Uncomment the function you want to test
     # enhanced_search()
+    # enhanced_search_manual()

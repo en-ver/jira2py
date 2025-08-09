@@ -4,16 +4,26 @@ import pprint
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
-fields = IssueFields()
 
 
-# Get all Jira fields with its metadata
-def get_all_fields():
-    jira_fields = fields.get_fields()
-    pprint.pprint(jira_fields)
+def get_fields():
+    with IssueFields() as issue_fields:
+        fields = issue_fields.get_fields()
+        pprint.pprint(fields)
+
+
+# Alternative usage without context manager (manual resource management)
+def get_fields_manual():
+    issue_fields = IssueFields()
+    try:
+        fields = issue_fields.get_fields()
+        pprint.pprint(fields)
+    finally:
+        issue_fields.close()
 
 
 if __name__ == "__main__":
     pass
     # Uncomment the function you want to test
-    # get_all_fields()
+    # get_fields()
+    # get_fields_manual()
