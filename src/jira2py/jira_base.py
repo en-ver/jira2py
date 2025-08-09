@@ -84,8 +84,12 @@ class JiraBase(ABC):
                 raise ValueError("context_path cannot be empty")
 
             # Filter out None values from params and data
-            filtered_params = {k: v for k, v in params.items() if v is not None} if params else None
-            filtered_data = {k: v for k, v in data.items() if v is not None} if data else None
+            filtered_params = (
+                {k: v for k, v in params.items() if v is not None} if params else None
+            )
+            filtered_data = (
+                {k: v for k, v in data.items() if v is not None} if data else None
+            )
 
             # Construct the API URL more robustly
             base_url = self._jira_url.rstrip("/")

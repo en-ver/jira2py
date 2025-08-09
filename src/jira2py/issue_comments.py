@@ -28,15 +28,13 @@ class IssueComments(JiraBase):
         Returns:
             dict: Comments and its metadata
         """
-        kwargs = {
-            "method": "GET",
-            "context_path": f"issue/{issue_id}/comment",
-            "params": {
+        return self._request_jira(
+            method="GET",
+            context_path=f"issue/{issue_id}/comment",
+            params={
                 "startAt": start_at,
                 "maxResults": max_results,
                 "orderby": order_by,
                 "expand": expand,
             },
-        }
-
-        return self._request_jira(**kwargs)
+        )
