@@ -16,10 +16,10 @@ class IssueFields(JiraBase):
         """
 
         kwargs = {
-            "method": "GET", 
+            "method": "GET",
             "context_path": "field",
             "params": None,
-            "data": None
+            "data": None,
         }
 
         return self._request_jira(**kwargs)

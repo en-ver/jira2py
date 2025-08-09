@@ -82,12 +82,12 @@ class JiraBase(ABC):
             # Validate context_path
             if not context_path or not context_path.strip():
                 raise ValueError("context_path cannot be empty")
-            
+
             # Construct the API URL more robustly
             base_url = self._jira_url.rstrip("/")
             api_path = context_path.strip("/")
             url = f"{base_url}/rest/api/3/{api_path}"
-            
+
             response = requests.request(
                 method=method,
                 url=url,
