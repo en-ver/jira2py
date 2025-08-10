@@ -1,6 +1,6 @@
 from .jira_base import JiraBase
 from pydantic import validate_call
-from typing import Literal
+from typing import Literal, Any
 
 
 class IssueComments(JiraBase):
@@ -14,7 +14,7 @@ class IssueComments(JiraBase):
         max_results: int = 100,
         order_by: Literal["created", "-created", "updated", "-updated"] | None = None,
         expand: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Returns all comments for an issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-get
 

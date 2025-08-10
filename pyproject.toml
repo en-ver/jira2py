@@ -47,7 +47,25 @@ deployment = [
 ]
 dev = [
     "ipykernel",
+    "mypy",
+    "types-requests",
 ]
+
+[project.scripts]
+jira2py-lint = "scripts.lint:main"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+
+[tool.ruff]
+line-length = 88
 
 [tool.setuptools]
 packages = ["jira2py"]

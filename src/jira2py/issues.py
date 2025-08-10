@@ -16,7 +16,7 @@ class Issues(JiraBase):
         properties: list[str] | None = None,
         update_history: bool = False,
         fail_fast: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get details of a specific Jira issue.
 
         Args:
@@ -54,7 +54,7 @@ class Issues(JiraBase):
         issue_id: str,
         start_at: int = 0,
         max_results: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get the changelogs for a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-changelog-get
 
@@ -83,7 +83,7 @@ class Issues(JiraBase):
     def edit_issue(
         self,
         issue_id: str,
-        fields: dict,
+        fields: dict[str, Any],
         notify_users: bool = True,
         return_issue: bool = False,
         expand: str | None = None,
@@ -92,9 +92,9 @@ class Issues(JiraBase):
         history_metadata: dict[str, Any] | None = None,
         properties: list[dict[str, Any]] | None = None,
         transitions: list[dict[str, Any]] | None = None,
-        update: dict | None = None,
+        update: dict[str, Any] | None = None,
         additional_properties: dict[str, Any] | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Edit a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put
 

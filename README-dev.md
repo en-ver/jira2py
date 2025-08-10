@@ -1,5 +1,45 @@
 # jira2py
 
+## Development Tools
+
+### Linting and Type Checking
+
+This project uses several tools to ensure code quality:
+
+1. **ruff** - Python linting and formatting
+2. **mypy** - Python type checking
+
+To run all checks:
+
+```bash
+# Run Python linting
+uv run ruff check src/
+
+# Run Python type checking
+uv run mypy src/
+```
+
+You can also use the Makefile targets:
+
+```bash
+# Run all checks
+make all-checks
+
+# Run individual checks
+make lint
+make type-check
+```
+
+### Installation
+
+To set up the development environment:
+
+1. Install Python dependencies:
+
+   ```bash
+   uv pip install -e .[dev]
+   ```
+
 ## Upgrade dependencies
 
 List the installed packages:
@@ -9,17 +49,25 @@ uv pip list | grep -f requirements.txt
 ```
 
 > [!NOTE]
-> Dependencies are now specified with compatible version ranges (e.g., `>=X.Y.Z,<X.Y+1.0`) instead of exact pins to allow for easier security updates while maintaining stability.
+> Dependencies are now specified with compatible version ranges (e.g.,
+> `>=X.Y.Z,<X.Y+1.0`) instead of exact pins to allow for easier security
+> updates while maintaining stability.
 
 ## Rate Limiting Configuration
 
-The jira2py library now includes built-in support for handling JIRA API rate limits. The following parameters can be configured when initializing any of the client classes:
+The jira2py library now includes built-in support for handling JIRA API
+rate limits. The following parameters can be configured when initializing
+any of the client classes:
 
-- `max_retries` (int, default=3): Maximum number of retries for rate-limited requests
-- `initial_retry_delay` (float, default=1.0): Initial delay in seconds for retry backoff
-- `max_retry_delay` (float, default=60.0): Maximum delay in seconds for retry backoff
+- `max_retries` (int, default=3): Maximum number of retries for
+  rate-limited requests
+- `initial_retry_delay` (float, default=1.0): Initial delay in seconds
+  for retry backoff
+- `max_retry_delay` (float, default=60.0): Maximum delay in seconds for
+  retry backoff
 
 Example usage:
+
 ```python
 from jira2py import Issues
 
@@ -32,6 +80,7 @@ issues = Issues(
 ```
 
 The implementation includes:
+
 - Automatic detection of HTTP 429 responses
 - Respect for `Retry-After` and `Beta-Retry-After` headers
 - Exponential backoff with jitter to prevent thundering herd

@@ -79,15 +79,15 @@ class JiraBase(ABC):
             }
         )
 
-    def __enter__(self):
+    def __enter__(self) -> "JiraBase":
         """Enter the runtime context for the Jira client."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit the runtime context for the Jira client, ensuring the session is closed."""
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """Close the session and free up resources."""
         if hasattr(self, "_session") and self._session:
             self._session.close()
