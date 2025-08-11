@@ -48,11 +48,14 @@ deployment = [
 dev = [
     "ipykernel",
     "mypy",
+    "ruff>=0.12.8,<1.0.0",
     "types-requests",
+    "pytest>=7.0.0,<8.0.0",
+    "pytest-mock>=3.10.0,<4.0.0",
+    "responses>=0.22.0,<1.0.0",
 ]
 
-[project.scripts]
-jira2py-lint = "scripts.lint:main"
+
 
 [tool.mypy]
 python_version = "3.11"
@@ -64,9 +67,80 @@ disallow_incomplete_defs = true
 check_untyped_defs = true
 disallow_untyped_decorators = true
 
+# Files to check
+files = ["src", "tests", "scripts", "examples"]
+
+# Configuration for test files
+[[tool.mypy.overrides]]
+module = "tests.*"
+strict = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+# Configuration for scripts
+[[tool.mypy.overrides]]
+module = "scripts.*"
+# Scripts can have slightly more relaxed rules
+disable_error_code = ["no-untyped-def"]
+
+# Configuration for examples
+[[tool.mypy.overrides]]
+module = "examples.*"
+# Examples can have more relaxed rules
+ignore_errors = true
+
 [tool.ruff]
 line-length = 88
+
+# Explicitly include the directories we want to check
+include = [
+    "src/**/*.py",
+    "tests/**/*.py",
+    "scripts/**/*.py",
+    "examples/**/*.py",
+]
+
+# Exclude directories that should not be checked
+extend-exclude = [
+    "dist",
+    "build",
+    "*.egg-info",
+]
+
+# Configure Ruff to handle test files appropriately
+[tool.ruff.lint]
+# Allow some rules to be ignored in test files
+extend-ignore = [
+    "S101",  # Use of assert detected
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore specific rules in test files
+"tests/**/*" = [
+    "S101",  # Use of assert detected (common in tests)
+    "S106",  # Possible hardcoded password (test credentials)
+    "SLF001",  # Private member accessed (common in tests)
+]
+# Ignore specific rules in scripts
+"scripts/**/*" = [
+    "S106",  # Possible hardcoded password (scripts may need credentials)
+]
+# Ignore specific rules in examples
+"examples/**/*" = [
+    "S106",  # Possible hardcoded password (examples may show credentials)
+]
 
 [tool.setuptools]
 packages = ["jira2py"]
 package-dir = {"" = "src"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "integration: marks tests as integration tests",
+]
+
+

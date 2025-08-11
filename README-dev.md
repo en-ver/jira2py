@@ -2,7 +2,7 @@
 
 ## Development Tools
 
-### Linting and Type Checking
+### Linting, Formatting, and Type Checking
 
 This project uses several tools to ensure code quality:
 
@@ -12,12 +12,17 @@ This project uses several tools to ensure code quality:
 To run all checks:
 
 ```bash
+# Run Python formatting
+uv run ruff format
+
 # Run Python linting
-uv run ruff check src/
+uv run ruff check
 
 # Run Python type checking
-uv run mypy src/
+uv run mypy
 ```
+
+Note: Tests and scripts have relaxed type checking rules (see pyproject.toml mypy configuration).
 
 You can also use the Makefile targets:
 
@@ -26,6 +31,7 @@ You can also use the Makefile targets:
 make all-checks
 
 # Run individual checks
+make format
 make lint
 make type-check
 ```

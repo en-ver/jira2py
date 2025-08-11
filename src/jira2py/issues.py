@@ -1,6 +1,8 @@
 from typing import Any
-from .jira_base import JiraBase
+
 from pydantic import validate_call
+
+from .jira_base import JiraBase
 
 
 class Issues(JiraBase):
@@ -54,7 +56,7 @@ class Issues(JiraBase):
         issue_id: str,
         start_at: int = 0,
         max_results: int = 50,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """Get the changelogs for a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-changelog-get
 
@@ -64,7 +66,12 @@ class Issues(JiraBase):
             max_results (int, optional): The maximum number of items to return. Defaults to 50.
 
         Returns:
-            list[dict]: A list of dictionaries containing the changelog history for the issue.
+            dict: A dictionary containing the changelog history for the issue with pagination information.
+                  The dictionary contains:
+                  - "startAt": The index of the first item returned
+                  - "maxResults": The maximum number of items returned
+                  - "total": The total number of items available
+                  - "values": A list of dictionaries containing the changelog history
 
         Raises:
             ValueError: If the API request fails or returns an error status code.

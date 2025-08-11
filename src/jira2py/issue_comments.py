@@ -1,6 +1,8 @@
-from .jira_base import JiraBase
+from typing import Any, Literal
+
 from pydantic import validate_call
-from typing import Literal, Any
+
+from .jira_base import JiraBase
 
 
 class IssueComments(JiraBase):

@@ -1,4 +1,4 @@
-from jira2py import IssueSearch
+from jira2py.issue_search import IssueSearch
 from dotenv import load_dotenv
 import pprint
 
@@ -8,7 +8,7 @@ load_dotenv()
 jql_query = "project = PR ORDER BY created DESC"
 
 
-def enhanced_search():
+def enhanced_search() -> None:
     with IssueSearch() as issue_search:
         results = issue_search.enhanced_search(
             jql=jql_query,
@@ -19,7 +19,7 @@ def enhanced_search():
 
 
 # Alternative usage without context manager (manual resource management)
-def enhanced_search_manual():
+def enhanced_search_manual() -> None:
     issue_search = IssueSearch()
     try:
         results = issue_search.enhanced_search(

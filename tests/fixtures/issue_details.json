@@ -1,0 +1,14 @@
+{
+  "id": "10001",
+  "key": "TEST-123",
+  "fields": {
+    "summary": "Test issue summary",
+    "description": "Test issue description",
+    "status": {
+      "name": "To Do"
+    },
+    "assignee": {
+      "name": "testuser"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "issues": [
+    {
+      "id": "10001",
+      "key": "TEST-123",
+      "fields": {
+        "summary": "Test issue summary",
+        "status": {
+          "name": "To Do"
+        },
+        "assignee": {
+          "name": "testuser"
+        }
+      }
+    },
+    {
+      "id": "10002",
+      "key": "TEST-124",
+      "fields": {
+        "summary": "Another test issue",
+        "status": {
+          "name": "In Progress"
+        },
+        "assignee": {
+          "name": "testuser2"
+        }
+      }
+    }
+  ],
+  "total": 2,
+  "startAt": 0,
+  "maxResults": 50
+}

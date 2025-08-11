@@ -1,0 +1,37 @@
+{
+  "startAt": 0,
+  "maxResults": 50,
+  "total": 2,
+  "isLast": false,
+  "self": "https://example.atlassian.net/rest/api/3/issue/TEST-123/changelog?maxResults=50&startAt=0",
+  "values": [
+    {
+      "id": "10001",
+      "author": {
+        "name": "testuser"
+      },
+      "created": "2023-01-01T00:00:00.000+0000",
+      "items": [
+        {
+          "field": "status",
+          "fromString": "Open",
+          "toString": "In Progress"
+        }
+      ]
+    },
+    {
+      "id": "10002",
+      "author": {
+        "name": "testuser2"
+      },
+      "created": "2023-01-02T00:00:00.000+0000",
+      "items": [
+        {
+          "field": "summary",
+          "fromString": "Old summary",
+          "toString": "New summary"
+        }
+      ]
+    }
+  ]
+}

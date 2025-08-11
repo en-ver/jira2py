@@ -1,4 +1,4 @@
-from jira2py import Issues
+from jira2py.issues import Issues
 from dotenv import load_dotenv
 import pprint
 
@@ -10,19 +10,19 @@ issue_id = "PR-24446"
 
 
 # Get an issue by its ID
-def get_issue():
+def get_issue() -> None:
     with Issues() as issues:
         issue = issues.get_issue(issue_id)
         pprint.pprint(issue)
 
 
-def get_changelogs():
+def get_changelogs() -> None:
     with Issues() as issues:
         changelogs = issues.get_changelogs(issue_id)
         pprint.pprint(changelogs)
 
 
-def edit_issue():
+def edit_issue() -> None:
     with Issues() as issues:
         issue = issues.edit_issue(
             issue_id=issue_id,
@@ -34,7 +34,7 @@ def edit_issue():
 
 
 # Alternative usage without context manager (manual resource management)
-def get_issue_manual():
+def get_issue_manual() -> None:
     issues = Issues()
     try:
         issue = issues.get_issue(issue_id)

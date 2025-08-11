@@ -1,5 +1,6 @@
-from pydantic import validate_call
 from typing import Any
+
+from pydantic import validate_call
 
 from .jira_base import JiraBase
 
