@@ -162,6 +162,5 @@ cython_debug/
 #.idea/
 
 .aider*
-aider_*.md
 agent_*.md
 .ruff*
