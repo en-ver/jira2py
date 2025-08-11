@@ -296,8 +296,8 @@ class JiraBase(ABC):
         url = f"{self._jira_url}/rest/api/3/{api_path}"
 
         # Filter out None values from params and data
-        filtered_params = {k: v for k, v in (params or {}).items() if v is not None}
-        filtered_data = {k: v for k, v in (data or {}).items() if v is not None}
+        filtered_params = self._filter_none_values(params)
+        filtered_data = self._filter_none_values(data)
 
         # Try the request with retries for rate limiting
         retry_count = 0
