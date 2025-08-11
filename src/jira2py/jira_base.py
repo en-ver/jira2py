@@ -291,9 +291,8 @@ class JiraBase(ABC):
         """
         session = self._ensure_session()
 
-        # Build the complete API URL
-        api_path = context_path.strip("/")
-        url = f"{self._jira_url}/rest/api/3/{api_path}"
+        # Build the complete API URL using helper method
+        url = self._build_api_url(context_path)
 
         # Filter out None values from params and data
         filtered_params = self._filter_none_values(params)
