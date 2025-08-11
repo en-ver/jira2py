@@ -54,8 +54,6 @@ class IssueSearch(JiraBase):
                 "properties": properties,
                 "fieldsByKeys": fields_by_keys,
                 "failFast": fail_fast,
-                "reconcileIssues": reconcile_issues
-                if reconcile_issues is not None
-                else [],
+                "reconcileIssues": reconcile_issues,
             },
         )
