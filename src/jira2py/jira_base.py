@@ -62,6 +62,7 @@ class JiraBase(ABC):
             "headers": {"Accept": "application/json"},
             "auth": httpx.BasicAuth(str(self._jira_user), str(self._jira_api_token)),
         }
+        self._persistent_client = None
 
     def __enter__(self):
         """Enter context and create HTTP client session."""
@@ -76,6 +77,22 @@ class JiraBase(ABC):
         if self._client:
             self._client.close()
             self._client = None
+
+    def _get_client(self) -> httpx.Client:
+        """Get or create HTTP client for session reuse."""
+        if self._client is not None:
+            return self._client
+
+        if self._persistent_client is None:
+            self._persistent_client = httpx.Client(**self._client_config)
+
+        return self._persistent_client
+
+    def close(self):
+        """Close the persistent client session."""
+        if self._persistent_client:
+            self._persistent_client.close()
+            self._persistent_client = None
 
     @overload
     def _request_jira(
@@ -137,23 +154,13 @@ class JiraBase(ABC):
         clean_data = clean_none_values(data)
 
         try:
-            if self._client is None:
-                # Fallback to single-use client (maintains backward compatibility)
-                with httpx.Client(**self._client_config) as client:
-                    response = client.request(
-                        method=method,
-                        url=context_path.lstrip("/"),
-                        params=clean_params,
-                        json=clean_data,
-                    )
-            else:
-                # Use the session client
-                response = self._client.request(
-                    method=method,
-                    url=context_path.lstrip("/"),
-                    params=clean_params,
-                    json=clean_data,
-                )
+            client = self._get_client()
+            response = client.request(
+                method=method,
+                url=context_path.lstrip("/"),
+                params=clean_params,
+                json=clean_data,
+            )
 
             response.raise_for_status()
             return response.json()
