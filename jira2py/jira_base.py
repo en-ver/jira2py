@@ -53,6 +53,28 @@ class JiraBase(ABC):
                 "(JIRA_URL, JIRA_USER, JIRA_API_TOKEN)"
             )
 
+        # Store client configuration for session reuse
+        self._client = None
+        self._client_config = {
+            "base_url": f"{self._jira_url}/rest/api/{JIRA_API_VERSION}",
+            "headers": {"Accept": "application/json"},
+            "auth": httpx.BasicAuth(self._jira_user, self._jira_api_token),
+        }
+
+    def __enter__(self):
+        """Enter context and create HTTP client session."""
+        if self._client is not None:
+            raise RuntimeError("Jira client session is already active")
+        
+        self._client = httpx.Client(**self._client_config)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context and cleanup HTTP client session."""
+        if self._client:
+            self._client.close()
+            self._client = None
+
     @overload
     def _request_jira(
         self,
@@ -109,21 +131,26 @@ class JiraBase(ABC):
             json.JSONDecodeError: If the response cannot be parsed as JSON
         """
         try:
-            with httpx.Client() as client:
-                response = client.request(
+            if self._client is None:
+                # Fallback to single-use client (maintains backward compatibility)
+                with httpx.Client(**self._client_config) as client:
+                    response = client.request(
+                        method=method,
+                        url=context_path.lstrip('/'),
+                        params=params,
+                        json=data,
+                    )
+            else:
+                # Use the session client
+                response = self._client.request(
                     method=method,
-                    url=f"{self._jira_url}/rest/api/{JIRA_API_VERSION}/{context_path.strip('/')}",
+                    url=context_path.lstrip('/'),
                     params=params,
                     json=data,
-                    headers={
-                        "Accept": "application/json",
-                    },
-                    auth=httpx.BasicAuth(self._jira_user, self._jira_api_token),
                 )
 
-                response.raise_for_status()
-
-                return response.json()
+            response.raise_for_status()
+            return response.json()
 
         except httpx.HTTPStatusError as req_err:
             raise req_err
