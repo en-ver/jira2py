@@ -1,7 +1,11 @@
-import requests, json, os
-from requests.auth import HTTPBasicAuth
+import json
+import os
 from abc import ABC
+from typing import Any
+
+import requests
 from pydantic import EmailStr, HttpUrl, validate_call
+from requests.auth import HTTPBasicAuth
 
 
 class JiraBase(ABC):
@@ -26,25 +30,21 @@ class JiraBase(ABC):
         jira_url: HttpUrl | None = None,
         jira_user: EmailStr | None = None,
         jira_api_token: str | None = None,
-        raw_response: bool | None = False,
     ):
         """Initialize JIRA client with authentication credentials.
 
         Args:
-            jira_url: The URL of your JIRA instance. If not provided,
-                     will look for JIRA_URL environment variable.
-            jira_user: Your JIRA username (email). If not provided,
-                      will look for JIRA_USER environment variable.
+            jira_url:   The URL of your JIRA instance. If not provided,
+                        will look for JIRA_URL environment variable.
+            jira_user:  Your JIRA username (email). If not provided,
+                        will look for JIRA_USER environment variable.
             jira_api_token: Your JIRA API token. If not provided,
-                           will look for JIRA_API_TOKEN environment variable.
-            raw_response: If True, returns raw response objects from the API
-                         instead of handling errors internally.
+                            will look for JIRA_API_TOKEN environment variable.
         """
         raw_url = str(jira_url) if jira_url else os.getenv("JIRA_URL", "")
         self._jira_url = raw_url.rstrip("/")
-        self._jira_user = jira_user or os.getenv("JIRA_USER")
-        self._jira_api_token = jira_api_token or os.getenv("JIRA_API_TOKEN")
-        self._raw_response = raw_response
+        self._jira_user = jira_user or os.getenv("JIRA_USER", "")
+        self._jira_api_token = jira_api_token or os.getenv("JIRA_API_TOKEN", "")
 
         if not all([self._jira_url, self._jira_user, self._jira_api_token]):
             raise ValueError(
@@ -58,7 +58,8 @@ class JiraBase(ABC):
         context_path: str,
         params: dict | None = None,
         data: dict | None = None,
-    ) -> dict | bool | requests.Response:
+        api_version: int | None = 3,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         """Make a request to the JIRA API.
 
         Args:
@@ -66,18 +67,16 @@ class JiraBase(ABC):
             context_path: API endpoint path
             params: Query parameters
             data: Request body data
+            api_version: JIRA API version to use (defaults to 3)
 
         Returns:
-            If raw_response is True, returns the raw requests.Response object.
-            Otherwise:
-                - For 200 responses, returns the parsed JSON response
-                - For 204 responses, returns True
-                - For other responses, raises ValueError or returns raw response based on raw_response setting
+            - For successful responses, returns the parsed JSON response
+            - For error responses, raises the appropriate exception
         """
         try:
             response = requests.request(
                 method=method,
-                url=f"{self._jira_url}/rest/api/3/{context_path.strip('/')}",
+                url=f"{self._jira_url}/rest/api/{api_version}/{context_path.strip('/')}",
                 params=params,
                 data=json.dumps(data) if data else None,
                 headers={
@@ -87,26 +86,10 @@ class JiraBase(ABC):
                 auth=HTTPBasicAuth(self._jira_user, self._jira_api_token),
             )
 
-            if self._raw_response:
-                return response
+            response.raise_for_status()
 
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 204:
-                return True
-
-            # For non-200/204 responses, either return raw response or raise error
-            if self._raw_response:
-                return response
-            raise ValueError(
-                f"HTTP error occurred: {response.status_code} - {response.text}"
-            )
-
-        except requests.exceptions.RequestException as req_err:
-            if self._raw_response:
-                raise req_err
-            raise ValueError(f"Request error: {req_err}") from req_err
-        except Exception as e:
-            if self._raw_response:
-                raise e
-            raise ValueError(f"Unexpected error: {e}") from e
+            return response.json()
+        except requests.exceptions.HTTPError as req_err:
+            raise req_err
+        except json.JSONDecodeError as json_err:
+            raise json_err
