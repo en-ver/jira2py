@@ -57,10 +57,10 @@ class JiraBase(ABC):
 
         # Store client configuration for session reuse
         self._client = None
-        self._client_config = {
+        self._client_config: dict[str, Any] = {
             "base_url": f"{self._jira_url}/rest/api/{JIRA_API_VERSION}",
             "headers": {"Accept": "application/json"},
-            "auth": httpx.BasicAuth(self._jira_user, self._jira_api_token),
+            "auth": httpx.BasicAuth(str(self._jira_user), str(self._jira_api_token)),
         }
 
     def __enter__(self):
