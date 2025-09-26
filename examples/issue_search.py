@@ -9,7 +9,7 @@ load_dotenv()
 search = IssueSearch()
 
 # Change the JQL query to the one you want to test
-jql = "project IN (PR) AND statuscategory IN ('In Progress')"
+jql = "project IN (PR)"
 
 
 # Search for issues using JQL
