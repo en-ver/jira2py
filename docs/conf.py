@@ -10,8 +10,8 @@ import os
 import sys
 
 # Add project root to Python path
-sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, os.path.abspath('../jira2py'))
+sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("../jira2py"))
 
 project = "jira2py"
 copyright = "2025, nEver"
@@ -22,9 +22,9 @@ author = "nEver"
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.viewcode", 
+    "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
-    "sphinx_sitemap"
+    "sphinx_sitemap",
 ]
 
 templates_path = ["_templates"]
