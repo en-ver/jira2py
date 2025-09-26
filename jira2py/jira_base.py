@@ -3,9 +3,8 @@ import os
 from abc import ABC
 from typing import Any, cast
 
-import requests
+import httpx
 from pydantic import EmailStr, HttpUrl, validate_call
-from requests.auth import HTTPBasicAuth
 
 JIRA_API_VERSION = 3
 
@@ -76,7 +75,7 @@ class JiraBase(ABC):
             list[dict[str, Any]]: The parsed JSON response as a list of dictionaries
 
         Raises:
-            requests.exceptions.HTTPError: For HTTP error responses
+            httpx.HTTPStatusError: For HTTP error responses
             json.JSONDecodeError: If the response cannot be parsed as JSON
         """
         response = self._request_jira(method, context_path, params, data)
@@ -104,7 +103,7 @@ class JiraBase(ABC):
             dict[str, Any]: The parsed JSON response as a dictionary
 
         Raises:
-            requests.exceptions.HTTPError: For HTTP error responses
+            httpx.HTTPStatusError: For HTTP error responses
             json.JSONDecodeError: If the response cannot be parsed as JSON
         """
         response = self._request_jira(method, context_path, params, data)
@@ -135,27 +134,27 @@ class JiraBase(ABC):
                 a dictionary (for single objects) or a list of dictionaries (for collections)
 
         Raises:
-            requests.exceptions.HTTPError: For HTTP error responses
+            httpx.HTTPStatusError: For HTTP error responses
             json.JSONDecodeError: If the response cannot be parsed as JSON
         """
         try:
-            response = requests.request(
-                method=method,
-                url=f"{self._jira_url}/rest/api/{JIRA_API_VERSION}/{context_path.strip('/')}",
-                params=params,
-                data=json.dumps(data) if data else None,
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
-                auth=HTTPBasicAuth(self._jira_user, self._jira_api_token),
-            )
+            with httpx.Client() as client:
+                response = client.request(
+                    method=method,
+                    url=f"{self._jira_url}/rest/api/{JIRA_API_VERSION}/{context_path.strip('/')}",
+                    params=params,
+                    json=data,
+                    headers={
+                        "Accept": "application/json",
+                    },
+                    auth=httpx.BasicAuth(self._jira_user, self._jira_api_token),
+                )
 
-            response.raise_for_status()
+                response.raise_for_status()
 
-            return response.json()
+                return response.json()
 
-        except requests.exceptions.HTTPError as req_err:
+        except httpx.HTTPStatusError as req_err:
             raise req_err
         except json.JSONDecodeError as json_err:
             raise json_err
