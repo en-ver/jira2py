@@ -114,8 +114,8 @@ class JiraBase(ABC):
         self,
         method: str,
         context_path: str,
-        params: dict | None = None,
-        data: dict | None = None,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         """Make a request to the JIRA API.
 
