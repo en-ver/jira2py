@@ -6,6 +6,8 @@ from typing import Any, overload
 import httpx
 from pydantic import EmailStr, HttpUrl, validate_call
 
+from .helpers import clean_none_values
+
 JIRA_API_VERSION = 3
 
 
@@ -65,7 +67,7 @@ class JiraBase(ABC):
         """Enter context and create HTTP client session."""
         if self._client is not None:
             raise RuntimeError("Jira client session is already active")
-        
+
         self._client = httpx.Client(**self._client_config)
         return self
 
@@ -130,23 +132,27 @@ class JiraBase(ABC):
             httpx.HTTPStatusError: For HTTP error responses
             json.JSONDecodeError: If the response cannot be parsed as JSON
         """
+        # Clean up params and data to remove None values
+        clean_params = clean_none_values(params)
+        clean_data = clean_none_values(data)
+
         try:
             if self._client is None:
                 # Fallback to single-use client (maintains backward compatibility)
                 with httpx.Client(**self._client_config) as client:
                     response = client.request(
                         method=method,
-                        url=context_path.lstrip('/'),
-                        params=params,
-                        json=data,
+                        url=context_path.lstrip("/"),
+                        params=clean_params,
+                        json=clean_data,
                     )
             else:
                 # Use the session client
                 response = self._client.request(
                     method=method,
-                    url=context_path.lstrip('/'),
-                    params=params,
-                    json=data,
+                    url=context_path.lstrip("/"),
+                    params=clean_params,
+                    json=clean_data,
                 )
 
             response.raise_for_status()
