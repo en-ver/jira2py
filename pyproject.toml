@@ -35,5 +35,7 @@ deployment = ["setuptools>=42", "wheel", "twine", "build"]
 dev = ["ipykernel"]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["jira2py*"]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
