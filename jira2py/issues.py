@@ -31,10 +31,10 @@ class Issues(JiraBase):
             requests.exceptions.RequestException: If the API request fails.
         """
 
-        kwargs = {
-            "method": "GET",
-            "context_path": f"issue/{issue_id}",
-            "params": {
+        return self._request_jira(
+            method="GET",
+            context_path=f"issue/{issue_id}",
+            params={
                 "fields": fields,
                 "fieldsByKeys": fields_by_keys,
                 "expand": expand,
@@ -42,9 +42,8 @@ class Issues(JiraBase):
                 "updateHistory": update_history,
                 "failFast": fail_fast,
             },
-        }
-
-        return self._request_jira_dict(**kwargs)
+            response_type=dict,
+        )
 
     @validate_call
     def get_changelogs(
@@ -66,16 +65,15 @@ class Issues(JiraBase):
             requests.exceptions.RequestException: If the API request fails.
         """
 
-        kwargs = {
-            "method": "GET",
-            "context_path": f"issue/{issue_id}/changelog",
-            "params": {
+        return self._request_jira(
+            method="GET",
+            context_path=f"issue/{issue_id}/changelog",
+            params={
                 "startAt": start_at,
                 "maxResults": max_results,
             },
-        }
-
-        return self._request_jira_list(**kwargs)
+            response_type=list,
+        )
 
     @validate_call
     def edit_issue(
@@ -116,17 +114,17 @@ class Issues(JiraBase):
         Raises:
             requests.exceptions.RequestException: If the API request fails.
         """
-        kwargs = {
-            "method": "PUT",
-            "context_path": f"issue/{issue_id}",
-            "params": {
+        return self._request_jira(
+            method="PUT",
+            context_path=f"issue/{issue_id}",
+            params={
                 "notifyUsers": notify_users,
                 "overrideScreenSecurity": override_screen_security,
                 "overrideEditableFlag": override_editable_flag,
                 "returnIssue": return_issue,
                 "expand": expand,
             },
-            "data": {
+            data={
                 "fields": fields,
                 "historyMetadata": history_metadata,
                 "properties": properties,
@@ -134,5 +132,5 @@ class Issues(JiraBase):
                 "update": update,
                 "additionalProperties": additional_properties,
             },
-        }
-        return self._request_jira_dict(**kwargs)
+            response_type=dict,
+        )

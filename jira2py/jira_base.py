@@ -1,7 +1,7 @@
 import json
 import os
 from abc import ABC
-from typing import Any, cast
+from typing import Any, overload
 
 import httpx
 from pydantic import EmailStr, HttpUrl, validate_call
@@ -12,7 +12,7 @@ JIRA_API_VERSION = 3
 class JiraBase(ABC):
     """Base class for JIRA operations providing authentication and common functionality.
 
-    This class provides standardized JIRA authentication and core operations. 
+    This class provides standardized JIRA authentication and core operations.
     Implementations can extend this to create specific JIRA clients with custom behaviors.
 
     Environment Variables:
@@ -53,61 +53,31 @@ class JiraBase(ABC):
                 "(JIRA_URL, JIRA_USER, JIRA_API_TOKEN)"
             )
 
-    def _request_jira_list(
+    @overload
+    def _request_jira(
         self,
         method: str,
         context_path: str,
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        *,
+        response_type: type[list],
     ) -> list[dict[str, Any]]:
-        """Make a request to the JIRA API that returns a list response.
+        """Overload for when we expect a list response."""
+        ...
 
-        This method is specifically used when the API endpoint returns a list of items.
-        It handles the request and returns the response as a list of dictionaries.
-
-        Args:
-            method: HTTP method to use
-            context_path: API endpoint path
-            params: Query parameters
-            data: Request body data
-
-        Returns:
-            list[dict[str, Any]]: The parsed JSON response as a list of dictionaries
-
-        Raises:
-            httpx.HTTPStatusError: For HTTP error responses
-            json.JSONDecodeError: If the response cannot be parsed as JSON
-        """
-        response = self._request_jira(method, context_path, params, data)
-        return cast(list[dict[str, Any]], response)
-
-    def _request_jira_dict(
+    @overload
+    def _request_jira(
         self,
         method: str,
         context_path: str,
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        *,
+        response_type: type[dict],
     ) -> dict[str, Any]:
-        """Make a request to the JIRA API that returns a dictionary response.
-
-        This method is specifically used when the API endpoint returns a single object.
-        It handles the request and returns the response as a dictionary.
-
-        Args:
-            method: HTTP method to use
-            context_path: API endpoint path
-            params: Query parameters
-            data: Request body data
-
-        Returns:
-            dict[str, Any]: The parsed JSON response as a dictionary
-
-        Raises:
-            httpx.HTTPStatusError: For HTTP error responses
-            json.JSONDecodeError: If the response cannot be parsed as JSON
-        """
-        response = self._request_jira(method, context_path, params, data)
-        return cast(dict[str, Any], response)
+        """Overload for when we expect a dict response."""
+        ...
 
     def _request_jira(
         self,
@@ -115,19 +85,20 @@ class JiraBase(ABC):
         context_path: str,
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        *,
+        response_type: type[list] | type[dict] = dict,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         """Make a request to the JIRA API.
 
         This is the base method for making HTTP requests to the JIRA API. It returns either
-        a dictionary or a list of dictionaries depending on the API endpoint. The methods
-        `_request_jira_dict` and `_request_jira_list` are type-specific wrappers that should
-        be used when the expected response type is known.
+        a dictionary or a list of dictionaries depending on the API endpoint.
 
         Args:
             method: HTTP method to use
             context_path: API endpoint path
             params: Query parameters
             data: Request body data
+            response_type: Type of response expected (dict or list)
 
         Returns:
             dict[str, Any] | list[dict[str, Any]]: The parsed JSON response as either

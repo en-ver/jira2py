@@ -39,10 +39,10 @@ class IssueSearch(JiraBase):
             dict: A dictionary containing the search results, including issues and metadata.
         """
 
-        kwargs = {
-            "method": "POST",
-            "context_path": "search/jql",
-            "data": {
+        return self._request_jira(
+            method="POST",
+            context_path="search/jql",
+            data={
                 "jql": jql,
                 "nextPageToken": next_page_token,
                 "maxResults": max_results,
@@ -53,6 +53,5 @@ class IssueSearch(JiraBase):
                 "failFast": fail_fast,
                 "reconcileIssues": reconcile_issues,
             },
-        }
-
-        return self._request_jira_dict(**kwargs)
+            response_type=dict,
+        )

@@ -13,29 +13,51 @@ issue_id = "PR-24446"
 
 
 # Get an issue by its ID
-def get_issue():
-    issue = issues.get_issue(issue_id)
-    pprint.pprint(issue)
+def get_issue(issue_key: str = issue_id) -> dict | None:
+    """Get an issue by its ID using the overloaded _request_jira method."""
+    try:
+        issue = issues.get_issue(issue_key)
+        pprint.pprint(issue)
+        return issue
+    except Exception as e:
+        print(f"Error getting issue {issue_key}: {e}")
+        return None
 
 
-def get_changelogs():
-    changelogs = issues.get_changelogs(issue_id)
-    pprint.pprint(changelogs)
+def get_changelogs(issue_key: str = issue_id) -> list[dict] | None:
+    """Get changelogs for an issue using the overloaded _request_jira method."""
+    try:
+        changelogs = issues.get_changelogs(issue_key)
+        pprint.pprint(changelogs)
+        return changelogs
+    except Exception as e:
+        print(f"Error getting changelogs for issue {issue_key}: {e}")
+        return None
 
 
-def edit_issue():
-    issue = issues.edit_issue(
-        issue_id=issue_id,
-        fields={"summary": "New summary"},
-        notify_users=False,
-        return_issue=True,
-    )
-    pprint.pprint(issue)
+def edit_issue(issue_key: str = issue_id) -> dict | None:
+    """Edit an issue using the overloaded _request_jira method."""
+    try:
+        issue = issues.edit_issue(
+            issue_id=issue_key,
+            fields={"summary": "New summary"},
+            notify_users=False,
+            return_issue=True,
+        )
+        pprint.pprint(issue)
+        return issue
+    except Exception as e:
+        print(f"Error editing issue {issue_key}: {e}")
+        return None
 
 
 if __name__ == "__main__":
+    print("Getting issue...")
     get_issue()
+
+    print("\nGetting changelogs...")
     get_changelogs()
 
     # Uncomment the function you want to test
+    # print("\nEditing issue...")
     # edit_issue()
