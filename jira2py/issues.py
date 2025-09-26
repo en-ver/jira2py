@@ -1,6 +1,8 @@
 from typing import Any
-from .jira_base import JiraBase
+
 from pydantic import validate_call
+
+from .jira_base import JiraBase
 
 
 class Issues(JiraBase):
@@ -42,7 +44,7 @@ class Issues(JiraBase):
             },
         }
 
-        return self._request_jira(**kwargs)
+        return self._request_jira_dict(**kwargs)
 
     @validate_call
     def get_changelogs(
@@ -50,7 +52,7 @@ class Issues(JiraBase):
         issue_id: str,
         start_at: int = 0,
         max_results: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get the changelogs for a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-changelog-get
 
@@ -73,7 +75,7 @@ class Issues(JiraBase):
             },
         }
 
-        return self._request_jira(**kwargs)
+        return self._request_jira_list(**kwargs)
 
     @validate_call
     def edit_issue(
@@ -90,7 +92,7 @@ class Issues(JiraBase):
         transitions: Any | None = None,
         update: dict | None = None,
         additional_properties: Any | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Edit a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put
 
@@ -133,4 +135,4 @@ class Issues(JiraBase):
                 "additionalProperties": additional_properties,
             },
         }
-        return self._request_jira(**kwargs)
+        return self._request_jira_dict(**kwargs)

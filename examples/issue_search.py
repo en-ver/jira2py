@@ -1,6 +1,8 @@
-from jira2py import IssueSearch
-from dotenv import load_dotenv
 import pprint
+
+from dotenv import load_dotenv
+
+from jira2py import IssueSearch
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
@@ -17,6 +19,4 @@ def enhanced_search():
 
 
 if __name__ == "__main__":
-    pass
-    # Uncomment the function you want to test
-    # enhanced_search()
+    enhanced_search()

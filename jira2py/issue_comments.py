@@ -1,6 +1,8 @@
-from .jira_base import JiraBase
-from pydantic import validate_call
 from typing import Literal
+
+from pydantic import validate_call
+
+from .jira_base import JiraBase
 
 
 class IssueComments(JiraBase):
@@ -39,4 +41,4 @@ class IssueComments(JiraBase):
             },
         }
 
-        return self._request_jira(**kwargs)
+        return self._request_jira_dict(**kwargs)

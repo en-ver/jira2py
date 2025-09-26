@@ -1,5 +1,8 @@
-from .jira_base import JiraBase
+from typing import Any
+
 from pydantic import validate_call
+
+from .jira_base import JiraBase
 
 
 class IssueSearch(JiraBase):
@@ -17,7 +20,7 @@ class IssueSearch(JiraBase):
         fields_by_keys: bool = False,
         fail_fast: bool = False,
         reconcile_issues: list[int] | None = [],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Searches for issues using JQL.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
 
@@ -52,4 +55,4 @@ class IssueSearch(JiraBase):
             },
         }
 
-        return self._request_jira(**kwargs)
+        return self._request_jira_dict(**kwargs)

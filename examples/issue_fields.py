@@ -1,6 +1,8 @@
-from jira2py import IssueFields
-from dotenv import load_dotenv
 import pprint
+
+from dotenv import load_dotenv
+
+from jira2py import IssueFields
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
@@ -14,6 +16,4 @@ def get_all_fields():
 
 
 if __name__ == "__main__":
-    pass
-    # Uncomment the function you want to test
-    # get_all_fields()
+    get_all_fields()

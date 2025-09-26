@@ -1,6 +1,8 @@
-from jira2py import Issues
-from dotenv import load_dotenv
 import pprint
+
+from dotenv import load_dotenv
+
+from jira2py import Issues
 
 # Make sure to set the environment variables in the .env file
 load_dotenv()
@@ -32,8 +34,8 @@ def edit_issue():
 
 
 if __name__ == "__main__":
-    pass
+    get_issue()
+    get_changelogs()
+
     # Uncomment the function you want to test
-    # get_issue()
-    # get_changelogs()
     # edit_issue()

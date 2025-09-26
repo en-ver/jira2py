@@ -1,12 +1,15 @@
-from .jira_base import JiraBase
+from typing import Any
+
 from pydantic import validate_call
+
+from .jira_base import JiraBase
 
 
 class IssueFields(JiraBase):
     """A class to interact with Jira's issue fields API."""
 
     @validate_call
-    def get_fields(self) -> list[dict]:
+    def get_fields(self) -> list[dict[str, Any]]:
         """Returns system and custom issue fields
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-fields/#api-rest-api-3-field-get
 
@@ -14,6 +17,11 @@ class IssueFields(JiraBase):
             list[dict]: List of issue fields
         """
 
-        kwargs = {"method": "GET", "context_path": "field"}
+        kwargs = {
+            "method": "GET",
+            "context_path": "field",
+            "params": None,
+            "data": None,
+        }
 
-        return self._request_jira(**kwargs)
+        return self._request_jira_list(**kwargs)
