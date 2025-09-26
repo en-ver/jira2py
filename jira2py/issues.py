@@ -20,12 +20,19 @@ class Issues(JiraBase):
         fail_fast: bool = False,
     ) -> dict:
         """Get details of a specific Jira issue.
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-get
 
         Args:
             issue_id (str): The ID or key of the issue to retrieve.
+            fields (str | None): A comma-separated list of fields to retrieve. Use "*all" for all fields.
+            fields_by_keys (bool): Whether fields are referenced by keys instead of IDs.
+            expand (str | None): A comma-separated list of properties to expand.
+            properties (list[str] | None): A list of properties to include in the response.
+            update_history (bool): Whether to update the issue history.
+            fail_fast (bool): Whether to fail fast if the issue does not exist.
 
         Returns:
-            dict: A dictionary containing the issue details including fields, transitions, editmeta, changelog, and operations.
+            dict: A dictionary containing the issue details.
 
         Raises:
             requests.exceptions.RequestException: If the API request fails.
@@ -57,6 +64,8 @@ class Issues(JiraBase):
 
         Args:
             issue_id (str): The ID or key of the issue to get changelogs for.
+            start_at (int): The index of the first item to return.
+            max_results (int): The maximum number of results to return.
 
         Returns:
             list[dict]: A list of dictionaries containing the changelog history for the issue.

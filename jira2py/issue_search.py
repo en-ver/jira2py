@@ -19,7 +19,7 @@ class IssueSearch(JiraBase):
         properties: list[str] | None = None,
         fields_by_keys: bool = False,
         fail_fast: bool = False,
-        reconcile_issues: list[int] | None = [],
+        reconcile_issues: list[int] | None = None,
     ) -> dict[str, Any]:
         """Searches for issues using JQL.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
