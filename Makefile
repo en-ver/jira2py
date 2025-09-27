@@ -19,7 +19,7 @@ format:
 
 # Run mypy type checking
 type-check:
-	mypy src
+	mypy src/jira2py/ --show-error-codes --strict
 
 # Run all checks
 check: lint format type-check

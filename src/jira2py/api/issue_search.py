@@ -1,12 +1,21 @@
-from typing import Any
+from typing import Any, cast
 
 from pydantic import validate_call
 
-from .jira_base import JiraBase
+from jira2py.client import JiraClientSync
+from jira2py.client import JiraCredentials
 
 
-class IssueSearch(JiraBase):
+class IssueSearch(JiraClientSync):
     """A class to interact with Jira's issue search API."""
+
+    def __init__(self, credentials: JiraCredentials | None = None):
+        """Initialize the IssueSearch client.
+
+        Args:
+            credentials: JIRA authentication credentials. If None, loads from environment.
+        """
+        super().__init__(credentials)
 
     @validate_call
     def enhanced_search(
@@ -37,21 +46,27 @@ class IssueSearch(JiraBase):
 
         Returns:
             dict: A dictionary containing the search results, including issues and metadata.
+
+        Raises:
+            requests.exceptions.RequestException: If the API request fails.
         """
 
-        return self._request_jira(
-            method="POST",
-            context_path="search/jql",
-            data={
-                "jql": jql,
-                "nextPageToken": next_page_token,
-                "maxResults": max_results,
-                "fields": fields,
-                "expand": expand,
-                "properties": properties,
-                "fieldsByKeys": fields_by_keys,
-                "failFast": fail_fast,
-                "reconcileIssues": reconcile_issues,
-            },
-            response_type=dict,
+        return cast(
+            dict[str, Any],
+            self._request_jira(
+                method="POST",
+                context_path="search/jql",
+                data={
+                    "jql": jql,
+                    "nextPageToken": next_page_token,
+                    "maxResults": max_results,
+                    "fields": fields,
+                    "expand": expand,
+                    "properties": properties,
+                    "fieldsByKeys": fields_by_keys,
+                    "failFast": fail_fast,
+                    "reconcileIssues": reconcile_issues,
+                },
+                response_type="dict",
+            ),
         )

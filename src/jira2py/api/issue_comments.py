@@ -1,12 +1,21 @@
-from typing import Literal
+from typing import Literal, cast, Any
 
 from pydantic import validate_call
 
-from .jira_base import JiraBase
+from jira2py.client import JiraClientSync
+from jira2py.client import JiraCredentials
 
 
-class IssueComments(JiraBase):
+class IssueComments(JiraClientSync):
     """A class to interact with Jira's issue comments API."""
+
+    def __init__(self, credentials: JiraCredentials | None = None):
+        """Initialize the IssueComments client.
+
+        Args:
+            credentials: JIRA authentication credentials. If None, loads from environment.
+        """
+        super().__init__(credentials)
 
     @validate_call
     def get_comments(
@@ -16,7 +25,7 @@ class IssueComments(JiraBase):
         max_results: int = 100,
         order_by: Literal["created", "-created", "updated", "-updated"] | None = None,
         expand: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Returns all comments for an issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-get
 
@@ -30,14 +39,17 @@ class IssueComments(JiraBase):
         Returns:
             dict: Comments and its metadata
         """
-        return self._request_jira(
-            method="GET",
-            context_path=f"issue/{issue_id}/comment",
-            params={
-                "startAt": start_at,
-                "maxResults": max_results,
-                "orderby": order_by,
-                "expand": expand,
-            },
-            response_type=dict,
+        return cast(
+            dict[str, Any],
+            self._request_jira(
+                method="GET",
+                context_path=f"issue/{issue_id}/comment",
+                params={
+                    "startAt": start_at,
+                    "maxResults": max_results,
+                    "orderby": order_by,
+                    "expand": expand,
+                },
+                response_type="dict",
+            ),
         )

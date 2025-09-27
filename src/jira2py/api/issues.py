@@ -1,12 +1,21 @@
-from typing import Any
+from typing import Any, cast
 
 from pydantic import validate_call
 
-from .jira_base import JiraBase
+from jira2py.client import JiraClientSync
+from jira2py.client import JiraCredentials
 
 
-class Issues(JiraBase):
+class Issues(JiraClientSync):
     """A class to interact with Jira's issues API."""
+
+    def __init__(self, credentials: JiraCredentials | None = None):
+        """Initialize the Issues client.
+
+        Args:
+            credentials: JIRA authentication credentials. If None, loads from environment.
+        """
+        super().__init__(credentials)
 
     @validate_call
     def get_issue(
@@ -18,7 +27,7 @@ class Issues(JiraBase):
         properties: list[str] | None = None,
         update_history: bool = False,
         fail_fast: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get details of a specific Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-get
 
@@ -38,18 +47,21 @@ class Issues(JiraBase):
             requests.exceptions.RequestException: If the API request fails.
         """
 
-        return self._request_jira(
-            method="GET",
-            context_path=f"issue/{issue_id}",
-            params={
-                "fields": fields,
-                "fieldsByKeys": fields_by_keys,
-                "expand": expand,
-                "properties": properties,
-                "updateHistory": update_history,
-                "failFast": fail_fast,
-            },
-            response_type=dict,
+        return cast(
+            dict[str, Any],
+            self._request_jira(
+                method="GET",
+                context_path=f"issue/{issue_id}",
+                params={
+                    "fields": fields,
+                    "fieldsByKeys": fields_by_keys,
+                    "expand": expand,
+                    "properties": properties,
+                    "updateHistory": update_history,
+                    "failFast": fail_fast,
+                },
+                response_type="dict",
+            ),
         )
 
     @validate_call
@@ -74,21 +86,24 @@ class Issues(JiraBase):
             requests.exceptions.RequestException: If the API request fails.
         """
 
-        return self._request_jira(
-            method="GET",
-            context_path=f"issue/{issue_id}/changelog",
-            params={
-                "startAt": start_at,
-                "maxResults": max_results,
-            },
-            response_type=list,
+        return cast(
+            list[dict[str, Any]],
+            self._request_jira(
+                method="GET",
+                context_path=f"issue/{issue_id}/changelog",
+                params={
+                    "startAt": start_at,
+                    "maxResults": max_results,
+                },
+                response_type="list",
+            ),
         )
 
     @validate_call
     def edit_issue(
         self,
         issue_id: str,
-        fields: dict,
+        fields: dict[str, Any],
         notify_users: bool = True,
         return_issue: bool = False,
         expand: str | None = None,
@@ -97,7 +112,7 @@ class Issues(JiraBase):
         history_metadata: Any | None = None,
         properties: list[Any] | None = None,
         transitions: Any | None = None,
-        update: dict | None = None,
+        update: dict[str, Any] | None = None,
         additional_properties: Any | None = None,
     ) -> dict[str, Any]:
         """Edit a Jira issue.
@@ -123,23 +138,26 @@ class Issues(JiraBase):
         Raises:
             requests.exceptions.RequestException: If the API request fails.
         """
-        return self._request_jira(
-            method="PUT",
-            context_path=f"issue/{issue_id}",
-            params={
-                "notifyUsers": notify_users,
-                "overrideScreenSecurity": override_screen_security,
-                "overrideEditableFlag": override_editable_flag,
-                "returnIssue": return_issue,
-                "expand": expand,
-            },
-            data={
-                "fields": fields,
-                "historyMetadata": history_metadata,
-                "properties": properties,
-                "transitions": transitions,
-                "update": update,
-                "additionalProperties": additional_properties,
-            },
-            response_type=dict,
+        return cast(
+            dict[str, Any],
+            self._request_jira(
+                method="PUT",
+                context_path=f"issue/{issue_id}",
+                params={
+                    "notifyUsers": notify_users,
+                    "overrideScreenSecurity": override_screen_security,
+                    "overrideEditableFlag": override_editable_flag,
+                    "returnIssue": return_issue,
+                    "expand": expand,
+                },
+                data={
+                    "fields": fields,
+                    "historyMetadata": history_metadata,
+                    "properties": properties,
+                    "transitions": transitions,
+                    "update": update,
+                    "additionalProperties": additional_properties,
+                },
+                response_type="dict",
+            ),
         )
