@@ -60,19 +60,6 @@ class JiraCredentials:
         object.__setattr__(self, "url", self.url.rstrip("/"))
 
     @property
-    def auth_header(self) -> dict[str, str]:
-        """Get the HTTP Basic Auth header for these credentials.
-
-        Returns:
-            dict: Dictionary containing Authorization header.
-        """
-        import base64
-
-        credentials_str = f"{self.username}:{self.api_token}"
-        encoded_credentials = base64.b64encode(credentials_str.encode()).decode()
-        return {"Authorization": f"Basic {encoded_credentials}"}
-
-    @property
     def base_url(self) -> str:
         """Get the base API URL for these credentials.
 
