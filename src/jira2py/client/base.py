@@ -56,7 +56,7 @@ class JiraClientBase(ABC):
         """
         client_class = httpx.AsyncClient if is_async else httpx.Client
         return client_class(
-            base_url=self.credentials.base_url,
+            base_url=f"{self.credentials.url}/rest/api/3",
             headers={"Accept": "application/json"},
             auth=httpx.BasicAuth(
                 self.credentials.username or "", self.credentials.api_token or ""
@@ -175,8 +175,8 @@ class JiraClientBase(ABC):
         clean_params = self._clean_none_values(merged_params)
         clean_data = self._clean_none_values(merged_data)
 
-        # Construct full URL
-        full_url = f"{self.credentials.base_url}/{context_path.lstrip('/')}"
+        # Construct full URL (httpx will prepend base_url automatically)
+        full_url = context_path.lstrip("/")
 
         # Prepare request kwargs
         request_kwargs: Dict[str, Any] = {
@@ -274,7 +274,7 @@ class JiraClientBase(ABC):
         Returns:
             Unique string key for this client configuration.
         """
-        return f"{self.credentials.base_url}:{self.credentials.username or 'anonymous'}"
+        return f"{self.credentials.url}:{self.credentials.username or 'anonymous'}"
 
     @classmethod
     def _cleanup_instance_resources(cls, client_key: str) -> None:

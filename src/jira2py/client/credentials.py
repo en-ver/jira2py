@@ -58,12 +58,3 @@ class JiraCredentials:
 
         # Clean URL by removing trailing slashes
         object.__setattr__(self, "url", self.url.rstrip("/"))
-
-    @property
-    def base_url(self) -> str:
-        """Get the base API URL for these credentials.
-
-        Returns:
-            str: Base URL for JIRA API requests.
-        """
-        return f"{self.url}/rest/api/3"
