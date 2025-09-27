@@ -23,6 +23,14 @@ class JiraClientBase(ABC):
     # Class-level storage for shared persistent clients
     _class_persistent_clients: Dict[str, Union[httpx.Client, httpx.AsyncClient]] = {}
 
+    # Default configuration constants
+    DEFAULT_TIMEOUT = 30.0
+    DEFAULT_CONNECT_TIMEOUT = 10.0
+    DEFAULT_POOL_TIMEOUT = 5.0
+    DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
+    DEFAULT_MAX_CONNECTIONS = 50
+    DEFAULT_KEEPALIVE_EXPIRY = 30.0
+
     def __init__(self, credentials: JiraCredentials):
         """Initialize the client with credentials.
 
@@ -43,12 +51,14 @@ class JiraClientBase(ABC):
             atexit.register(self.__class__._cleanup_all_clients)
             setattr(self.__class__, "_atexit_registered", True)
 
+    @classmethod
     def _create_client(
-        self, is_async: bool = False
+        cls, credentials: JiraCredentials, is_async: bool = False
     ) -> Union[httpx.Client, httpx.AsyncClient]:
         """Create HTTP client instance with connection pooling.
 
         Args:
+            credentials: JIRA authentication credentials.
             is_async: Whether to create async client (True) or sync client (False)
 
         Returns:
@@ -56,17 +66,21 @@ class JiraClientBase(ABC):
         """
         client_class = httpx.AsyncClient if is_async else httpx.Client
         return client_class(
-            base_url=f"{self.credentials.url}/rest/api/3",
+            base_url=f"{credentials.url}/rest/api/3",
             headers={"Accept": "application/json"},
             auth=httpx.BasicAuth(
-                self.credentials.username or "", self.credentials.api_token or ""
+                credentials.username or "", credentials.api_token or ""
             ),
             limits=httpx.Limits(
-                max_keepalive_connections=20,  # Reuse connections aggressively
-                max_connections=50,  # Allow concurrent connections
-                keepalive_expiry=30.0,  # Expire old connections after 30s
+                max_keepalive_connections=cls.DEFAULT_MAX_KEEPALIVE_CONNECTIONS,
+                max_connections=cls.DEFAULT_MAX_CONNECTIONS,
+                keepalive_expiry=cls.DEFAULT_KEEPALIVE_EXPIRY,
             ),
-            timeout=httpx.Timeout(30.0, connect=10.0, pool=5.0),
+            timeout=httpx.Timeout(
+                cls.DEFAULT_TIMEOUT,
+                connect=cls.DEFAULT_CONNECT_TIMEOUT,
+                pool=cls.DEFAULT_POOL_TIMEOUT,
+            ),
             http2=True,  # Enable HTTP/2 for better performance
         )
 

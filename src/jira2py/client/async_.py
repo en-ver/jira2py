@@ -48,7 +48,9 @@ class JiraClientAsync(JiraClientBase):
         Returns:
             httpx.AsyncClient: The asynchronous HTTP client instance.
         """
-        return cast(httpx.AsyncClient, self._create_client(is_async=True))
+        return cast(
+            httpx.AsyncClient, self._create_client(self.credentials, is_async=True)
+        )
 
     def _get_persistent_client(self) -> httpx.AsyncClient:
         """Get or create the shared persistent asynchronous HTTP client.
@@ -58,7 +60,7 @@ class JiraClientAsync(JiraClientBase):
         """
         # Use class-level shared client instead of instance-level
         if self._client_key not in self._class_persistent_clients:
-            client = self._create_client(is_async=True)
+            client = self._create_client(self.credentials, is_async=True)
             assert isinstance(client, httpx.AsyncClient), (
                 "Expected httpx.AsyncClient for async client"
             )

@@ -48,7 +48,7 @@ class JiraClientSync(JiraClientBase):
         Returns:
             httpx.Client: The HTTP client instance.
         """
-        return cast(httpx.Client, self._create_client(is_async=False))
+        return cast(httpx.Client, self._create_client(self.credentials, is_async=False))
 
     def close(self) -> None:
         """Close the HTTP client references (doesn't close shared persistent client)."""
@@ -66,7 +66,7 @@ class JiraClientSync(JiraClientBase):
         """
         # Use class-level shared client instead of instance-level
         if self._client_key not in self._class_persistent_clients:
-            client = self._create_client(is_async=False)
+            client = self._create_client(self.credentials, is_async=False)
             assert isinstance(client, httpx.Client), (
                 "Expected httpx.Client for sync client"
             )
