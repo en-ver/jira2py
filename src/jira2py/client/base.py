@@ -1,5 +1,7 @@
 """Base JIRA client implementation."""
 
+import atexit
+import weakref
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union, cast
 
@@ -18,6 +20,9 @@ class JiraClientBase(ABC):
         credentials: JIRA authentication credentials.
     """
 
+    # Class-level storage for shared persistent clients
+    _class_persistent_clients: Dict[str, Union[httpx.Client, httpx.AsyncClient]] = {}
+
     def __init__(self, credentials: JiraCredentials):
         """Initialize the client with credentials.
 
@@ -26,11 +31,22 @@ class JiraClientBase(ABC):
         """
         self.credentials = credentials
         self._client: Any = None
+        self._client_key = self._get_client_key()
+
+        # Register automatic cleanup
+        self._finalizer = weakref.finalize(
+            self, self._cleanup_instance_resources, self._client_key
+        )
+
+        # Register atexit cleanup if not already registered
+        if not hasattr(self.__class__, "_atexit_registered"):
+            atexit.register(self.__class__._cleanup_all_clients)
+            setattr(self.__class__, "_atexit_registered", True)
 
     def _create_client(
         self, is_async: bool = False
     ) -> Union[httpx.Client, httpx.AsyncClient]:
-        """Create HTTP client instance.
+        """Create HTTP client instance with connection pooling.
 
         Args:
             is_async: Whether to create async client (True) or sync client (False)
@@ -45,6 +61,13 @@ class JiraClientBase(ABC):
             auth=httpx.BasicAuth(
                 self.credentials.username or "", self.credentials.api_token or ""
             ),
+            limits=httpx.Limits(
+                max_keepalive_connections=20,  # Reuse connections aggressively
+                max_connections=50,  # Allow concurrent connections
+                keepalive_expiry=30.0,  # Expire old connections after 30s
+            ),
+            timeout=httpx.Timeout(30.0, connect=10.0, pool=5.0),
+            http2=True,  # Enable HTTP/2 for better performance
         )
 
     @abstractmethod
@@ -244,3 +267,51 @@ class JiraClientBase(ABC):
         # For now, just re-raise the original error
         # This can be enhanced later with custom exception types
         return error
+
+    def _get_client_key(self) -> str:
+        """Generate unique key for this credentials configuration.
+
+        Returns:
+            Unique string key for this client configuration.
+        """
+        return f"{self.credentials.base_url}:{self.credentials.username or 'anonymous'}"
+
+    @classmethod
+    def _cleanup_instance_resources(cls, client_key: str) -> None:
+        """Cleanup resources for a specific client instance.
+
+        Args:
+            client_key: The key identifying the client to cleanup.
+        """
+        # This method is called by weakref.finalizer when an instance is garbage collected
+        # We don't actually cleanup the shared client here, as other instances might still use it
+        # The actual cleanup happens in _cleanup_all_clients at program exit
+        pass
+
+    @classmethod
+    def _cleanup_all_clients(cls) -> None:
+        """Cleanup all persistent clients at program exit."""
+        for client_key, client in list(cls._class_persistent_clients.items()):
+            try:
+                if isinstance(client, httpx.AsyncClient):
+                    # Handle async client
+                    import asyncio
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # Create task but don't wait for it
+                            loop.create_task(client.aclose())
+                        else:
+                            # Run in new event loop
+                            asyncio.run(client.aclose())
+                    except Exception:
+                        # If asyncio fails, we can't do much more
+                        pass
+                elif isinstance(client, httpx.Client):
+                    # Handle sync client
+                    client.close()
+            except Exception:
+                # Ignore cleanup errors
+                pass
+        cls._class_persistent_clients.clear()

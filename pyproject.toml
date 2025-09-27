@@ -25,7 +25,7 @@ dependencies = [
     "email-validator>=2.3.0,<3",
     "pydantic>=2.11.0,<3",
     "python-dotenv>=1.1.0,<2",
-    "httpx>=0.28.0,<1",
+    "httpx[http2]>=0.28.0,<1",
 ]
 
 [project.urls]
@@ -36,21 +36,11 @@ Documentation = "https://jira2py.org/"
 
 [project.optional-dependencies]
 deployment = ["wheel", "twine", "build"]
-dev = [
-    "ipykernel",
-    "ruff",
-    "mypy",
-]
-docs = [
-    "sphinx>=7.0.0",
-    "pydata-sphinx-theme>=0.13.0",
-    "sphinx-sitemap>=2.5.0",
-]
+dev = ["ipykernel", "ruff", "mypy"]
+docs = ["sphinx>=7.0.0", "pydata-sphinx-theme>=0.13.0", "sphinx-sitemap>=2.5.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [dependency-groups]
-dev = [
-    "mypy>=1.18.2",
-]
+dev = ["mypy>=1.18.2"]
