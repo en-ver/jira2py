@@ -24,6 +24,31 @@ def enhanced_search(query: str = jql) -> dict | None:
         return None
 
 
+def enhanced_search_with_extra_params(query: str = jql) -> dict | None:
+    """Search for issues using JQL with additional parameters."""
+    try:
+        # Example of using extra_params to add additional query parameters
+        extra_params = {"startAt": 0, "maxResults": 10}
+
+        # Example of using extra_data to add additional data parameters
+        extra_data = {"fieldsByKeys": True, "expand": "changelog,renderedFields"}
+
+        search_results = search.enhanced_search(
+            jql=query,
+            fields=["summary", "status"],
+            extra_params=extra_params,
+            extra_data=extra_data,
+        )
+        pprint.pprint(search_results)
+        return search_results
+    except Exception as e:
+        print(f"Error searching issues with extra params '{query}': {e}")
+        return None
+
+
 if __name__ == "__main__":
     print("Performing enhanced search...")
     enhanced_search()
+
+    print("\nPerforming enhanced search with extra params...")
+    enhanced_search_with_extra_params()

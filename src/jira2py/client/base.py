@@ -50,6 +50,8 @@ class JiraClientBase(ABC):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         *,
+        extra_params: dict[str, Any] | None = None,
+        extra_data: dict[str, Any] | None = None,
         response_type: str = "dict",
     ) -> Any:
         """Make a request to the JIRA API using template method pattern.
@@ -69,7 +71,7 @@ class JiraClientBase(ABC):
         """
         # Prepare request parameters (shared logic)
         method, full_url, request_kwargs = self._prepare_request(
-            method, context_path, params, data
+            method, context_path, params, data, extra_params, extra_data
         )
 
         # Use context client if available, otherwise get persistent client
@@ -107,6 +109,8 @@ class JiraClientBase(ABC):
         context_path: str,
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        extra_params: dict[str, Any] | None = None,
+        extra_data: dict[str, Any] | None = None,
     ) -> tuple[str, str, dict[str, Any]]:
         """Prepare request parameters.
 
@@ -119,9 +123,13 @@ class JiraClientBase(ABC):
         Returns:
             Tuple of (method, full_url, request_kwargs)
         """
-        # Clean up params and data to remove None values
-        clean_params = self._clean_none_values(params)
-        clean_data = self._clean_none_values(data)
+        # Merge dictionaries just before cleaning
+        merged_params = self._merge_dict(extra_params, params or {})
+        merged_data = self._merge_dict(extra_data, data or {})
+
+        # Clean up merged params and data
+        clean_params = self._clean_none_values(merged_params)
+        clean_data = self._clean_none_values(merged_data)
 
         # Construct full URL
         full_url = f"{self.credentials.base_url}/{context_path.lstrip('/')}"
@@ -138,6 +146,33 @@ class JiraClientBase(ABC):
             request_kwargs["json"] = clean_data
 
         return method, full_url, request_kwargs
+
+    def _merge_dict(
+        self, extra_dict: dict[str, Any] | None, public_dict: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Merge two dictionaries with public parameters having higher priority.
+
+        When both dictionaries contain the same key, the value from public_dict
+        takes precedence over the value from extra_dict. This allows users to
+        provide additional parameters while ensuring explicitly defined public
+        API parameters are never overridden.
+
+        Args:
+            extra_dict: Additional parameters provided by user (lower priority)
+            public_dict: Public API parameters (higher priority)
+
+        Returns:
+            Merged dictionary where public parameters override extra parameters
+
+        Example:
+            >>> extra = {"param1": "value1", "param2": "value2"}
+            >>> public = {"param2": "override", "param3": "value3"}
+            >>> result = self._merge_dict(extra, public)
+            >>> # Result: {"param1": "value1", "param2": "override", "param3": "value3"}
+        """
+        if extra_dict is None:
+            return public_dict
+        return {**extra_dict, **public_dict}
 
     def _clean_none_values(self, data: Any) -> dict[str, Any] | list[Any] | None:
         """Recursively remove keys with falsy values from nested dictionaries and lists.

@@ -24,6 +24,28 @@ def get_comments(issue_key: str = issue_id) -> dict | None:
         return None
 
 
+def get_comments_with_extra_params(issue_key: str = issue_id) -> dict | None:
+    """Get comments for an issue with additional query parameters."""
+    try:
+        # Example of using extra_params to add additional query parameters
+        extra_params = {
+            "startAt": 0,
+            "maxResults": 5,
+            "orderBy": "-created",  # Get newest comments first
+        }
+        jira_comments = comments.get_comments(
+            issue_id=issue_key, expand="renderedBody", extra_params=extra_params
+        )
+        pprint.pprint(jira_comments)
+        return jira_comments
+    except Exception as e:
+        print(f"Error getting comments with extra params for issue {issue_key}: {e}")
+        return None
+
+
 if __name__ == "__main__":
     print("Getting comments...")
     get_comments()
+
+    print("\nGetting comments with extra params...")
+    get_comments_with_extra_params()

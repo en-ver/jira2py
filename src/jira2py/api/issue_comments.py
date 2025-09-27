@@ -25,6 +25,7 @@ class IssueComments(JiraClientSync):
         max_results: int = 100,
         order_by: Literal["created", "-created", "updated", "-updated"] | None = None,
         expand: str | None = None,
+        extra_params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Returns all comments for an issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-get
@@ -35,6 +36,7 @@ class IssueComments(JiraClientSync):
             max_results (int): The maximum number of comments to return.
             order_by (Literal["created", "-created", "updated", "-updated"] | None): The field to order the comments by.
             expand (str | None): A comma-separated list of fields to expand. This parameter accepts `renderedBody`, which returns the comment body rendered in HTML.
+            extra_params (dict[str, Any] | None): Additional query parameters to include in the request.
 
         Returns:
             dict: Comments and its metadata
@@ -50,6 +52,7 @@ class IssueComments(JiraClientSync):
                     "orderby": order_by,
                     "expand": expand,
                 },
+                extra_params=extra_params,
                 response_type="dict",
             ),
         )

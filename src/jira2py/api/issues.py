@@ -22,11 +22,8 @@ class Issues(JiraClientSync):
         self,
         issue_id: str,
         fields: str | None = None,
-        fields_by_keys: bool = False,
         expand: str | None = None,
-        properties: list[str] | None = None,
-        update_history: bool = False,
-        fail_fast: bool = False,
+        extra_params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Get details of a specific Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-get
@@ -34,11 +31,8 @@ class Issues(JiraClientSync):
         Args:
             issue_id (str): The ID or key of the issue to retrieve.
             fields (str | None): A comma-separated list of fields to retrieve. Use "*all" for all fields.
-            fields_by_keys (bool): Whether fields are referenced by keys instead of IDs.
             expand (str | None): A comma-separated list of properties to expand.
-            properties (list[str] | None): A list of properties to include in the response.
-            update_history (bool): Whether to update the issue history.
-            fail_fast (bool): Whether to fail fast if the issue does not exist.
+            extra_params (dict[str, Any] | None): Additional query parameters to include in the request.
 
         Returns:
             dict: A dictionary containing the issue details.
@@ -54,12 +48,9 @@ class Issues(JiraClientSync):
                 context_path=f"issue/{issue_id}",
                 params={
                     "fields": fields,
-                    "fieldsByKeys": fields_by_keys,
                     "expand": expand,
-                    "properties": properties,
-                    "updateHistory": update_history,
-                    "failFast": fail_fast,
                 },
+                extra_params=extra_params,
                 response_type="dict",
             ),
         )
@@ -70,6 +61,7 @@ class Issues(JiraClientSync):
         issue_id: str,
         start_at: int = 0,
         max_results: int = 50,
+        extra_params: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Get the changelogs for a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-changelog-get
@@ -78,6 +70,7 @@ class Issues(JiraClientSync):
             issue_id (str): The ID or key of the issue to get changelogs for.
             start_at (int): The index of the first item to return.
             max_results (int): The maximum number of results to return.
+            extra_params (dict[str, Any] | None): Additional query parameters to include in the request.
 
         Returns:
             list[dict]: A list of dictionaries containing the changelog history for the issue.
@@ -95,6 +88,7 @@ class Issues(JiraClientSync):
                     "startAt": start_at,
                     "maxResults": max_results,
                 },
+                extra_params=extra_params,
                 response_type="list",
             ),
         )
@@ -107,13 +101,8 @@ class Issues(JiraClientSync):
         notify_users: bool = True,
         return_issue: bool = False,
         expand: str | None = None,
-        override_screen_security: bool = False,
-        override_editable_flag: bool = False,
-        history_metadata: Any | None = None,
-        properties: list[Any] | None = None,
-        transitions: Any | None = None,
-        update: dict[str, Any] | None = None,
-        additional_properties: Any | None = None,
+        extra_params: dict[str, Any] | None = None,
+        extra_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Edit a Jira issue.
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put
@@ -124,13 +113,8 @@ class Issues(JiraClientSync):
             notify_users (bool, optional): Whether to send email notifications for the update. Defaults to True.
             return_issue (bool, optional): Whether to return the updated issue. Defaults to False.
             expand (str, optional): A comma-separated list of properties to expand.
-            override_screen_security (bool, optional): Whether to override screen security. Defaults to False.
-            override_editable_flag (bool, optional): Whether to override the editable flag. Defaults to False.
-            history_metadata (Any, optional): The history metadata.
-            properties (list[Any], optional): The properties.
-            transitions (Any, optional): The transitions.
-            update (dict, optional): The update.
-            additional_properties (Any, optional): The additional properties.
+            extra_params (dict[str, Any] | None): Additional query parameters to include in the request.
+            extra_data (dict[str, Any] | None): Additional data parameters to include in the request body.
 
         Returns:
             dict: The updated issue details.
@@ -145,19 +129,14 @@ class Issues(JiraClientSync):
                 context_path=f"issue/{issue_id}",
                 params={
                     "notifyUsers": notify_users,
-                    "overrideScreenSecurity": override_screen_security,
-                    "overrideEditableFlag": override_editable_flag,
                     "returnIssue": return_issue,
                     "expand": expand,
                 },
                 data={
                     "fields": fields,
-                    "historyMetadata": history_metadata,
-                    "properties": properties,
-                    "transitions": transitions,
-                    "update": update,
-                    "additionalProperties": additional_properties,
                 },
+                extra_params=extra_params,
+                extra_data=extra_data,
                 response_type="dict",
             ),
         )
