@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union, cast
 
+import httpx
+
 from .credentials import JiraCredentials
 
 
@@ -24,6 +26,26 @@ class JiraClientBase(ABC):
         """
         self.credentials = credentials
         self._client: Any = None
+
+    def _create_client(
+        self, is_async: bool = False
+    ) -> Union[httpx.Client, httpx.AsyncClient]:
+        """Create HTTP client instance.
+
+        Args:
+            is_async: Whether to create async client (True) or sync client (False)
+
+        Returns:
+            httpx.Client or httpx.AsyncClient instance
+        """
+        client_class = httpx.AsyncClient if is_async else httpx.Client
+        return client_class(
+            base_url=self.credentials.base_url,
+            headers={"Accept": "application/json"},
+            auth=httpx.BasicAuth(
+                self.credentials.username or "", self.credentials.api_token or ""
+            ),
+        )
 
     @abstractmethod
     def _get_client(self) -> Any:
@@ -85,15 +107,11 @@ class JiraClientBase(ABC):
         # Handle response (shared logic)
         return self._handle_response(response)
 
-    @abstractmethod
     def _make_request(self, client: Any, method: str, url: str, **kwargs: Any) -> Any:
-        """Make the actual HTTP request (hook method).
-
-        This method is implemented by sync and async subclasses to handle
-        their specific HTTP request patterns.
+        """Make HTTP request (handles both sync and async).
 
         Args:
-            client: The HTTP client instance (sync or async)
+            client: HTTP client instance (sync or async)
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
             url: Full URL for the request
             **kwargs: Additional request parameters
@@ -101,7 +119,10 @@ class JiraClientBase(ABC):
         Returns:
             HTTP response object
         """
-        pass
+        if isinstance(client, httpx.AsyncClient):
+            return client.request(method, url, **kwargs)
+        else:
+            return client.request(method, url, **kwargs)
 
     def _prepare_request(
         self,

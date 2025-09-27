@@ -1,6 +1,6 @@
 """Synchronous JIRA client implementation."""
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -47,13 +47,7 @@ class JiraClientSync(JiraClientBase):
         Returns:
             httpx.Client: The HTTP client instance.
         """
-        return httpx.Client(
-            base_url=self.credentials.base_url,
-            headers={"Accept": "application/json"},
-            auth=httpx.BasicAuth(
-                self.credentials.username or "", self.credentials.api_token or ""
-            ),
-        )
+        return cast(httpx.Client, self._create_client(is_async=False))
 
     def close(self) -> None:
         """Close the HTTP client."""
@@ -71,30 +65,10 @@ class JiraClientSync(JiraClientBase):
             httpx.Client: The persistent HTTP client instance.
         """
         if self._persistent_client is None:
-            self._persistent_client = httpx.Client(
-                base_url=self.credentials.base_url,
-                headers={"Accept": "application/json"},
-                auth=httpx.BasicAuth(
-                    self.credentials.username or "", self.credentials.api_token or ""
-                ),
+            self._persistent_client = cast(
+                httpx.Client, self._create_client(is_async=False)
             )
         return self._persistent_client
-
-    def _make_request(
-        self, client: httpx.Client, method: str, url: str, **kwargs: Any
-    ) -> Any:
-        """Make a synchronous HTTP request.
-
-        Args:
-            client: The synchronous HTTP client instance
-            method: HTTP method (GET, POST, PUT, DELETE, etc.)
-            url: Full URL for the request
-            **kwargs: Additional request parameters
-
-        Returns:
-            HTTP response object
-        """
-        return client.request(method, url, **kwargs)
 
     def __enter__(self) -> "JiraClientSync":
         """Enter context manager and create client session."""

@@ -1,6 +1,6 @@
 """Asynchronous JIRA client implementation."""
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -47,13 +47,7 @@ class JiraClientAsync(JiraClientBase):
         Returns:
             httpx.AsyncClient: The asynchronous HTTP client instance.
         """
-        return httpx.AsyncClient(
-            base_url=self.credentials.base_url,
-            headers={"Accept": "application/json"},
-            auth=httpx.BasicAuth(
-                self.credentials.username or "", self.credentials.api_token or ""
-            ),
-        )
+        return cast(httpx.AsyncClient, self._create_client(is_async=True))
 
     def _get_persistent_client(self) -> httpx.AsyncClient:
         """Get or create the persistent asynchronous HTTP client.
@@ -62,12 +56,8 @@ class JiraClientAsync(JiraClientBase):
             httpx.AsyncClient: The persistent asynchronous HTTP client instance.
         """
         if self._persistent_client is None:
-            self._persistent_client = httpx.AsyncClient(
-                base_url=self.credentials.base_url,
-                headers={"Accept": "application/json"},
-                auth=httpx.BasicAuth(
-                    self.credentials.username or "", self.credentials.api_token or ""
-                ),
+            self._persistent_client = cast(
+                httpx.AsyncClient, self._create_client(is_async=True)
             )
         return self._persistent_client
 
@@ -79,22 +69,6 @@ class JiraClientAsync(JiraClientBase):
         if self._persistent_client:
             await self._persistent_client.aclose()
             self._persistent_client = None
-
-    async def _make_request(
-        self, client: httpx.AsyncClient, method: str, url: str, **kwargs: Any
-    ) -> Any:
-        """Make an asynchronous HTTP request.
-
-        Args:
-            client: The asynchronous HTTP client instance
-            method: HTTP method (GET, POST, PUT, DELETE, etc.)
-            url: Full URL for the request
-            **kwargs: Additional request parameters
-
-        Returns:
-            HTTP response object
-        """
-        return await client.request(method, url, **kwargs)
 
     async def __aenter__(self) -> "JiraClientAsync":
         """Enter async context manager and create client session."""
