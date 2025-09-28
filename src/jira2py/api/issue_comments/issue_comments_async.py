@@ -1,13 +1,16 @@
-from typing import Literal, cast, Any
+"""Asynchronous IssueComments API implementation."""
+
+from typing import Any, Literal, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync
-from jira2py.client import JiraCredentials
+from jira2py.client import JiraClientAsync, JiraCredentials
+
+from .issue_comments import IssueCommentsBase
 
 
-class IssueComments(JiraClientSync):
-    """A class to interact with Jira's issue comments API."""
+class IssueCommentsAsync(IssueCommentsBase):
+    """A class to interact with Jira's issue comments API (asynchronous)."""
 
     def __init__(self, credentials: JiraCredentials | None = None):
         """Initialize the IssueComments client.
@@ -15,10 +18,10 @@ class IssueComments(JiraClientSync):
         Args:
             credentials: JIRA authentication credentials. If None, loads from environment.
         """
-        super().__init__(credentials)
+        super().__init__(JiraClientAsync(credentials))
 
     @validate_call
-    def get_comments(
+    async def get_comments(
         self,
         issue_id: str,
         start_at: int = 0,
@@ -41,18 +44,10 @@ class IssueComments(JiraClientSync):
         Returns:
             dict: Comments and its metadata
         """
+        request_config = self._get_comments_request_config(
+            issue_id, start_at, max_results, order_by, expand, extra_params
+        )
         return cast(
             dict[str, Any],
-            self._request_jira(
-                method="GET",
-                context_path=f"issue/{issue_id}/comment",
-                params={
-                    "startAt": start_at,
-                    "maxResults": max_results,
-                    "orderby": order_by,
-                    "expand": expand,
-                },
-                extra_params=extra_params,
-                response_type="dict",
-            ),
+            await self._client._request_jira(**request_config),
         )

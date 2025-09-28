@@ -91,3 +91,43 @@ class JiraClientSync(JiraClientBase):
         """Exit context manager and clear client reference."""
         # Just clear the reference, don't close the persistent client
         self._client = None
+
+    def _request_jira(
+        self,
+        method: str,
+        context_path: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        *,
+        extra_params: dict[str, Any] | None = None,
+        extra_data: dict[str, Any] | None = None,
+        response_type: str = "dict",
+    ) -> Any:
+        """Make a synchronous request to the JIRA API.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            context_path: API endpoint path (without leading slash)
+            params: Query parameters
+            data: Request body data
+            response_type: Expected response type ("dict" or "list")
+
+        Returns:
+            Response data as dict or list based on response_type parameter.
+        """
+        # Get prepared request components from base
+        client, method, full_url, request_kwargs = self._request_jira_base(
+            method,
+            context_path,
+            params,
+            data,
+            extra_params=extra_params,
+            extra_data=extra_data,
+            response_type=response_type,
+        )
+
+        # Make synchronous HTTP request
+        response = client.request(method, full_url, **request_kwargs)
+
+        # Handle response using shared logic
+        return self._handle_response_result(response)

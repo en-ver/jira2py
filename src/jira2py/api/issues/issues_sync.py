@@ -1,13 +1,16 @@
+"""Synchronous Issues API implementation."""
+
 from typing import Any, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync
-from jira2py.client import JiraCredentials
+from jira2py.client import JiraClientSync, JiraCredentials
+
+from .issues import IssuesBase
 
 
-class Issues(JiraClientSync):
-    """A class to interact with Jira's issues API."""
+class Issues(IssuesBase):
+    """A class to interact with Jira's issues API (synchronous)."""
 
     def __init__(self, credentials: JiraCredentials | None = None):
         """Initialize the Issues client.
@@ -15,7 +18,7 @@ class Issues(JiraClientSync):
         Args:
             credentials: JIRA authentication credentials. If None, loads from environment.
         """
-        super().__init__(credentials)
+        super().__init__(JiraClientSync(credentials))
 
     @validate_call
     def get_issue(
@@ -40,19 +43,12 @@ class Issues(JiraClientSync):
         Raises:
             requests.exceptions.RequestException: If the API request fails.
         """
-
+        request_config = self._get_issue_request_config(
+            issue_id, fields, expand, extra_params
+        )
         return cast(
             dict[str, Any],
-            self._request_jira(
-                method="GET",
-                context_path=f"issue/{issue_id}",
-                params={
-                    "fields": fields,
-                    "expand": expand,
-                },
-                extra_params=extra_params,
-                response_type="dict",
-            ),
+            self._client._request_jira(**request_config),
         )
 
     @validate_call
@@ -78,19 +74,12 @@ class Issues(JiraClientSync):
         Raises:
             requests.exceptions.RequestException: If the API request fails.
         """
-
+        request_config = self._get_changelogs_request_config(
+            issue_id, start_at, max_results, extra_params
+        )
         return cast(
             list[dict[str, Any]],
-            self._request_jira(
-                method="GET",
-                context_path=f"issue/{issue_id}/changelog",
-                params={
-                    "startAt": start_at,
-                    "maxResults": max_results,
-                },
-                extra_params=extra_params,
-                response_type="list",
-            ),
+            self._client._request_jira(**request_config),
         )
 
     @validate_call
@@ -122,21 +111,16 @@ class Issues(JiraClientSync):
         Raises:
             requests.exceptions.RequestException: If the API request fails.
         """
+        request_config = self._edit_issue_request_config(
+            issue_id,
+            fields,
+            notify_users,
+            return_issue,
+            expand,
+            extra_params,
+            extra_data,
+        )
         return cast(
             dict[str, Any],
-            self._request_jira(
-                method="PUT",
-                context_path=f"issue/{issue_id}",
-                params={
-                    "notifyUsers": notify_users,
-                    "returnIssue": return_issue,
-                    "expand": expand,
-                },
-                data={
-                    "fields": fields,
-                },
-                extra_params=extra_params,
-                extra_data=extra_data,
-                response_type="dict",
-            ),
+            self._client._request_jira(**request_config),
         )

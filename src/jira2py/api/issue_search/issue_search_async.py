@@ -1,12 +1,16 @@
+"""Asynchronous IssueSearch API implementation."""
+
 from typing import Any, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync, JiraCredentials
+from jira2py.client import JiraClientAsync, JiraCredentials
+
+from .issue_search import IssueSearchBase
 
 
-class IssueSearch(JiraClientSync):
-    """A class to interact with Jira's issue search API."""
+class IssueSearchAsync(IssueSearchBase):
+    """A class to interact with Jira's issue search API (asynchronous)."""
 
     def __init__(self, credentials: JiraCredentials | None = None):
         """Initialize the IssueSearch client.
@@ -14,10 +18,10 @@ class IssueSearch(JiraClientSync):
         Args:
             credentials: JIRA authentication credentials. If None, loads from environment.
         """
-        super().__init__(credentials)
+        super().__init__(JiraClientAsync(credentials))
 
     @validate_call
-    def enhanced_search(
+    async def enhanced_search(
         self,
         jql: str,
         next_page_token: str | None = None,
@@ -45,21 +49,10 @@ class IssueSearch(JiraClientSync):
         Raises:
             requests.exceptions.RequestException: If the API request fails.
         """
-
+        request_config = self._enhanced_search_request_config(
+            jql, next_page_token, max_results, fields, expand, extra_params, extra_data
+        )
         return cast(
             dict[str, Any],
-            self._request_jira(
-                method="POST",
-                context_path="search/jql",
-                data={
-                    "jql": jql,
-                    "nextPageToken": next_page_token,
-                    "maxResults": max_results,
-                    "fields": fields,
-                    "expand": expand,
-                },
-                extra_params=extra_params,
-                extra_data=extra_data,
-                response_type="dict",
-            ),
+            await self._client._request_jira(**request_config),
         )

@@ -102,7 +102,7 @@ class JiraClientBase(ABC):
         """
         pass
 
-    def _request_jira(
+    def _request_jira_base(
         self,
         method: str,
         context_path: str,
@@ -113,7 +113,7 @@ class JiraClientBase(ABC):
         extra_data: dict[str, Any] | None = None,
         response_type: str = "dict",
     ) -> Any:
-        """Make a request to the JIRA API.
+        """Make a request to the JIRA API using the provided HTTP call function.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
@@ -135,10 +135,18 @@ class JiraClientBase(ABC):
             self._client if self._client is not None else self._get_persistent_client()
         )
 
-        # Make HTTP request directly
-        response = client.request(method, full_url, **request_kwargs)
+        # Return client and request kwargs for the specific HTTP call
+        return client, method, full_url, request_kwargs
 
-        # Handle response
+    def _handle_response_result(self, response: Any) -> Any:
+        """Handle HTTP response and extract JSON data.
+
+        Args:
+            response: HTTP response object
+
+        Returns:
+            Parsed JSON response as dict or list.
+        """
         return self._handle_response(response)
 
     def _prepare_request(
