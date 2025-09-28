@@ -1,7 +1,7 @@
 """JIRA client implementations."""
 
-from .async_ import JiraClientAsync
+from .client_async import JiraClientAsync
 from .credentials import JiraCredentials
-from .sync import JiraClientSync
+from .client_sync import JiraClientSync
 
 __all__ = ["JiraCredentials", "JiraClientSync", "JiraClientAsync"]

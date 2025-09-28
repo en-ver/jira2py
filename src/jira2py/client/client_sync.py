@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import httpx
 
-from .base import JiraClientBase
+from .client_base import JiraClientBase
 from .credentials import JiraCredentials
 
 

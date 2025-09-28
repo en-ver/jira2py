@@ -6,7 +6,7 @@ from pydantic import validate_call
 
 from jira2py.client import JiraClientAsync, JiraCredentials
 
-from .issue_comments import IssueCommentsBase
+from .issue_comments_base import IssueCommentsBase
 
 
 class IssueCommentsAsync(IssueCommentsBase):

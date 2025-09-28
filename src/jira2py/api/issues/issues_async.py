@@ -6,7 +6,7 @@ from pydantic import validate_call
 
 from jira2py.client import JiraClientAsync, JiraCredentials
 
-from .issues import IssuesBase
+from .issues_base import IssuesBase
 
 
 class IssuesAsync(IssuesBase):

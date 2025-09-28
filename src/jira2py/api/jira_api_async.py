@@ -4,7 +4,7 @@ from .issue_comments import IssueCommentsAsync
 from .issue_fields import IssueFieldsAsync
 from .issue_search import IssueSearchAsync
 from .issues import IssuesAsync
-from .jira_api import JiraAPIBase
+from .jira_api_base import JiraAPIBase
 
 
 class JiraAPIAsync(JiraAPIBase):

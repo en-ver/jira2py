@@ -6,7 +6,7 @@ from pydantic import validate_call
 
 from jira2py.client import JiraClientSync, JiraCredentials
 
-from .issue_fields import IssueFieldsBase
+from .issue_fields_base import IssueFieldsBase
 
 
 class IssueFields(IssueFieldsBase):
