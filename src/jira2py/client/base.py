@@ -113,10 +113,7 @@ class JiraClientBase(ABC):
         extra_data: dict[str, Any] | None = None,
         response_type: str = "dict",
     ) -> Any:
-        """Make a request to the JIRA API using template method pattern.
-
-        This method contains all shared logic for making HTTP requests to JIRA.
-        The actual HTTP request is delegated to the _make_request hook method.
+        """Make a request to the JIRA API.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
@@ -128,7 +125,7 @@ class JiraClientBase(ABC):
         Returns:
             Response data as dict or list based on response_type parameter.
         """
-        # Prepare request parameters (shared logic)
+        # Prepare request parameters
         method, full_url, request_kwargs = self._prepare_request(
             method, context_path, params, data, extra_params, extra_data
         )
@@ -138,28 +135,11 @@ class JiraClientBase(ABC):
             self._client if self._client is not None else self._get_persistent_client()
         )
 
-        # Make HTTP request (hook method - implemented by subclasses)
-        response = self._make_request(client, method, full_url, **request_kwargs)
+        # Make HTTP request directly
+        response = client.request(method, full_url, **request_kwargs)
 
-        # Handle response (shared logic)
+        # Handle response
         return self._handle_response(response)
-
-    def _make_request(self, client: Any, method: str, url: str, **kwargs: Any) -> Any:
-        """Make HTTP request (handles both sync and async).
-
-        Args:
-            client: HTTP client instance (sync or async)
-            method: HTTP method (GET, POST, PUT, DELETE, etc.)
-            url: Full URL for the request
-            **kwargs: Additional request parameters
-
-        Returns:
-            HTTP response object
-        """
-        if isinstance(client, httpx.AsyncClient):
-            return client.request(method, url, **kwargs)
-        else:
-            return client.request(method, url, **kwargs)
 
     def _prepare_request(
         self,
