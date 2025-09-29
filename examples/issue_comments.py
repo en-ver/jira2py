@@ -96,35 +96,35 @@ def test_sync() -> None:
 
 
 def test_sync_with_context_manager() -> None:
-    """Test sync API with context manager for proper resource management."""
-    print("=== Testing Sync API with Context Manager ===")
+    """Test sync API with auto-managed persistent clients."""
+    print("=== Testing Sync API with Auto-Managed Clients ===")
 
-    # Using context manager ensures proper resource cleanup
-    with JiraAPI() as api:
-        print("Getting comments within context manager...")
-        try:
-            jira_comments = api.comments.get_comments(
-                issue_id=issue_id, expand="renderedBody"
-            )
-            pprint.pprint(jira_comments)
-        except Exception as e:
-            print(f"Error getting comments for issue {issue_id}: {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPI()
+    print("Getting comments with auto-managed clients...")
+    try:
+        jira_comments = api.comments.get_comments(
+            issue_id=issue_id, expand="renderedBody"
+        )
+        pprint.pprint(jira_comments)
+    except Exception as e:
+        print(f"Error getting comments for issue {issue_id}: {e}")
 
-        print("\nGetting comments with extra params within context manager...")
-        try:
-            extra_params: dict[str, Any] = {
-                "startAt": 0,
-                "maxResults": 5,
-                "orderBy": "-created",  # Get newest comments first
-            }
-            jira_comments = api.comments.get_comments(
-                issue_id=issue_id, expand="renderedBody", extra_params=extra_params
-            )
-            pprint.pprint(jira_comments)
-        except Exception as e:
-            print(f"Error getting comments with extra params for issue {issue_id}: {e}")
+    print("\nGetting comments with extra params...")
+    try:
+        extra_params: dict[str, Any] = {
+            "startAt": 0,
+            "maxResults": 5,
+            "orderBy": "-created",  # Get newest comments first
+        }
+        jira_comments = api.comments.get_comments(
+            issue_id=issue_id, expand="renderedBody", extra_params=extra_params
+        )
+        pprint.pprint(jira_comments)
+    except Exception as e:
+        print(f"Error getting comments with extra params for issue {issue_id}: {e}")
 
-    print("Context manager automatically cleaned up resources")
+    print("Auto-managed clients handle resource cleanup automatically")
 
 
 async def test_async() -> None:
@@ -138,35 +138,35 @@ async def test_async() -> None:
 
 
 async def test_async_with_context_manager() -> None:
-    """Test async API with context manager for proper resource management."""
-    print("=== Testing Async API with Context Manager ===")
+    """Test async API with auto-managed persistent clients."""
+    print("=== Testing Async API with Auto-Managed Clients ===")
 
-    # Using async context manager ensures proper resource cleanup
-    async with JiraAPIAsync() as api:
-        print("Getting comments within async context manager...")
-        try:
-            jira_comments = await api.comments.get_comments(
-                issue_id=issue_id, expand="renderedBody"
-            )
-            pprint.pprint(jira_comments)
-        except Exception as e:
-            print(f"Error getting comments for issue {issue_id}: {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPIAsync()
+    print("Getting comments with auto-managed async clients...")
+    try:
+        jira_comments = await api.comments.get_comments(
+            issue_id=issue_id, expand="renderedBody"
+        )
+        pprint.pprint(jira_comments)
+    except Exception as e:
+        print(f"Error getting comments for issue {issue_id}: {e}")
 
-        print("\nGetting comments with extra params within async context manager...")
-        try:
-            extra_params: dict[str, Any] = {
-                "startAt": 0,
-                "maxResults": 5,
-                "orderBy": "-created",  # Get newest comments first
-            }
-            jira_comments = await api.comments.get_comments(
-                issue_id=issue_id, expand="renderedBody", extra_params=extra_params
-            )
-            pprint.pprint(jira_comments)
-        except Exception as e:
-            print(f"Error getting comments with extra params for issue {issue_id}: {e}")
+    print("\nGetting comments with extra params...")
+    try:
+        extra_params: dict[str, Any] = {
+            "startAt": 0,
+            "maxResults": 5,
+            "orderBy": "-created",  # Get newest comments first
+        }
+        jira_comments = await api.comments.get_comments(
+            issue_id=issue_id, expand="renderedBody", extra_params=extra_params
+        )
+        pprint.pprint(jira_comments)
+    except Exception as e:
+        print(f"Error getting comments with extra params for issue {issue_id}: {e}")
 
-    print("Async context manager automatically cleaned up resources")
+    print("Auto-managed async clients handle resource cleanup automatically")
 
 
 def main() -> None:

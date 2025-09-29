@@ -1,7 +1,5 @@
 """Asynchronous Jira API facade."""
 
-from typing import Any
-
 from .issue_comments import IssueCommentsAsync
 from .issue_fields import IssueFieldsAsync
 from .issue_search import IssueSearchAsync
@@ -47,12 +45,3 @@ class JiraAPIAsync(JiraAPIBase):
     def comments(self) -> IssueCommentsAsync:
         """Get comments client."""
         return IssueCommentsAsync(self._client)
-
-    async def __aenter__(self) -> "JiraAPIAsync":
-        """Enter async context manager and delegate to client."""
-        await self._client.__aenter__()
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Exit async context manager and delegate to client."""
-        await self._client.__aexit__(exc_type, exc_val, exc_tb)

@@ -1,7 +1,5 @@
 """Synchronous Jira API facade."""
 
-from typing import Any
-
 from jira2py.client import JiraClientSync
 
 from .issue_comments import IssueComments
@@ -48,12 +46,3 @@ class JiraAPI(JiraAPIBase):
     def comments(self) -> IssueComments:
         """Get comments client."""
         return IssueComments(self._client)
-
-    def __enter__(self) -> "JiraAPI":
-        """Enter context manager and delegate to client."""
-        self._client.__enter__()
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Exit context manager and delegate to client."""
-        self._client.__exit__(exc_type, exc_val, exc_tb)

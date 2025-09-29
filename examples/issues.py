@@ -209,30 +209,30 @@ def test_sync() -> None:
 
 
 def test_sync_with_context_manager() -> None:
-    """Test sync API with context manager for proper resource management."""
-    print("=== Testing Sync API with Context Manager ===")
+    """Test sync API with auto-managed persistent clients."""
+    print("=== Testing Sync API with Auto-Managed Clients ===")
 
-    # Using context manager ensures proper resource cleanup
-    with JiraAPI() as api:
-        print("Getting issue within context manager...")
-        try:
-            issue = api.issues.get_issue(issue_id)
-            pprint.pprint(issue)
-        except Exception as e:
-            print(f"Error getting issue {issue_id}: {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPI()
+    print("Getting issue with auto-managed clients...")
+    try:
+        issue = api.issues.get_issue(issue_id)
+        pprint.pprint(issue)
+    except Exception as e:
+        print(f"Error getting issue {issue_id}: {e}")
 
-        print("\nGetting issue with extra params within context manager...")
-        try:
-            extra_params: dict[str, str] = {
-                "fields": "summary,description,status",
-                "expand": "renderedFields,names,schema",
-            }
-            issue = api.issues.get_issue(issue_id, extra_params=extra_params)
-            pprint.pprint(issue)
-        except Exception as e:
-            print(f"Error getting issue with extra params {issue_id}: {e}")
+    print("\nGetting issue with extra params...")
+    try:
+        extra_params: dict[str, str] = {
+            "fields": "summary,description,status",
+            "expand": "renderedFields,names,schema",
+        }
+        issue = api.issues.get_issue(issue_id, extra_params=extra_params)
+        pprint.pprint(issue)
+    except Exception as e:
+        print(f"Error getting issue with extra params {issue_id}: {e}")
 
-    print("Context manager automatically cleaned up resources")
+    print("Auto-managed clients handle resource cleanup automatically")
 
 
 async def test_async() -> None:
@@ -256,30 +256,30 @@ async def test_async() -> None:
 
 
 async def test_async_with_context_manager() -> None:
-    """Test async API with context manager for proper resource management."""
-    print("=== Testing Async API with Context Manager ===")
+    """Test async API with auto-managed persistent clients."""
+    print("=== Testing Async API with Auto-Managed Clients ===")
 
-    # Using async context manager ensures proper resource cleanup
-    async with JiraAPIAsync() as api:
-        print("Getting issue within async context manager...")
-        try:
-            issue = await api.issues.get_issue(issue_id)
-            pprint.pprint(issue)
-        except Exception as e:
-            print(f"Error getting issue {issue_id}: {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPIAsync()
+    print("Getting issue with auto-managed async clients...")
+    try:
+        issue = await api.issues.get_issue(issue_id)
+        pprint.pprint(issue)
+    except Exception as e:
+        print(f"Error getting issue {issue_id}: {e}")
 
-        print("\nGetting issue with extra params within async context manager...")
-        try:
-            extra_params: dict[str, str] = {
-                "fields": "summary,description,status",
-                "expand": "renderedFields,names,schema",
-            }
-            issue = await api.issues.get_issue(issue_id, extra_params=extra_params)
-            pprint.pprint(issue)
-        except Exception as e:
-            print(f"Error getting issue with extra params {issue_id}: {e}")
+    print("\nGetting issue with extra params...")
+    try:
+        extra_params: dict[str, str] = {
+            "fields": "summary,description,status",
+            "expand": "renderedFields,names,schema",
+        }
+        issue = await api.issues.get_issue(issue_id, extra_params=extra_params)
+        pprint.pprint(issue)
+    except Exception as e:
+        print(f"Error getting issue with extra params {issue_id}: {e}")
 
-    print("Async context manager automatically cleaned up resources")
+    print("Auto-managed async clients handle resource cleanup automatically")
 
 
 def main() -> None:

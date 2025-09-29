@@ -44,19 +44,19 @@ def test_sync() -> None:
 
 
 def test_sync_with_context_manager() -> None:
-    """Test sync API with context manager for proper resource management."""
-    print("=== Testing Sync API with Context Manager ===")
+    """Test sync API with auto-managed persistent clients."""
+    print("=== Testing Sync API with Auto-Managed Clients ===")
 
-    # Using context manager ensures proper resource cleanup
-    with JiraAPI() as api:
-        print("Getting all fields within context manager...")
-        try:
-            jira_fields = api.fields.get_fields()
-            pprint.pprint(jira_fields)
-        except Exception as e:
-            print(f"Error getting Jira fields: {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPI()
+    print("Getting all fields with auto-managed clients...")
+    try:
+        jira_fields = api.fields.get_fields()
+        pprint.pprint(jira_fields)
+    except Exception as e:
+        print(f"Error getting Jira fields: {e}")
 
-    print("Context manager automatically cleaned up resources")
+    print("Auto-managed clients handle resource cleanup automatically")
 
 
 async def test_async() -> None:
@@ -67,19 +67,19 @@ async def test_async() -> None:
 
 
 async def test_async_with_context_manager() -> None:
-    """Test async API with context manager for proper resource management."""
-    print("=== Testing Async API with Context Manager ===")
+    """Test async API with auto-managed persistent clients."""
+    print("=== Testing Async API with Auto-Managed Clients ===")
 
-    # Using async context manager ensures proper resource cleanup
-    async with JiraAPIAsync() as api:
-        print("Getting all fields within async context manager...")
-        try:
-            jira_fields = await api.fields.get_fields()
-            pprint.pprint(jira_fields)
-        except Exception as e:
-            print(f"Error getting Jira fields: {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPIAsync()
+    print("Getting all fields with auto-managed async clients...")
+    try:
+        jira_fields = await api.fields.get_fields()
+        pprint.pprint(jira_fields)
+    except Exception as e:
+        print(f"Error getting Jira fields: {e}")
 
-    print("Async context manager automatically cleaned up resources")
+    print("Auto-managed async clients handle resource cleanup automatically")
 
 
 def main() -> None:

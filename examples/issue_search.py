@@ -104,39 +104,37 @@ def test_sync() -> None:
 
 
 def test_sync_with_context_manager() -> None:
-    """Test sync API with context manager for proper resource management."""
-    print("=== Testing Sync API with Context Manager ===")
+    """Test sync API with auto-managed persistent clients."""
+    print("=== Testing Sync API with Auto-Managed Clients ===")
 
-    # Using context manager ensures proper resource cleanup
-    with JiraAPI() as api:
-        print("Performing enhanced search within context manager...")
-        try:
-            search_results = api.search.enhanced_search(jql=jql, fields=["summary"])
-            pprint.pprint(search_results)
-        except Exception as e:
-            print(f"Error searching issues with query '{jql}': {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPI()
+    print("Performing enhanced search with auto-managed clients...")
+    try:
+        search_results = api.search.enhanced_search(jql=jql, fields=["summary"])
+        pprint.pprint(search_results)
+    except Exception as e:
+        print(f"Error searching issues with query '{jql}': {e}")
 
-        print(
-            "\nPerforming enhanced search with extra params within context manager..."
+    print("\nPerforming enhanced search with extra params...")
+    try:
+        extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
+        extra_data: dict[str, Any] = {
+            "fieldsByKeys": True,
+            "expand": "changelog,renderedFields",
+        }
+
+        search_results = api.search.enhanced_search(
+            jql=jql,
+            fields=["summary", "status"],
+            extra_params=extra_params,
+            extra_data=extra_data,
         )
-        try:
-            extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
-            extra_data: dict[str, Any] = {
-                "fieldsByKeys": True,
-                "expand": "changelog,renderedFields",
-            }
+        pprint.pprint(search_results)
+    except Exception as e:
+        print(f"Error searching issues with extra params '{jql}': {e}")
 
-            search_results = api.search.enhanced_search(
-                jql=jql,
-                fields=["summary", "status"],
-                extra_params=extra_params,
-                extra_data=extra_data,
-            )
-            pprint.pprint(search_results)
-        except Exception as e:
-            print(f"Error searching issues with extra params '{jql}': {e}")
-
-    print("Context manager automatically cleaned up resources")
+    print("Auto-managed clients handle resource cleanup automatically")
 
 
 async def test_async() -> None:
@@ -150,41 +148,37 @@ async def test_async() -> None:
 
 
 async def test_async_with_context_manager() -> None:
-    """Test async API with context manager for proper resource management."""
-    print("=== Testing Async API with Context Manager ===")
+    """Test async API with auto-managed persistent clients."""
+    print("=== Testing Async API with Auto-Managed Clients ===")
 
-    # Using async context manager ensures proper resource cleanup
-    async with JiraAPIAsync() as api:
-        print("Performing enhanced search within async context manager...")
-        try:
-            search_results = await api.search.enhanced_search(
-                jql=jql, fields=["summary"]
-            )
-            pprint.pprint(search_results)
-        except Exception as e:
-            print(f"Error searching issues with query '{jql}': {e}")
+    # API now uses auto-managed persistent clients
+    api = JiraAPIAsync()
+    print("Performing enhanced search with auto-managed async clients...")
+    try:
+        search_results = await api.search.enhanced_search(jql=jql, fields=["summary"])
+        pprint.pprint(search_results)
+    except Exception as e:
+        print(f"Error searching issues with query '{jql}': {e}")
 
-        print(
-            "\nPerforming enhanced search with extra params within async context manager..."
+    print("\nPerforming enhanced search with extra params...")
+    try:
+        extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
+        extra_data: dict[str, Any] = {
+            "fieldsByKeys": True,
+            "expand": "changelog,renderedFields",
+        }
+
+        search_results = await api.search.enhanced_search(
+            jql=jql,
+            fields=["summary", "status"],
+            extra_params=extra_params,
+            extra_data=extra_data,
         )
-        try:
-            extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
-            extra_data: dict[str, Any] = {
-                "fieldsByKeys": True,
-                "expand": "changelog,renderedFields",
-            }
+        pprint.pprint(search_results)
+    except Exception as e:
+        print(f"Error searching issues with extra params '{jql}': {e}")
 
-            search_results = await api.search.enhanced_search(
-                jql=jql,
-                fields=["summary", "status"],
-                extra_params=extra_params,
-                extra_data=extra_data,
-            )
-            pprint.pprint(search_results)
-        except Exception as e:
-            print(f"Error searching issues with extra params '{jql}': {e}")
-
-    print("Async context manager automatically cleaned up resources")
+    print("Auto-managed async clients handle resource cleanup automatically")
 
 
 def main() -> None:
