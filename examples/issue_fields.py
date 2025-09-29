@@ -1,5 +1,6 @@
 import asyncio
 import pprint
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -12,7 +13,7 @@ jira_async = JiraAPIAsync()
 
 
 # Get all Jira fields with its metadata - Sync version
-def get_all_fields_sync() -> list | None:
+def get_all_fields_sync() -> list[dict[str, Any]] | None:
     """Get all Jira fields using the sync API."""
     try:
         jira_fields = jira_sync.fields.get_fields()
@@ -24,7 +25,7 @@ def get_all_fields_sync() -> list | None:
 
 
 # Get all Jira fields with its metadata - Async version
-async def get_all_fields_async() -> list | None:
+async def get_all_fields_async() -> list[dict[str, Any]] | None:
     """Get all Jira fields using the async API."""
     try:
         jira_fields = await jira_async.fields.get_fields()
@@ -35,14 +36,14 @@ async def get_all_fields_async() -> list | None:
         return None
 
 
-def test_sync():
+def test_sync() -> None:
     """Test sync API implementations."""
     print("=== Testing Sync API ===")
     print("Getting all fields...")
     get_all_fields_sync()
 
 
-def test_sync_with_context_manager():
+def test_sync_with_context_manager() -> None:
     """Test sync API with context manager for proper resource management."""
     print("=== Testing Sync API with Context Manager ===")
 
@@ -58,14 +59,14 @@ def test_sync_with_context_manager():
     print("Context manager automatically cleaned up resources")
 
 
-async def test_async():
+async def test_async() -> None:
     """Test async API implementations."""
     print("=== Testing Async API ===")
     print("Getting all fields...")
     await get_all_fields_async()
 
 
-async def test_async_with_context_manager():
+async def test_async_with_context_manager() -> None:
     """Test async API with context manager for proper resource management."""
     print("=== Testing Async API with Context Manager ===")
 
@@ -81,7 +82,7 @@ async def test_async_with_context_manager():
     print("Async context manager automatically cleaned up resources")
 
 
-def main():
+def main() -> None:
     """Run both sync and async tests."""
     print("Starting Jira2py Issue Fields API Tests...")
     print("=" * 50)

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from jira2py.client import JiraClientSync, JiraCredentials
+from jira2py.client import JiraClientSync
 
 from .issue_comments import IssueComments
 from .issue_fields import IssueFields
@@ -25,25 +25,9 @@ class JiraAPI(JiraAPIBase):
         >>> fields = api.fields.get_fields()
     """
 
-    def __init__(
-        self,
-        credentials: JiraCredentials | None = None,
-        url: str | None = None,
-        username: str | None = None,
-        api_token: str | None = None,
-    ) -> None:
-        """Initialize the synchronous Jira API facade.
-
-        Args:
-            credentials: JIRA authentication credentials. If None, credentials will be
-                created from the provided parameters or environment variables.
-            url: Base URL of the JIRA instance. Only used if credentials is None.
-            username: JIRA username. Only used if credentials is None.
-            api_token: JIRA API token. Only used if credentials is None.
-        """
-        super().__init__(url, username, api_token)
-        # Single shared client for all modules
-        self._client = JiraClientSync(self.credentials)
+    def _create_client(self) -> JiraClientSync:
+        """Create the sync client instance."""
+        return JiraClientSync(self.credentials)
 
     @property
     def issues(self) -> Issues:

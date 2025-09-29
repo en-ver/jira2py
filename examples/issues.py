@@ -23,7 +23,7 @@ issue_id = "PR-24446"
 
 
 # Get an issue by its ID - Sync version
-def get_issue_sync(issue_key: str = issue_id) -> dict | None:
+def get_issue_sync(issue_key: str = issue_id) -> dict[str, object] | None:
     """Get an issue by its ID using the sync API."""
     try:
         issue = jira_sync.issues.get_issue(issue_key)
@@ -35,7 +35,7 @@ def get_issue_sync(issue_key: str = issue_id) -> dict | None:
 
 
 # Get an issue by its ID - Async version
-async def get_issue_async(issue_key: str = issue_id) -> dict | None:
+async def get_issue_async(issue_key: str = issue_id) -> dict[str, object] | None:
     """Get an issue by its ID using the async API."""
     try:
         issue = await jira_async.issues.get_issue(issue_key)
@@ -46,11 +46,13 @@ async def get_issue_async(issue_key: str = issue_id) -> dict | None:
         return None
 
 
-def get_issue_with_extra_params_sync(issue_key: str = issue_id) -> dict | None:
+def get_issue_with_extra_params_sync(
+    issue_key: str = issue_id,
+) -> dict[str, object] | None:
     """Get an issue with additional query parameters using extra_params - Sync version."""
     try:
         # Example of using extra_params to add additional query parameters
-        extra_params = {
+        extra_params: dict[str, str] = {
             "fields": "summary,description,status",
             "expand": "renderedFields,names,schema",
         }
@@ -62,11 +64,13 @@ def get_issue_with_extra_params_sync(issue_key: str = issue_id) -> dict | None:
         return None
 
 
-async def get_issue_with_extra_params_async(issue_key: str = issue_id) -> dict | None:
+async def get_issue_with_extra_params_async(
+    issue_key: str = issue_id,
+) -> dict[str, object] | None:
     """Get an issue with additional query parameters using extra_params - Async version."""
     try:
         # Example of using extra_params to add additional query parameters
-        extra_params = {
+        extra_params: dict[str, str] = {
             "fields": "summary,description,status",
             "expand": "renderedFields,names,schema",
         }
@@ -78,7 +82,7 @@ async def get_issue_with_extra_params_async(issue_key: str = issue_id) -> dict |
         return None
 
 
-def get_changelogs_sync(issue_key: str = issue_id) -> list[dict] | None:
+def get_changelogs_sync(issue_key: str = issue_id) -> list[dict[str, object]] | None:
     """Get changelogs for an issue using the sync API."""
     try:
         changelogs = jira_sync.issues.get_changelogs(issue_key)
@@ -89,7 +93,9 @@ def get_changelogs_sync(issue_key: str = issue_id) -> list[dict] | None:
         return None
 
 
-async def get_changelogs_async(issue_key: str = issue_id) -> list[dict] | None:
+async def get_changelogs_async(
+    issue_key: str = issue_id,
+) -> list[dict[str, object]] | None:
     """Get changelogs for an issue using the async API."""
     try:
         changelogs = await jira_async.issues.get_changelogs(issue_key)
@@ -100,7 +106,7 @@ async def get_changelogs_async(issue_key: str = issue_id) -> list[dict] | None:
         return None
 
 
-def edit_issue_sync(issue_key: str = issue_id) -> dict | None:
+def edit_issue_sync(issue_key: str = issue_id) -> dict[str, object] | None:
     """Edit an issue using the sync API."""
     try:
         issue = jira_sync.issues.edit_issue(
@@ -116,7 +122,7 @@ def edit_issue_sync(issue_key: str = issue_id) -> dict | None:
         return None
 
 
-async def edit_issue_async(issue_key: str = issue_id) -> dict | None:
+async def edit_issue_async(issue_key: str = issue_id) -> dict[str, object] | None:
     """Edit an issue using the async API."""
     try:
         issue = await jira_async.issues.edit_issue(
@@ -132,11 +138,13 @@ async def edit_issue_async(issue_key: str = issue_id) -> dict | None:
         return None
 
 
-def edit_issue_with_extra_data_sync(issue_key: str = issue_id) -> dict | None:
+def edit_issue_with_extra_data_sync(
+    issue_key: str = issue_id,
+) -> dict[str, object] | None:
     """Edit an issue with additional data parameters using extra_data - Sync version."""
     try:
         # Example of using extra_data to add additional data parameters
-        extra_data = {
+        extra_data: dict[str, object] = {
             "update": {
                 "comment": [{"add": {"body": "Comment added via extra_data parameter"}}]
             }
@@ -155,11 +163,13 @@ def edit_issue_with_extra_data_sync(issue_key: str = issue_id) -> dict | None:
         return None
 
 
-async def edit_issue_with_extra_data_async(issue_key: str = issue_id) -> dict | None:
+async def edit_issue_with_extra_data_async(
+    issue_key: str = issue_id,
+) -> dict[str, object] | None:
     """Edit an issue with additional data parameters using extra_data - Async version."""
     try:
         # Example of using extra_data to add additional data parameters
-        extra_data = {
+        extra_data: dict[str, object] = {
             "update": {
                 "comment": [{"add": {"body": "Comment added via extra_data parameter"}}]
             }
@@ -178,7 +188,7 @@ async def edit_issue_with_extra_data_async(issue_key: str = issue_id) -> dict | 
         return None
 
 
-def test_sync():
+def test_sync() -> None:
     """Test sync API implementations."""
     print("=== Testing Sync API ===")
     print("Getting issue...")
@@ -198,7 +208,7 @@ def test_sync():
     # edit_issue_with_extra_data_sync()
 
 
-def test_sync_with_context_manager():
+def test_sync_with_context_manager() -> None:
     """Test sync API with context manager for proper resource management."""
     print("=== Testing Sync API with Context Manager ===")
 
@@ -213,7 +223,7 @@ def test_sync_with_context_manager():
 
         print("\nGetting issue with extra params within context manager...")
         try:
-            extra_params = {
+            extra_params: dict[str, str] = {
                 "fields": "summary,description,status",
                 "expand": "renderedFields,names,schema",
             }
@@ -225,7 +235,7 @@ def test_sync_with_context_manager():
     print("Context manager automatically cleaned up resources")
 
 
-async def test_async():
+async def test_async() -> None:
     """Test async API implementations."""
     print("=== Testing Async API ===")
     print("Getting issue...")
@@ -245,7 +255,7 @@ async def test_async():
     # await edit_issue_with_extra_data_async()
 
 
-async def test_async_with_context_manager():
+async def test_async_with_context_manager() -> None:
     """Test async API with context manager for proper resource management."""
     print("=== Testing Async API with Context Manager ===")
 
@@ -260,7 +270,7 @@ async def test_async_with_context_manager():
 
         print("\nGetting issue with extra params within async context manager...")
         try:
-            extra_params = {
+            extra_params: dict[str, str] = {
                 "fields": "summary,description,status",
                 "expand": "renderedFields,names,schema",
             }
@@ -272,7 +282,7 @@ async def test_async_with_context_manager():
     print("Async context manager automatically cleaned up resources")
 
 
-def main():
+def main() -> None:
     """Run both sync and async tests."""
     print("Starting Jira2py Issues API Tests...")
     print("=" * 50)

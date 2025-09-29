@@ -1,5 +1,6 @@
 import asyncio
 import pprint
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -15,7 +16,7 @@ issue_id = "PR-24458"
 
 
 # Get the paginated list of comments for the issue - Sync version
-def get_comments_sync(issue_key: str = issue_id) -> dict | None:
+def get_comments_sync(issue_key: str = issue_id) -> dict[str, Any] | None:
     """Get comments for an issue using the sync API."""
     try:
         jira_comments = jira_sync.comments.get_comments(
@@ -29,7 +30,7 @@ def get_comments_sync(issue_key: str = issue_id) -> dict | None:
 
 
 # Get the paginated list of comments for the issue - Async version
-async def get_comments_async(issue_key: str = issue_id) -> dict | None:
+async def get_comments_async(issue_key: str = issue_id) -> dict[str, Any] | None:
     """Get comments for an issue using the async API."""
     try:
         jira_comments = await jira_async.comments.get_comments(
@@ -42,11 +43,13 @@ async def get_comments_async(issue_key: str = issue_id) -> dict | None:
         return None
 
 
-def get_comments_with_extra_params_sync(issue_key: str = issue_id) -> dict | None:
+def get_comments_with_extra_params_sync(
+    issue_key: str = issue_id,
+) -> dict[str, Any] | None:
     """Get comments for an issue with additional query parameters - Sync version."""
     try:
         # Example of using extra_params to add additional query parameters
-        extra_params = {
+        extra_params: dict[str, Any] = {
             "startAt": 0,
             "maxResults": 5,
             "orderBy": "-created",  # Get newest comments first
@@ -63,11 +66,11 @@ def get_comments_with_extra_params_sync(issue_key: str = issue_id) -> dict | Non
 
 async def get_comments_with_extra_params_async(
     issue_key: str = issue_id,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Get comments for an issue with additional query parameters - Async version."""
     try:
         # Example of using extra_params to add additional query parameters
-        extra_params = {
+        extra_params: dict[str, Any] = {
             "startAt": 0,
             "maxResults": 5,
             "orderBy": "-created",  # Get newest comments first
@@ -82,7 +85,7 @@ async def get_comments_with_extra_params_async(
         return None
 
 
-def test_sync():
+def test_sync() -> None:
     """Test sync API implementations."""
     print("=== Testing Sync API ===")
     print("Getting comments...")
@@ -92,7 +95,7 @@ def test_sync():
     get_comments_with_extra_params_sync()
 
 
-def test_sync_with_context_manager():
+def test_sync_with_context_manager() -> None:
     """Test sync API with context manager for proper resource management."""
     print("=== Testing Sync API with Context Manager ===")
 
@@ -109,7 +112,7 @@ def test_sync_with_context_manager():
 
         print("\nGetting comments with extra params within context manager...")
         try:
-            extra_params = {
+            extra_params: dict[str, Any] = {
                 "startAt": 0,
                 "maxResults": 5,
                 "orderBy": "-created",  # Get newest comments first
@@ -124,7 +127,7 @@ def test_sync_with_context_manager():
     print("Context manager automatically cleaned up resources")
 
 
-async def test_async():
+async def test_async() -> None:
     """Test async API implementations."""
     print("=== Testing Async API ===")
     print("Getting comments...")
@@ -134,7 +137,7 @@ async def test_async():
     await get_comments_with_extra_params_async()
 
 
-async def test_async_with_context_manager():
+async def test_async_with_context_manager() -> None:
     """Test async API with context manager for proper resource management."""
     print("=== Testing Async API with Context Manager ===")
 
@@ -151,7 +154,7 @@ async def test_async_with_context_manager():
 
         print("\nGetting comments with extra params within async context manager...")
         try:
-            extra_params = {
+            extra_params: dict[str, Any] = {
                 "startAt": 0,
                 "maxResults": 5,
                 "orderBy": "-created",  # Get newest comments first
@@ -166,7 +169,7 @@ async def test_async_with_context_manager():
     print("Async context manager automatically cleaned up resources")
 
 
-def main():
+def main() -> None:
     """Run both sync and async tests."""
     print("Starting Jira2py Issue Comments API Tests...")
     print("=" * 50)

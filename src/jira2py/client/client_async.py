@@ -1,11 +1,12 @@
 """Asynchronous JIRA client implementation."""
 
-from typing import Any, cast
+from typing import Any, Type, Union, cast
 
 import httpx
 
 from .client_base import JiraClientBase
 from .credentials import JiraCredentials
+from .factory import JiraClientFactory
 
 
 class JiraClientAsync(JiraClientBase):
@@ -39,8 +40,6 @@ class JiraClientAsync(JiraClientBase):
                 url=url, username=username, api_token=api_token
             )
         super().__init__(credentials)
-        # Instance-level reference to shared persistent client
-        self._persistent_client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
         """Get the asynchronous HTTP client (creates new one for one-time requests).
@@ -49,28 +48,25 @@ class JiraClientAsync(JiraClientBase):
             httpx.AsyncClient: The asynchronous HTTP client instance.
         """
         return cast(
-            httpx.AsyncClient, self._create_client(self.credentials, is_async=True)
+            httpx.AsyncClient,
+            JiraClientFactory.create_client(self.credentials, async_mode=True),
         )
 
-    def _get_persistent_client(self) -> httpx.AsyncClient:
-        """Get or create the shared persistent asynchronous HTTP client.
+    def _get_client_type(self) -> Type[Union[httpx.Client, httpx.AsyncClient]]:
+        """Return the async client type.
 
         Returns:
-            httpx.AsyncClient: The shared persistent asynchronous HTTP client instance.
+            Type[httpx.AsyncClient]: The httpx.AsyncClient type.
         """
-        # Use class-level shared client instead of instance-level
-        if self._client_key not in self._class_persistent_clients:
-            client = self._create_client(self.credentials, is_async=True)
-            assert isinstance(client, httpx.AsyncClient), (
-                "Expected httpx.AsyncClient for async client"
-            )
-            self._class_persistent_clients[self._client_key] = client
-        client = self._class_persistent_clients[self._client_key]
-        assert isinstance(client, httpx.AsyncClient), (
-            "Expected httpx.AsyncClient in persistent clients"
-        )
-        self._persistent_client = client
-        return client
+        return httpx.AsyncClient
+
+    def _get_async_mode(self) -> bool:
+        """Return True for async client.
+
+        Returns:
+            bool: True for async client.
+        """
+        return True
 
     async def close(self) -> None:
         """Close the HTTP client references (doesn't close shared persistent client)."""

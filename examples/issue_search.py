@@ -1,5 +1,6 @@
 import asyncio
 import pprint
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -15,7 +16,7 @@ jql = "project IN (PR)"
 
 
 # Search for issues using JQL - Sync version
-def enhanced_search_sync(query: str = jql) -> dict | None:
+def enhanced_search_sync(query: str = jql) -> dict[str, Any] | None:
     """Search for issues using JQL with the sync API."""
     try:
         search_results = jira_sync.search.enhanced_search(jql=query, fields=["summary"])
@@ -27,7 +28,7 @@ def enhanced_search_sync(query: str = jql) -> dict | None:
 
 
 # Search for issues using JQL - Async version
-async def enhanced_search_async(query: str = jql) -> dict | None:
+async def enhanced_search_async(query: str = jql) -> dict[str, Any] | None:
     """Search for issues using JQL with the async API."""
     try:
         search_results = await jira_async.search.enhanced_search(
@@ -40,14 +41,17 @@ async def enhanced_search_async(query: str = jql) -> dict | None:
         return None
 
 
-def enhanced_search_with_extra_params_sync(query: str = jql) -> dict | None:
+def enhanced_search_with_extra_params_sync(query: str = jql) -> dict[str, Any] | None:
     """Search for issues using JQL with additional parameters - Sync version."""
     try:
         # Example of using extra_params to add additional query parameters
-        extra_params = {"startAt": 0, "maxResults": 10}
+        extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
 
         # Example of using extra_data to add additional data parameters
-        extra_data = {"fieldsByKeys": True, "expand": "changelog,renderedFields"}
+        extra_data: dict[str, Any] = {
+            "fieldsByKeys": True,
+            "expand": "changelog,renderedFields",
+        }
 
         search_results = jira_sync.search.enhanced_search(
             jql=query,
@@ -62,14 +66,19 @@ def enhanced_search_with_extra_params_sync(query: str = jql) -> dict | None:
         return None
 
 
-async def enhanced_search_with_extra_params_async(query: str = jql) -> dict | None:
+async def enhanced_search_with_extra_params_async(
+    query: str = jql,
+) -> dict[str, Any] | None:
     """Search for issues using JQL with additional parameters - Async version."""
     try:
         # Example of using extra_params to add additional query parameters
-        extra_params = {"startAt": 0, "maxResults": 10}
+        extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
 
         # Example of using extra_data to add additional data parameters
-        extra_data = {"fieldsByKeys": True, "expand": "changelog,renderedFields"}
+        extra_data: dict[str, Any] = {
+            "fieldsByKeys": True,
+            "expand": "changelog,renderedFields",
+        }
 
         search_results = await jira_async.search.enhanced_search(
             jql=query,
@@ -84,7 +93,7 @@ async def enhanced_search_with_extra_params_async(query: str = jql) -> dict | No
         return None
 
 
-def test_sync():
+def test_sync() -> None:
     """Test sync API implementations."""
     print("=== Testing Sync API ===")
     print("Performing enhanced search...")
@@ -94,7 +103,7 @@ def test_sync():
     enhanced_search_with_extra_params_sync()
 
 
-def test_sync_with_context_manager():
+def test_sync_with_context_manager() -> None:
     """Test sync API with context manager for proper resource management."""
     print("=== Testing Sync API with Context Manager ===")
 
@@ -111,8 +120,11 @@ def test_sync_with_context_manager():
             "\nPerforming enhanced search with extra params within context manager..."
         )
         try:
-            extra_params = {"startAt": 0, "maxResults": 10}
-            extra_data = {"fieldsByKeys": True, "expand": "changelog,renderedFields"}
+            extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
+            extra_data: dict[str, Any] = {
+                "fieldsByKeys": True,
+                "expand": "changelog,renderedFields",
+            }
 
             search_results = api.search.enhanced_search(
                 jql=jql,
@@ -127,7 +139,7 @@ def test_sync_with_context_manager():
     print("Context manager automatically cleaned up resources")
 
 
-async def test_async():
+async def test_async() -> None:
     """Test async API implementations."""
     print("=== Testing Async API ===")
     print("Performing enhanced search...")
@@ -137,7 +149,7 @@ async def test_async():
     await enhanced_search_with_extra_params_async()
 
 
-async def test_async_with_context_manager():
+async def test_async_with_context_manager() -> None:
     """Test async API with context manager for proper resource management."""
     print("=== Testing Async API with Context Manager ===")
 
@@ -156,8 +168,11 @@ async def test_async_with_context_manager():
             "\nPerforming enhanced search with extra params within async context manager..."
         )
         try:
-            extra_params = {"startAt": 0, "maxResults": 10}
-            extra_data = {"fieldsByKeys": True, "expand": "changelog,renderedFields"}
+            extra_params: dict[str, Any] = {"startAt": 0, "maxResults": 10}
+            extra_data: dict[str, Any] = {
+                "fieldsByKeys": True,
+                "expand": "changelog,renderedFields",
+            }
 
             search_results = await api.search.enhanced_search(
                 jql=jql,
@@ -172,7 +187,7 @@ async def test_async_with_context_manager():
     print("Async context manager automatically cleaned up resources")
 
 
-def main():
+def main() -> None:
     """Run both sync and async tests."""
     print("Starting Jira2py Issue Search API Tests...")
     print("=" * 50)

@@ -28,6 +28,7 @@ class JiraAPIBase(ABC):
         self._credentials = JiraCredentials(
             url=url, username=username, api_token=api_token
         )
+        self._client = self._create_client()
 
     @property
     def credentials(self) -> JiraCredentials:
@@ -56,4 +57,9 @@ class JiraAPIBase(ABC):
     @abstractmethod
     def comments(self) -> Any:
         """Get comments client."""
+        pass
+
+    @abstractmethod
+    def _create_client(self) -> Any:
+        """Create the appropriate client type. Must be implemented by subclasses."""
         pass

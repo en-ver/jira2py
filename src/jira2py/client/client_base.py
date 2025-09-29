@@ -3,11 +3,12 @@
 import atexit
 import weakref
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union, cast
+from typing import Any, Dict, Type, Union, cast
 
 import httpx
 
 from .credentials import JiraCredentials
+from .factory import JiraClientFactory
 
 
 class JiraClientBase(ABC):
@@ -23,14 +24,6 @@ class JiraClientBase(ABC):
     # Class-level storage for shared persistent clients
     _class_persistent_clients: Dict[str, Union[httpx.Client, httpx.AsyncClient]] = {}
 
-    # Default configuration constants
-    DEFAULT_TIMEOUT = 30.0
-    DEFAULT_CONNECT_TIMEOUT = 10.0
-    DEFAULT_POOL_TIMEOUT = 5.0
-    DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
-    DEFAULT_MAX_CONNECTIONS = 50
-    DEFAULT_KEEPALIVE_EXPIRY = 30.0
-
     def __init__(self, credentials: JiraCredentials):
         """Initialize the client with credentials.
 
@@ -39,6 +32,8 @@ class JiraClientBase(ABC):
         """
         self.credentials = credentials
         self._client: Any = None
+        self._persistent_client: Union[httpx.Client, httpx.AsyncClient] | None = None
+        self._async_mode = self._get_async_mode()  # Cache for performance
         self._client_key = self._get_client_key()
 
         # Register automatic cleanup
@@ -51,39 +46,6 @@ class JiraClientBase(ABC):
             atexit.register(self.__class__._cleanup_all_clients)
             setattr(self.__class__, "_atexit_registered", True)
 
-    @classmethod
-    def _create_client(
-        cls, credentials: JiraCredentials, is_async: bool = False
-    ) -> Union[httpx.Client, httpx.AsyncClient]:
-        """Create HTTP client instance with connection pooling.
-
-        Args:
-            credentials: JIRA authentication credentials.
-            is_async: Whether to create async client (True) or sync client (False)
-
-        Returns:
-            httpx.Client or httpx.AsyncClient instance
-        """
-        client_class = httpx.AsyncClient if is_async else httpx.Client
-        return client_class(
-            base_url=f"{credentials.url}/rest/api/3",
-            headers={"Accept": "application/json"},
-            auth=httpx.BasicAuth(
-                credentials.username or "", credentials.api_token or ""
-            ),
-            limits=httpx.Limits(
-                max_keepalive_connections=cls.DEFAULT_MAX_KEEPALIVE_CONNECTIONS,
-                max_connections=cls.DEFAULT_MAX_CONNECTIONS,
-                keepalive_expiry=cls.DEFAULT_KEEPALIVE_EXPIRY,
-            ),
-            timeout=httpx.Timeout(
-                cls.DEFAULT_TIMEOUT,
-                connect=cls.DEFAULT_CONNECT_TIMEOUT,
-                pool=cls.DEFAULT_POOL_TIMEOUT,
-            ),
-            http2=True,  # Enable HTTP/2 for better performance
-        )
-
     @abstractmethod
     def _get_client(self) -> Any:
         """Get the underlying HTTP client.
@@ -93,12 +55,57 @@ class JiraClientBase(ABC):
         """
         pass
 
-    @abstractmethod
-    def _get_persistent_client(self) -> Any:
-        """Get or create the persistent HTTP client.
+    def _validate_client_type(
+        self, client: Union[httpx.Client, httpx.AsyncClient]
+    ) -> None:
+        """Validate client type matches expected type.
+
+        Args:
+            client: The HTTP client instance to validate.
+
+        Raises:
+            AssertionError: If client type doesn't match expected type.
+        """
+        expected_type = self._get_client_type()
+        assert isinstance(client, expected_type), f"Expected {expected_type.__name__}"
+
+    def _get_persistent_client(self) -> Union[httpx.Client, httpx.AsyncClient]:
+        """Generic template method for persistent client retrieval.
+
+        This method eliminates code duplication by providing a single
+        implementation that works for both sync and async clients through
+        type parameter bounds and abstract configuration methods.
 
         Returns:
-            The persistent HTTP client instance (sync or async).
+            Union[httpx.Client, httpx.AsyncClient]: The persistent HTTP client instance.
+        """
+        if self._client_key not in self._class_persistent_clients:
+            client = JiraClientFactory.create_client(
+                self.credentials, async_mode=self._async_mode
+            )
+            self._validate_client_type(client)
+            self._class_persistent_clients[self._client_key] = client
+
+        client = self._class_persistent_clients[self._client_key]
+        self._validate_client_type(client)
+        self._persistent_client = client
+        return client
+
+    @abstractmethod
+    def _get_client_type(self) -> Type[Union[httpx.Client, httpx.AsyncClient]]:
+        """Return the expected client type for this implementation.
+
+        Returns:
+            Type[Union[httpx.Client, httpx.AsyncClient]]: The client type.
+        """
+        pass
+
+    @abstractmethod
+    def _get_async_mode(self) -> bool:
+        """Return whether this client implementation is asynchronous.
+
+        Returns:
+            bool: True for async clients, False for sync clients.
         """
         pass
 
@@ -276,7 +283,7 @@ class JiraClientBase(ABC):
         Returns:
             Unique string key for this client configuration.
         """
-        return f"{self.credentials.url}:{self.credentials.username or 'anonymous'}"
+        return f"{self.credentials.url}:{self.credentials.username or 'anonymous'}:{self._async_mode}"
 
     @classmethod
     def _cleanup_instance_resources(cls, client_key: str) -> None:

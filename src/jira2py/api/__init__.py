@@ -2,5 +2,22 @@
 
 from .jira_api_sync import JiraAPI
 from .jira_api_async import JiraAPIAsync
+from .api_base import ApiBase
+from .issues import Issues, IssuesAsync
+from .issue_comments import IssueComments, IssueCommentsAsync
+from .issue_fields import IssueFields, IssueFieldsAsync
+from .issue_search import IssueSearch, IssueSearchAsync
 
-__all__ = ["JiraAPI", "JiraAPIAsync"]
+__all__ = [
+    "JiraAPI",
+    "JiraAPIAsync",
+    "ApiBase",
+    "Issues",
+    "IssuesAsync",
+    "IssueComments",
+    "IssueCommentsAsync",
+    "IssueFields",
+    "IssueFieldsAsync",
+    "IssueSearch",
+    "IssueSearchAsync",
+]

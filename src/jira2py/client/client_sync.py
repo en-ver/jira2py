@@ -1,11 +1,12 @@
 """Synchronous JIRA client implementation."""
 
-from typing import Any, cast
+from typing import Any, Type, Union, cast
 
 import httpx
 
 from .client_base import JiraClientBase
 from .credentials import JiraCredentials
+from .factory import JiraClientFactory
 
 
 class JiraClientSync(JiraClientBase):
@@ -39,8 +40,6 @@ class JiraClientSync(JiraClientBase):
                 url=url, username=username, api_token=api_token
             )
         super().__init__(credentials)
-        # Instance-level reference to shared persistent client
-        self._persistent_client: httpx.Client | None = None
 
     def _get_client(self) -> httpx.Client:
         """Get the HTTP client (creates new one for one-time requests).
@@ -48,7 +47,10 @@ class JiraClientSync(JiraClientBase):
         Returns:
             httpx.Client: The HTTP client instance.
         """
-        return cast(httpx.Client, self._create_client(self.credentials, is_async=False))
+        return cast(
+            httpx.Client,
+            JiraClientFactory.create_client(self.credentials, async_mode=False),
+        )
 
     def close(self) -> None:
         """Close the HTTP client references (doesn't close shared persistent client)."""
@@ -58,25 +60,21 @@ class JiraClientSync(JiraClientBase):
         # Just clear the reference, don't close the shared persistent client
         self._persistent_client = None
 
-    def _get_persistent_client(self) -> httpx.Client:
-        """Get or create the shared persistent HTTP client.
+    def _get_client_type(self) -> Type[Union[httpx.Client, httpx.AsyncClient]]:
+        """Return the sync client type.
 
         Returns:
-            httpx.Client: The shared persistent HTTP client instance.
+            Type[httpx.Client]: The httpx.Client type.
         """
-        # Use class-level shared client instead of instance-level
-        if self._client_key not in self._class_persistent_clients:
-            client = self._create_client(self.credentials, is_async=False)
-            assert isinstance(client, httpx.Client), (
-                "Expected httpx.Client for sync client"
-            )
-            self._class_persistent_clients[self._client_key] = client
-        client = self._class_persistent_clients[self._client_key]
-        assert isinstance(client, httpx.Client), (
-            "Expected httpx.Client in persistent clients"
-        )
-        self._persistent_client = client
-        return client
+        return httpx.Client
+
+    def _get_async_mode(self) -> bool:
+        """Return False for sync client.
+
+        Returns:
+            bool: False for sync client.
+        """
+        return False
 
     def __enter__(self) -> "JiraClientSync":
         """Enter context manager and borrow from persistent client session."""
