@@ -4,7 +4,7 @@ from typing import Any, Literal, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync, JiraCredentials
+from jira2py.client import JiraClientSync
 
 from .issue_comments_base import IssueCommentsBase
 
@@ -12,13 +12,13 @@ from .issue_comments_base import IssueCommentsBase
 class IssueComments(IssueCommentsBase):
     """A class to interact with Jira's issue comments API (synchronous)."""
 
-    def __init__(self, credentials: JiraCredentials | None = None):
+    def __init__(self, client: JiraClientSync):
         """Initialize the IssueComments client.
 
         Args:
-            credentials: JIRA authentication credentials. If None, loads from environment.
+            client: JIRA client instance.
         """
-        super().__init__(JiraClientSync(credentials))
+        super().__init__(client)
 
     @validate_call
     def get_comments(

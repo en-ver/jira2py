@@ -2,11 +2,13 @@
 
 from typing import Any
 
+from jira2py.client import JiraClientSync, JiraClientAsync
+
 
 class IssueSearchBase:
     """Base class for IssueSearch API - contains shared business logic."""
 
-    def __init__(self, client):
+    def __init__(self, client: JiraClientSync | JiraClientAsync) -> None:
         """Initialize with a client instance.
 
         Args:
@@ -23,7 +25,7 @@ class IssueSearchBase:
         expand: str | None,
         extra_params: dict[str, Any] | None,
         extra_data: dict[str, Any] | None,
-    ):
+    ) -> dict[str, Any]:
         """Prepare request configuration for enhanced_search.
 
         Args:

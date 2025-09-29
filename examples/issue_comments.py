@@ -92,6 +92,38 @@ def test_sync():
     get_comments_with_extra_params_sync()
 
 
+def test_sync_with_context_manager():
+    """Test sync API with context manager for proper resource management."""
+    print("=== Testing Sync API with Context Manager ===")
+
+    # Using context manager ensures proper resource cleanup
+    with JiraAPI() as api:
+        print("Getting comments within context manager...")
+        try:
+            jira_comments = api.comments.get_comments(
+                issue_id=issue_id, expand="renderedBody"
+            )
+            pprint.pprint(jira_comments)
+        except Exception as e:
+            print(f"Error getting comments for issue {issue_id}: {e}")
+
+        print("\nGetting comments with extra params within context manager...")
+        try:
+            extra_params = {
+                "startAt": 0,
+                "maxResults": 5,
+                "orderBy": "-created",  # Get newest comments first
+            }
+            jira_comments = api.comments.get_comments(
+                issue_id=issue_id, expand="renderedBody", extra_params=extra_params
+            )
+            pprint.pprint(jira_comments)
+        except Exception as e:
+            print(f"Error getting comments with extra params for issue {issue_id}: {e}")
+
+    print("Context manager automatically cleaned up resources")
+
+
 async def test_async():
     """Test async API implementations."""
     print("=== Testing Async API ===")
@@ -100,6 +132,38 @@ async def test_async():
 
     print("\nGetting comments with extra params...")
     await get_comments_with_extra_params_async()
+
+
+async def test_async_with_context_manager():
+    """Test async API with context manager for proper resource management."""
+    print("=== Testing Async API with Context Manager ===")
+
+    # Using async context manager ensures proper resource cleanup
+    async with JiraAPIAsync() as api:
+        print("Getting comments within async context manager...")
+        try:
+            jira_comments = await api.comments.get_comments(
+                issue_id=issue_id, expand="renderedBody"
+            )
+            pprint.pprint(jira_comments)
+        except Exception as e:
+            print(f"Error getting comments for issue {issue_id}: {e}")
+
+        print("\nGetting comments with extra params within async context manager...")
+        try:
+            extra_params = {
+                "startAt": 0,
+                "maxResults": 5,
+                "orderBy": "-created",  # Get newest comments first
+            }
+            jira_comments = await api.comments.get_comments(
+                issue_id=issue_id, expand="renderedBody", extra_params=extra_params
+            )
+            pprint.pprint(jira_comments)
+        except Exception as e:
+            print(f"Error getting comments with extra params for issue {issue_id}: {e}")
+
+    print("Async context manager automatically cleaned up resources")
 
 
 def main():
@@ -112,11 +176,23 @@ def main():
 
     print("\n" + "=" * 50)
 
+    # Test sync API with context manager (recommended approach)
+    test_sync_with_context_manager()
+
+    print("\n" + "=" * 50)
+
     # Test async API
     asyncio.run(test_async())
 
     print("\n" + "=" * 50)
+
+    # Test async API with context manager (recommended approach)
+    asyncio.run(test_async_with_context_manager())
+
+    print("\n" + "=" * 50)
     print("All tests completed!")
+    print("\nNote: The context manager examples demonstrate the recommended approach")
+    print("for proper resource management with the client injection pattern.")
 
 
 if __name__ == "__main__":

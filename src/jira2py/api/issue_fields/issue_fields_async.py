@@ -4,7 +4,7 @@ from typing import Any, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientAsync, JiraCredentials
+from jira2py.client import JiraClientAsync
 
 from .issue_fields_base import IssueFieldsBase
 
@@ -12,13 +12,13 @@ from .issue_fields_base import IssueFieldsBase
 class IssueFieldsAsync(IssueFieldsBase):
     """A class to interact with Jira's issue fields API (asynchronous)."""
 
-    def __init__(self, credentials: JiraCredentials | None = None):
+    def __init__(self, client: JiraClientAsync):
         """Initialize the IssueFields client.
 
         Args:
-            credentials: JIRA authentication credentials. If None, loads from environment.
+            client: JIRA client instance.
         """
-        super().__init__(JiraClientAsync(credentials))
+        super().__init__(client)
 
     @validate_call
     async def get_fields(self) -> list[dict[str, Any]]:

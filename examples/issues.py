@@ -198,6 +198,33 @@ def test_sync():
     # edit_issue_with_extra_data_sync()
 
 
+def test_sync_with_context_manager():
+    """Test sync API with context manager for proper resource management."""
+    print("=== Testing Sync API with Context Manager ===")
+
+    # Using context manager ensures proper resource cleanup
+    with JiraAPI() as api:
+        print("Getting issue within context manager...")
+        try:
+            issue = api.issues.get_issue(issue_id)
+            pprint.pprint(issue)
+        except Exception as e:
+            print(f"Error getting issue {issue_id}: {e}")
+
+        print("\nGetting issue with extra params within context manager...")
+        try:
+            extra_params = {
+                "fields": "summary,description,status",
+                "expand": "renderedFields,names,schema",
+            }
+            issue = api.issues.get_issue(issue_id, extra_params=extra_params)
+            pprint.pprint(issue)
+        except Exception as e:
+            print(f"Error getting issue with extra params {issue_id}: {e}")
+
+    print("Context manager automatically cleaned up resources")
+
+
 async def test_async():
     """Test async API implementations."""
     print("=== Testing Async API ===")
@@ -218,6 +245,33 @@ async def test_async():
     # await edit_issue_with_extra_data_async()
 
 
+async def test_async_with_context_manager():
+    """Test async API with context manager for proper resource management."""
+    print("=== Testing Async API with Context Manager ===")
+
+    # Using async context manager ensures proper resource cleanup
+    async with JiraAPIAsync() as api:
+        print("Getting issue within async context manager...")
+        try:
+            issue = await api.issues.get_issue(issue_id)
+            pprint.pprint(issue)
+        except Exception as e:
+            print(f"Error getting issue {issue_id}: {e}")
+
+        print("\nGetting issue with extra params within async context manager...")
+        try:
+            extra_params = {
+                "fields": "summary,description,status",
+                "expand": "renderedFields,names,schema",
+            }
+            issue = await api.issues.get_issue(issue_id, extra_params=extra_params)
+            pprint.pprint(issue)
+        except Exception as e:
+            print(f"Error getting issue with extra params {issue_id}: {e}")
+
+    print("Async context manager automatically cleaned up resources")
+
+
 def main():
     """Run both sync and async tests."""
     print("Starting Jira2py Issues API Tests...")
@@ -228,11 +282,23 @@ def main():
 
     print("\n" + "=" * 50)
 
+    # Test sync API with context manager (recommended approach)
+    test_sync_with_context_manager()
+
+    print("\n" + "=" * 50)
+
     # Test async API
     asyncio.run(test_async())
 
     print("\n" + "=" * 50)
+
+    # Test async API with context manager (recommended approach)
+    asyncio.run(test_async_with_context_manager())
+
+    print("\n" + "=" * 50)
     print("All tests completed!")
+    print("\nNote: The context manager examples demonstrate the recommended approach")
+    print("for proper resource management with the client injection pattern.")
 
 
 if __name__ == "__main__":

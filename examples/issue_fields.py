@@ -42,11 +42,43 @@ def test_sync():
     get_all_fields_sync()
 
 
+def test_sync_with_context_manager():
+    """Test sync API with context manager for proper resource management."""
+    print("=== Testing Sync API with Context Manager ===")
+
+    # Using context manager ensures proper resource cleanup
+    with JiraAPI() as api:
+        print("Getting all fields within context manager...")
+        try:
+            jira_fields = api.fields.get_fields()
+            pprint.pprint(jira_fields)
+        except Exception as e:
+            print(f"Error getting Jira fields: {e}")
+
+    print("Context manager automatically cleaned up resources")
+
+
 async def test_async():
     """Test async API implementations."""
     print("=== Testing Async API ===")
     print("Getting all fields...")
     await get_all_fields_async()
+
+
+async def test_async_with_context_manager():
+    """Test async API with context manager for proper resource management."""
+    print("=== Testing Async API with Context Manager ===")
+
+    # Using async context manager ensures proper resource cleanup
+    async with JiraAPIAsync() as api:
+        print("Getting all fields within async context manager...")
+        try:
+            jira_fields = await api.fields.get_fields()
+            pprint.pprint(jira_fields)
+        except Exception as e:
+            print(f"Error getting Jira fields: {e}")
+
+    print("Async context manager automatically cleaned up resources")
 
 
 def main():
@@ -59,11 +91,23 @@ def main():
 
     print("\n" + "=" * 50)
 
+    # Test sync API with context manager (recommended approach)
+    test_sync_with_context_manager()
+
+    print("\n" + "=" * 50)
+
     # Test async API
     asyncio.run(test_async())
 
     print("\n" + "=" * 50)
+
+    # Test async API with context manager (recommended approach)
+    asyncio.run(test_async_with_context_manager())
+
+    print("\n" + "=" * 50)
     print("All tests completed!")
+    print("\nNote: The context manager examples demonstrate the recommended approach")
+    print("for proper resource management with the client injection pattern.")
 
 
 if __name__ == "__main__":

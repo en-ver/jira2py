@@ -4,7 +4,7 @@ from typing import Any, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync, JiraCredentials
+from jira2py.client import JiraClientSync
 
 from .issues_base import IssuesBase
 
@@ -12,13 +12,13 @@ from .issues_base import IssuesBase
 class Issues(IssuesBase):
     """A class to interact with Jira's issues API (synchronous)."""
 
-    def __init__(self, credentials: JiraCredentials | None = None):
+    def __init__(self, client: JiraClientSync):
         """Initialize the Issues client.
 
         Args:
-            credentials: JIRA authentication credentials. If None, loads from environment.
+            client: JIRA client instance.
         """
-        super().__init__(JiraClientSync(credentials))
+        super().__init__(client)
 
     @validate_call
     def get_issue(

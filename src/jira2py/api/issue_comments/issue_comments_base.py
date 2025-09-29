@@ -2,11 +2,13 @@
 
 from typing import Any, Literal
 
+from jira2py.client import JiraClientSync, JiraClientAsync
+
 
 class IssueCommentsBase:
     """Base class for IssueComments API - contains shared business logic."""
 
-    def __init__(self, client):
+    def __init__(self, client: JiraClientSync | JiraClientAsync) -> None:
         """Initialize with a client instance.
 
         Args:
@@ -22,7 +24,7 @@ class IssueCommentsBase:
         order_by: Literal["created", "-created", "updated", "-updated"] | None,
         expand: str | None,
         extra_params: dict[str, Any] | None,
-    ):
+    ) -> dict[str, Any]:
         """Prepare request configuration for get_comments.
 
         Args:

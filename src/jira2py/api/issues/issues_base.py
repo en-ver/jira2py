@@ -2,11 +2,13 @@
 
 from typing import Any
 
+from jira2py.client import JiraClientSync, JiraClientAsync
+
 
 class IssuesBase:
     """Base class for Issues API - contains shared business logic."""
 
-    def __init__(self, client):
+    def __init__(self, client: JiraClientSync | JiraClientAsync) -> None:
         """Initialize with a client instance.
 
         Args:
@@ -20,7 +22,7 @@ class IssuesBase:
         fields: str | None,
         expand: str | None,
         extra_params: dict[str, Any] | None,
-    ):
+    ) -> dict[str, Any]:
         """Prepare request configuration for get_issue.
 
         Args:
@@ -49,7 +51,7 @@ class IssuesBase:
         start_at: int,
         max_results: int,
         extra_params: dict[str, Any] | None,
-    ):
+    ) -> dict[str, Any]:
         """Prepare request configuration for get_changelogs.
 
         Args:
@@ -81,7 +83,7 @@ class IssuesBase:
         expand: str | None,
         extra_params: dict[str, Any] | None,
         extra_data: dict[str, Any] | None,
-    ):
+    ) -> dict[str, Any]:
         """Prepare request configuration for edit_issue.
 
         Args:

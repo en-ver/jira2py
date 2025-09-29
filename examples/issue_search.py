@@ -94,6 +94,39 @@ def test_sync():
     enhanced_search_with_extra_params_sync()
 
 
+def test_sync_with_context_manager():
+    """Test sync API with context manager for proper resource management."""
+    print("=== Testing Sync API with Context Manager ===")
+
+    # Using context manager ensures proper resource cleanup
+    with JiraAPI() as api:
+        print("Performing enhanced search within context manager...")
+        try:
+            search_results = api.search.enhanced_search(jql=jql, fields=["summary"])
+            pprint.pprint(search_results)
+        except Exception as e:
+            print(f"Error searching issues with query '{jql}': {e}")
+
+        print(
+            "\nPerforming enhanced search with extra params within context manager..."
+        )
+        try:
+            extra_params = {"startAt": 0, "maxResults": 10}
+            extra_data = {"fieldsByKeys": True, "expand": "changelog,renderedFields"}
+
+            search_results = api.search.enhanced_search(
+                jql=jql,
+                fields=["summary", "status"],
+                extra_params=extra_params,
+                extra_data=extra_data,
+            )
+            pprint.pprint(search_results)
+        except Exception as e:
+            print(f"Error searching issues with extra params '{jql}': {e}")
+
+    print("Context manager automatically cleaned up resources")
+
+
 async def test_async():
     """Test async API implementations."""
     print("=== Testing Async API ===")
@@ -102,6 +135,41 @@ async def test_async():
 
     print("\nPerforming enhanced search with extra params...")
     await enhanced_search_with_extra_params_async()
+
+
+async def test_async_with_context_manager():
+    """Test async API with context manager for proper resource management."""
+    print("=== Testing Async API with Context Manager ===")
+
+    # Using async context manager ensures proper resource cleanup
+    async with JiraAPIAsync() as api:
+        print("Performing enhanced search within async context manager...")
+        try:
+            search_results = await api.search.enhanced_search(
+                jql=jql, fields=["summary"]
+            )
+            pprint.pprint(search_results)
+        except Exception as e:
+            print(f"Error searching issues with query '{jql}': {e}")
+
+        print(
+            "\nPerforming enhanced search with extra params within async context manager..."
+        )
+        try:
+            extra_params = {"startAt": 0, "maxResults": 10}
+            extra_data = {"fieldsByKeys": True, "expand": "changelog,renderedFields"}
+
+            search_results = await api.search.enhanced_search(
+                jql=jql,
+                fields=["summary", "status"],
+                extra_params=extra_params,
+                extra_data=extra_data,
+            )
+            pprint.pprint(search_results)
+        except Exception as e:
+            print(f"Error searching issues with extra params '{jql}': {e}")
+
+    print("Async context manager automatically cleaned up resources")
 
 
 def main():
@@ -114,11 +182,23 @@ def main():
 
     print("\n" + "=" * 50)
 
+    # Test sync API with context manager (recommended approach)
+    test_sync_with_context_manager()
+
+    print("\n" + "=" * 50)
+
     # Test async API
     asyncio.run(test_async())
 
     print("\n" + "=" * 50)
+
+    # Test async API with context manager (recommended approach)
+    asyncio.run(test_async_with_context_manager())
+
+    print("\n" + "=" * 50)
     print("All tests completed!")
+    print("\nNote: The context manager examples demonstrate the recommended approach")
+    print("for proper resource management with the client injection pattern.")
 
 
 if __name__ == "__main__":
