@@ -12,13 +12,29 @@ class ApiBase(Generic[T], ABC):
     """Generic base class for API implementations.
 
     This class provides a common foundation for both sync and async API implementations,
-    eliminating code duplication through generic programming patterns.
+    following the sans-I/O pattern: it contains business logic and data preparation
+    but no actual I/O operations. All I/O is delegated to the injected client.
+
+    This approach:
+    - Eliminates code duplication between sync/async implementations
+    - Separates business logic from I/O operations
+    - Allows thorough testing of logic without network calls
+    - Leverages httpx's built-in URL handling (configured with base_url in the client)
+
+    Example:
+        >>> class MyAPI(ApiBase[JiraClientSync]):
+        ...     def get_item(self, item_id: str) -> dict:
+        ...         # Business logic: prepare request configuration
+        ...         config = {"method": "GET", "context_path": f"items/{item_id}"}
+        ...         # I/O: delegate to client
+        ...         return self._client._request_jira(**config)
     """
 
     def __init__(self, client: T) -> None:
         """Initialize with a client instance.
 
         Args:
-            client: JIRA client instance (sync or async)
+            client: JIRA client instance (sync or async).
+                    The client handles all I/O operations via httpx.
         """
         self._client: T = client

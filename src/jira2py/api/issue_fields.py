@@ -31,11 +31,36 @@ class IssueFields(IssueFieldsBase[JiraClientSync]):
 
     @validate_call
     def get_fields(self) -> list[dict[str, Any]]:
-        """Returns system and custom issue fields
+        """Returns system and custom issue fields.
+
+        Retrieves all fields available in the Jira instance, including both
+        system fields (like summary, status, priority) and custom fields
+        created by the administrator.
+
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-fields/#api-rest-api-3-field-get
 
         Returns:
-            list[dict]: List of issue fields
+            A list of dictionaries, each representing a field with properties:
+            - "id": The unique identifier for the field
+            - "name": The human-readable name of the field
+            - "custom": Whether this is a custom field (true/false)
+            - "orderable": Whether the field can be used in ordering
+            - "navigable": Whether the field can be used in navigation
+            - "searchable": Whether the field can be searched in JQL
+            - "schema": Detailed schema information about the field type
+
+        Raises:
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
+
+        Example:
+            >>> api = JiraAPI(url="https://company.atlassian.net", username="user@example.com", api_token="token")
+            >>> fields = api.fields.get_fields()
+            >>> custom_fields = [f for f in fields if f.get("custom")]
+            >>> len(custom_fields)
+            15
         """
         request_config = self._get_fields_request_config()
         return cast(
@@ -49,11 +74,36 @@ class IssueFieldsAsync(IssueFieldsBase[JiraClientAsync]):
 
     @validate_call
     async def get_fields(self) -> list[dict[str, Any]]:
-        """Returns system and custom issue fields
+        """Returns system and custom issue fields (async version).
+
+        Retrieves all fields available in the Jira instance, including both
+        system fields (like summary, status, priority) and custom fields
+        created by the administrator.
+
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-fields/#api-rest-api-3-field-get
 
         Returns:
-            list[dict]: List of issue fields
+            A list of dictionaries, each representing a field with properties:
+            - "id": The unique identifier for the field
+            - "name": The human-readable name of the field
+            - "custom": Whether this is a custom field (true/false)
+            - "orderable": Whether the field can be used in ordering
+            - "navigable": Whether the field can be used in navigation
+            - "searchable": Whether the field can be searched in JQL
+            - "schema": Detailed schema information about the field type
+
+        Raises:
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
+
+        Example:
+            >>> api = JiraAPIAsync(url="https://company.atlassian.net", username="user@example.com", api_token="token")
+            >>> fields = await api.fields.get_fields()
+            >>> custom_fields = [f for f in fields if f.get("custom")]
+            >>> len(custom_fields)
+            15
         """
         request_config = self._get_fields_request_config()
         return cast(
