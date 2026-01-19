@@ -264,18 +264,158 @@ class JiraClientBase(ABC):
         except Exception as e:
             raise ValueError(f"Failed to parse response as JSON: {e}")
 
-    def _handle_error(self, error: Exception) -> Exception:
-        """Handle HTTP errors and convert them to appropriate exceptions.
+    def _extract_error_messages(self, response: httpx.Response) -> list[str]:
+        """Extract error messages from JIRA API response.
+
+        JIRA error responses can have different structures. This method
+        extracts error messages from common locations in the response body.
 
         Args:
-            error: Original error from HTTP client
+            response: httpx.Response object
 
         Returns:
-            Appropriate exception for the error type.
+            List of error message strings
         """
-        # For now, just re-raise the original error
-        # This can be enhanced later with custom exception types
-        return error
+        try:
+            data = response.json()
+
+            # JIRA error responses can have different structures
+            if isinstance(data, dict):
+                # Check for error messages in common locations
+                if "errorMessages" in data:
+                    error_msgs = data["errorMessages"]
+                    return error_msgs if isinstance(error_msgs, list) else [error_msgs]
+                if "errors" in data:
+                    errors = data["errors"]
+                    return (
+                        list(errors.values())
+                        if isinstance(errors, dict)
+                        else [str(errors)]
+                    )
+                if "message" in data:
+                    return [data["message"]]
+
+            return []
+        except Exception:
+            return []
+
+    def _handle_error(self, error: Exception) -> None:
+        """Handle HTTP errors and convert to appropriate jira2py exceptions.
+
+        This method transforms httpx exceptions into domain-specific jira2py
+        exceptions while preserving the original traceback via exception chaining.
+
+        Uses the `raise ... from ...` pattern as recommended by PEP 8 and the
+        official Python documentation to preserve the full stack trace.
+
+        Args:
+            error: The original exception from httpx
+
+        Raises:
+            JiraAuthenticationError: For 401/403 responses
+            JiraNotFoundError: For 404 responses
+            JiraRateLimitError: For 429 responses
+            JiraValidationError: For 400 responses
+            JiraAPIError: For other 4xx/5xx responses
+            JiraConnectionError: For network/timeout errors
+            JiraError: For any other errors
+        """
+        # Lazy import to avoid circular dependency at module level
+        # This follows Python's official best practices for handling circular imports
+        from jira2py import (
+            JiraAPIError,
+            JiraAuthenticationError,
+            JiraConnectionError,
+            JiraError,
+            JiraNotFoundError,
+            JiraRateLimitError,
+            JiraValidationError,
+        )
+
+        # Handle HTTP status errors (4xx, 5xx)
+        if isinstance(error, httpx.HTTPStatusError):
+            response = error.response
+            status_code = response.status_code
+            error_messages = self._extract_error_messages(response)
+
+            # Map specific status codes to appropriate exceptions
+            if status_code == 401:
+                raise JiraAuthenticationError(
+                    "Authentication failed. Check your credentials.",
+                    response=response,
+                ) from error
+
+            if status_code == 403:
+                raise JiraAuthenticationError(
+                    "Access forbidden. You don't have permission to access this resource.",
+                    response=response,
+                ) from error
+
+            if status_code == 404:
+                raise JiraNotFoundError(
+                    "Resource not found.",
+                    status_code=status_code,
+                    response=response,
+                    error_messages=error_messages,
+                ) from error
+
+            if status_code == 429:
+                raise JiraRateLimitError(
+                    "API rate limit exceeded. Implement backoff and retry.",
+                    status_code=status_code,
+                    response=response,
+                    error_messages=error_messages,
+                ) from error
+
+            # Handle 400 validation errors
+            if status_code == 400:
+                raise JiraValidationError(
+                    "Request validation failed. Check your input data.",
+                    status_code=status_code,
+                    response=response,
+                    error_messages=error_messages,
+                ) from error
+
+            # Handle other 4xx client errors
+            if 400 <= status_code < 500:
+                raise JiraAPIError(
+                    f"Client error: {status_code}",
+                    status_code=status_code,
+                    response=response,
+                    error_messages=error_messages,
+                ) from error
+
+            # Handle 5xx server errors
+            if status_code >= 500:
+                raise JiraAPIError(
+                    f"Server error: {status_code}",
+                    status_code=status_code,
+                    response=response,
+                    error_messages=error_messages,
+                ) from error
+
+        # Handle timeout errors
+        if isinstance(error, httpx.TimeoutException):
+            raise JiraConnectionError(
+                f"Request timed out: {error}",
+            ) from error
+
+        # Handle network errors (connect, read, write errors)
+        if isinstance(error, httpx.NetworkError):
+            raise JiraConnectionError(
+                f"Network error: {error}",
+            ) from error
+
+        # Handle any other httpx errors
+        if isinstance(error, httpx.HTTPError):
+            raise JiraError(
+                f"HTTP error occurred: {error}",
+            ) from error
+
+        # Wrap unknown errors in JiraError
+        raise JiraError(
+            f"Unexpected error: {error}",
+        ) from error
 
     def _get_client_key(self) -> str:
         """Generate unique key for this credentials configuration.

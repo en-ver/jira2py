@@ -1,10 +1,11 @@
 """Unified Issues API implementation using generic pattern."""
 
-from typing import Any, cast, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync, JiraClientAsync
+from jira2py.client import JiraClientAsync, JiraClientSync
+
 from .api_base import ApiBase
 
 T = TypeVar("T", JiraClientSync, JiraClientAsync)
@@ -136,7 +137,11 @@ class Issues(IssuesBase[JiraClientSync]):
             dict: A dictionary containing the issue details.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraNotFoundError: If the issue is not found (404).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._get_issue_request_config(
             issue_id, fields, expand, extra_params
@@ -167,7 +172,11 @@ class Issues(IssuesBase[JiraClientSync]):
             list[dict]: A list of dictionaries containing the changelog history for the issue.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraNotFoundError: If the issue is not found (404).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._get_changelogs_request_config(
             issue_id, start_at, max_results, extra_params
@@ -204,7 +213,11 @@ class Issues(IssuesBase[JiraClientSync]):
             dict: The updated issue details.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraNotFoundError: If the issue is not found (404).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._edit_issue_request_config(
             issue_id,
@@ -245,7 +258,11 @@ class IssuesAsync(IssuesBase[JiraClientAsync]):
             dict: A dictionary containing the issue details.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraNotFoundError: If the issue is not found (404).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._get_issue_request_config(
             issue_id, fields, expand, extra_params
@@ -276,7 +293,11 @@ class IssuesAsync(IssuesBase[JiraClientAsync]):
             list[dict]: A list of dictionaries containing the changelog history for the issue.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraNotFoundError: If the issue is not found (404).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._get_changelogs_request_config(
             issue_id, start_at, max_results, extra_params
@@ -313,7 +334,11 @@ class IssuesAsync(IssuesBase[JiraClientAsync]):
             dict: The updated issue details.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraNotFoundError: If the issue is not found (404).
+            JiraAPIError: For other API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._edit_issue_request_config(
             issue_id,

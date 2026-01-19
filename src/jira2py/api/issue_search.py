@@ -1,10 +1,11 @@
 """Unified IssueSearch API implementation using generic pattern."""
 
-from typing import Any, cast, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync, JiraClientAsync
+from jira2py.client import JiraClientAsync, JiraClientSync
+
 from .api_base import ApiBase
 
 T = TypeVar("T", JiraClientSync, JiraClientAsync)
@@ -83,7 +84,10 @@ class IssueSearch(IssueSearchBase[JiraClientSync]):
             dict: A dictionary containing the search results, including issues and metadata.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraAPIError: For API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._enhanced_search_request_config(
             jql, next_page_token, max_results, fields, expand, extra_params, extra_data
@@ -124,7 +128,10 @@ class IssueSearchAsync(IssueSearchBase[JiraClientAsync]):
             dict: A dictionary containing the search results, including issues and metadata.
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails.
+            JiraAuthenticationError: If authentication fails (401, 403).
+            JiraAPIError: For API errors (4xx, 5xx).
+            JiraConnectionError: For network or connection errors.
+            JiraError: For any other jira2py errors.
         """
         request_config = self._enhanced_search_request_config(
             jql, next_page_token, max_results, fields, expand, extra_params, extra_data
