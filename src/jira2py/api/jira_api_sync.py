@@ -7,6 +7,7 @@ from .issue_fields import IssueFields
 from .issue_search import IssueSearch
 from .issues import Issues
 from .jira_api_base import JiraAPIBase
+from .projects import Projects
 
 
 class JiraAPI(JiraAPIBase):
@@ -46,3 +47,8 @@ class JiraAPI(JiraAPIBase):
     def comments(self) -> IssueComments:
         """Get comments client."""
         return IssueComments(self._client)
+
+    @property
+    def projects(self) -> Projects:
+        """Get projects client."""
+        return Projects(self._client)

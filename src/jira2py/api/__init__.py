@@ -7,6 +7,7 @@ from .issues import Issues, IssuesAsync
 from .issue_comments import IssueComments, IssueCommentsAsync
 from .issue_fields import IssueFields, IssueFieldsAsync
 from .issue_search import IssueSearch, IssueSearchAsync
+from .projects import Projects, ProjectsAsync
 
 __all__ = [
     "JiraAPI",
@@ -20,4 +21,6 @@ __all__ = [
     "IssueFieldsAsync",
     "IssueSearch",
     "IssueSearchAsync",
+    "Projects",
+    "ProjectsAsync",
 ]

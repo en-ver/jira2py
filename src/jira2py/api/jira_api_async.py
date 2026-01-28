@@ -5,6 +5,7 @@ from .issue_fields import IssueFieldsAsync
 from .issue_search import IssueSearchAsync
 from .issues import IssuesAsync
 from .jira_api_base import JiraAPIBase
+from .projects import ProjectsAsync
 from jira2py.client import JiraClientAsync
 
 
@@ -45,3 +46,8 @@ class JiraAPIAsync(JiraAPIBase):
     def comments(self) -> IssueCommentsAsync:
         """Get comments client."""
         return IssueCommentsAsync(self._client)
+
+    @property
+    def projects(self) -> ProjectsAsync:
+        """Get projects client."""
+        return ProjectsAsync(self._client)
