@@ -24,73 +24,6 @@ def test_credentials(base_url):
     )
 
 
-@pytest.fixture(scope="session")
-def sample_issue_response():
-    """Sample JIRA issue response for testing."""
-    return {
-        "id": "10000",
-        "key": "TEST-1",
-        "fields": {
-            "summary": "Test issue",
-            "description": "Test description",
-            "status": {"name": "To Do"},
-            "issuetype": {"name": "Story"},
-        },
-    }
-
-
-@pytest.fixture
-def mock_transport_success(sample_issue_response):
-    """Mock HTTP transport that returns successful responses."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if "/issue/TEST-1" in request.url.path:
-            return httpx.Response(200, json=sample_issue_response)
-        return httpx.Response(404, json={"message": "Not found"})
-
-    return httpx.MockTransport(handler)
-
-
-@pytest.fixture
-def mock_transport_401():
-    """Mock HTTP transport that returns 401 Unauthorized."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(401, json={"message": "Unauthorized"})
-
-    return httpx.MockTransport(handler)
-
-
-@pytest.fixture
-def mock_transport_404():
-    """Mock HTTP transport that returns 404 Not Found."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(404, json={"message": "Not found"})
-
-    return httpx.MockTransport(handler)
-
-
-@pytest.fixture
-def mock_transport_429():
-    """Mock HTTP transport that returns 429 Rate Limit."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(429, json={"message": "Rate limit exceeded"})
-
-    return httpx.MockTransport(handler)
-
-
-@pytest.fixture
-def mock_transport_500():
-    """Mock HTTP transport that returns 500 Server Error."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(500, json={"message": "Internal server error"})
-
-    return httpx.MockTransport(handler)
-
-
 @pytest.fixture
 def mock_http_response():
     """Create mock httpx.Response for testing."""
@@ -104,15 +37,29 @@ def mock_http_response():
 
 
 @pytest.fixture
-def sync_client_with_transport(test_credentials, mock_transport_success):
-    """Create a sync client with mocked transport."""
-    # Create client with custom transport
-    client = httpx.Client(
-        transport=mock_transport_success,
-        base_url=f"{test_credentials.url}/rest/api/3",
-        auth=httpx.BasicAuth(test_credentials.username, test_credentials.api_token),
-    )
-    return client
+def make_client(test_credentials):
+    """Factory fixture that creates a JiraClientSync with a mock handler.
+
+    Cleans up injected persistent clients after each test to prevent state leakage.
+    """
+    from jira2py.client import JiraClientSync
+
+    created_keys: list[str] = []
+
+    def _factory(handler):
+        client = JiraClientSync(test_credentials)
+        client._class_persistent_clients[client._client_key] = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url=f"{test_credentials.url}/rest/api/3",
+            auth=httpx.BasicAuth(test_credentials.username, test_credentials.api_token),
+        )
+        created_keys.append(client._client_key)
+        return client
+
+    yield _factory
+
+    for key in created_keys:
+        JiraClientSync._class_persistent_clients.pop(key, None)
 
 
 # Projects API fixtures
@@ -158,53 +105,17 @@ def mock_transport_projects_success(sample_projects_response):
 
 
 @pytest.fixture
-def mock_transport_projects_empty():
-    """Mock HTTP transport that returns empty projects response."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if "/project/search" in request.url.path:
-            return httpx.Response(
-                200,
-                json={
-                    "startAt": 0,
-                    "maxResults": 50,
-                    "total": 0,
-                    "isLast": True,
-                    "values": [],
-                },
-            )
-        return httpx.Response(404, json={"message": "Not found"})
-
-    return httpx.MockTransport(handler)
-
-
-@pytest.fixture
 def projects_client(test_credentials, mock_transport_projects_success):
     """Create a Projects API client with mocked transport."""
     from jira2py.api.projects import Projects
     from jira2py.client import JiraClientSync
 
-    client = JiraClientSync(credentials=test_credentials)
-    # Inject the mock transport
-    client._client = httpx.Client(
+    client = JiraClientSync(test_credentials)
+    client._class_persistent_clients[client._client_key] = httpx.Client(
         transport=mock_transport_projects_success,
         base_url=f"{test_credentials.url}/rest/api/3",
         auth=httpx.BasicAuth(test_credentials.username, test_credentials.api_token),
     )
-    return Projects(client)
+    yield Projects(client)
 
-
-@pytest.fixture
-def projects_client_async(test_credentials, mock_transport_projects_success):
-    """Create a ProjectsAsync API client with mocked transport."""
-    from jira2py.api.projects import ProjectsAsync
-    from jira2py.client import JiraClientAsync
-
-    client = JiraClientAsync(credentials=test_credentials)
-    # Inject the mock transport
-    client._client = httpx.AsyncClient(
-        transport=mock_transport_projects_success,
-        base_url=f"{test_credentials.url}/rest/api/3",
-        auth=httpx.BasicAuth(test_credentials.username, test_credentials.api_token),
-    )
-    return ProjectsAsync(client)
+    JiraClientSync._class_persistent_clients.pop(client._client_key, None)

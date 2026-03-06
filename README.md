@@ -29,25 +29,10 @@ jira = JiraAPI(
 issue = jira.issues.get_issue("PROJECT-123")
 
 # Search with JQL
-results = jira.search.jql("project = PROJECT AND status = 'In Progress'")
+results = jira.search.enhanced_search("project = PROJECT AND status = 'In Progress'")
 
 # Get project list
 projects = jira.projects.search_projects()
-```
-
-### Async Support
-
-```python
-from jira2py import JiraAPIAsync
-
-async def main():
-    jira = JiraAPIAsync(
-        url="https://your-domain.atlassian.net",
-        username="your-email@example.com",
-        api_token="your-api-token",
-    )
-
-    issue = await jira.issues.get_issue("PROJECT-123")
 ```
 
 ### Environment Variables
@@ -76,7 +61,6 @@ jira = JiraAPI()  # Credentials loaded from environment
 - **Attachments**: Access issue attachments
 - **Issue Links**: Create and manage issue links
 - **User Search**: Find JIRA users
-- **Async Support**: Full async/await API via `JiraAPIAsync`
 - **Type Safety**: Full type hints with `py.typed` marker (PEP 561)
 
 ## Documentation

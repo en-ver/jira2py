@@ -88,44 +88,17 @@ class TestJiraCredentials:
 class TestJiraClientSync:
     """Tests for synchronous JIRA client."""
 
-    def test_client_initialization_with_credentials(self, test_credentials):
+    def test_client_initialization(self, test_credentials):
         """Test that client can be initialized with credentials object."""
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         assert client.credentials == test_credentials
 
-    def test_client_initialization_with_parameters(self, base_url):
-        """Test that client can be initialized with individual parameters."""
-        client = JiraClientSync(
-            url=base_url,
-            username="test@example.com",
-            api_token="test-token",
-        )
-        assert client.credentials.url == base_url
-        assert client.credentials.username == "test@example.com"
-        assert client.credentials.api_token == "test-token"
-
-    def test_client_get_client_type(self, test_credentials):
-        """Test that client returns correct client type."""
-        client = JiraClientSync(credentials=test_credentials)
-        assert client._get_client_type() == httpx.Client
-        assert client._get_async_mode() is False
-
-    def test_client_context_manager(self, test_credentials):
-        """Test that client works as context manager."""
-        client = JiraClientSync(credentials=test_credentials)
-        with client:
-            assert client._client is not None
-        assert client._client is None
-
-    def test_client_close(self, test_credentials):
-        """Test that client can be closed."""
-        client = JiraClientSync(credentials=test_credentials)
-        # Assign a persistent client reference
-        client._client = client._get_persistent_client()
-        assert client._client is not None
-
-        client.close()
-        assert client._client is None
+    def test_persistent_client_reuse(self, test_credentials):
+        """Test that persistent clients are reused for same credentials."""
+        client = JiraClientSync(test_credentials)
+        http_client_1 = client._get_persistent_client()
+        http_client_2 = client._get_persistent_client()
+        assert http_client_1 is http_client_2
 
 
 class TestClientErrorHandling:
@@ -133,7 +106,7 @@ class TestClientErrorHandling:
 
     def test_handle_error_with_timeout(self, test_credentials):
         """Test that timeout errors raise JiraConnectionError."""
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         timeout_error = httpx.TimeoutException("Request timed out")
 
         with pytest.raises(JiraConnectionError) as exc_info:
@@ -144,7 +117,7 @@ class TestClientErrorHandling:
 
     def test_handle_error_with_network_error(self, test_credentials):
         """Test that network errors raise JiraConnectionError."""
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         network_error = httpx.NetworkError("Connection failed")
 
         with pytest.raises(JiraConnectionError) as exc_info:
@@ -155,7 +128,7 @@ class TestClientErrorHandling:
 
     def test_handle_error_with_unknown_error(self, test_credentials):
         """Test that unknown errors raise JiraError."""
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         unknown_error = RuntimeError("Unknown error")
 
         with pytest.raises(JiraError) as exc_info:
@@ -170,7 +143,7 @@ class TestClientErrorHandling:
         """Test extracting error messages from errorMessages field."""
         mock_http_response.json.return_value = {"errorMessages": ["Error 1", "Error 2"]}
 
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         messages = client._extract_error_messages(mock_http_response)
         assert messages == ["Error 1", "Error 2"]
 
@@ -182,7 +155,7 @@ class TestClientErrorHandling:
             "errors": {"field1": "Error 1", "field2": "Error 2"}
         }
 
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         messages = client._extract_error_messages(mock_http_response)
         assert set(messages) == {"Error 1", "Error 2"}
 
@@ -192,7 +165,7 @@ class TestClientErrorHandling:
         """Test extracting error message from message field."""
         mock_http_response.json.return_value = {"message": "Single error message"}
 
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         messages = client._extract_error_messages(mock_http_response)
         assert messages == ["Single error message"]
 
@@ -202,7 +175,7 @@ class TestClientErrorHandling:
         """Test extracting error messages from empty response."""
         mock_http_response.json.return_value = {}
 
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         messages = client._extract_error_messages(mock_http_response)
         assert messages == []
 
@@ -212,7 +185,7 @@ class TestClientErrorHandling:
         """Test extracting error messages from invalid JSON."""
         mock_http_response.json.side_effect = ValueError("Invalid JSON")
 
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
         messages = client._extract_error_messages(mock_http_response)
         assert messages == []
 
@@ -241,7 +214,7 @@ class TestHTTPStatusMapping:
         error_message,
     ):
         """Test that HTTP status codes map to correct exceptions."""
-        client = JiraClientSync(credentials=test_credentials)
+        client = JiraClientSync(test_credentials)
 
         # Create a mock HTTPStatusError
         mock_request = httpx.Request(

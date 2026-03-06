@@ -1,6 +1,6 @@
 from importlib.metadata import version
 
-from .api import JiraAPI, JiraAPIAsync
+from .api import JiraAPI
 from .exceptions import (
     JiraAPIError,
     JiraAuthenticationError,
@@ -15,7 +15,6 @@ __version__ = version("jira2py")
 
 __all__ = [
     "JiraAPI",
-    "JiraAPIAsync",
     "JiraError",
     "JiraAuthenticationError",
     "JiraConnectionError",

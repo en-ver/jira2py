@@ -2,7 +2,7 @@
 
 from functools import cached_property
 
-from jira2py.client import JiraClientSync
+from jira2py.client import JiraClientSync, JiraCredentials
 
 from .attachments import Attachments
 from .issue_comments import IssueComments
@@ -10,15 +10,14 @@ from .issue_fields import IssueFields
 from .issue_links import IssueLinks
 from .issue_search import IssueSearch
 from .issues import Issues
-from .jira_api_base import _JiraAPIBase
 from .projects import Projects
 from .users import Users
 
 
-class JiraAPI(_JiraAPIBase):
+class JiraAPI:
     """Synchronous Jira API facade.
 
-    Provides a unified interface to all Jira API endpoints using synchronous operations.
+    Provides a unified interface to all Jira API endpoints.
     This class composes individual API clients and provides a single entry point
     for all Jira operations.
 
@@ -29,9 +28,28 @@ class JiraAPI(_JiraAPIBase):
         >>> fields = api.fields.get_fields()
     """
 
-    def _create_client(self) -> JiraClientSync:
-        """Create the sync client instance."""
-        return JiraClientSync(self.credentials)
+    def __init__(
+        self,
+        url: str | None = None,
+        username: str | None = None,
+        api_token: str | None = None,
+    ) -> None:
+        """Initialize the Jira API facade.
+
+        Args:
+            url: Base URL of the JIRA instance.
+            username: JIRA username.
+            api_token: JIRA API token.
+        """
+        self._credentials = JiraCredentials.create(
+            url=url, username=username, api_token=api_token
+        )
+        self._client = JiraClientSync(self._credentials)
+
+    @property
+    def credentials(self) -> JiraCredentials:
+        """Get the JIRA credentials."""
+        return self._credentials
 
     @cached_property
     def issues(self) -> Issues:

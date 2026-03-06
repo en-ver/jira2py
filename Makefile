@@ -16,27 +16,27 @@ help:
 
 # Run ruff linting with auto-fix
 lint:
-	ruff check --fix src tests examples
+	uv run ruff check --fix src tests examples
 
 # Run ruff formatting
 format:
-	ruff format src tests examples
+	uv run ruff format src tests examples
 
 # Run ty type checking
 type-check:
-	ty check src/ tests/
+	uv run ty check src/ tests/ examples/
 
 # Run pytest test suite
 test:
-	pytest tests/ -v
+	uv run pytest tests/ -v
 
 # Run pytest with coverage report
 test-cov:
-	pytest tests/ --cov=src/jira2py --cov-report=html --cov-report=term
+	uv run pytest tests/ --cov=src/jira2py --cov-report=html --cov-report=term
 
 # Run pytest with verbose output
 test-verbose:
-	pytest tests/ -vv
+	uv run pytest tests/ -vv
 
 # Run all checks
 check: lint format type-check test
