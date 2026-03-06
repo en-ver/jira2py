@@ -9,52 +9,68 @@ class JiraCredentials:
     """Container for JIRA authentication data.
 
     This class provides a type-safe way to store and manage JIRA credentials.
-    It supports both explicit credential passing and automatic environment variable loading.
+    Use the ``create`` classmethod to construct instances with automatic
+    environment variable fallback and validation.
 
     Environment Variables:
         JIRA_URL: The URL of your JIRA instance.
         JIRA_USER: Your JIRA username (email).
         JIRA_API_TOKEN: Your JIRA API token.
 
-    Args:
-        url: Base URL of the JIRA instance (e.g., "https://mycompany.atlassian.net")
-            If not provided, will be loaded from JIRA_URL environment variable.
-        username: JIRA username (typically an email address)
-            If not provided, will be loaded from JIRA_USER environment variable.
-        api_token: JIRA API token or password (hidden from repr)
-            If not provided, will be loaded from JIRA_API_TOKEN environment variable.
+    Example:
+        >>> creds = JiraCredentials.create(
+        ...     url="https://mycompany.atlassian.net",
+        ...     username="user@example.com",
+        ...     api_token="token",
+        ... )
 
-    Raises:
-        ValueError: If any required credentials are missing or invalid.
+        >>> # Or load entirely from environment variables:
+        >>> creds = JiraCredentials.create()
     """
 
-    url: str | None = None
-    username: str | None = None
-    api_token: str | None = field(default=None, repr=False)
+    url: str
+    username: str
+    api_token: str = field(repr=False)
 
-    def __post_init__(self) -> None:
-        """Validate credentials after initialization."""
-        # Auto-detect missing values from environment
-        final_url = self.url or os.getenv("JIRA_URL", "").strip()
-        final_username = self.username or os.getenv("JIRA_USER", "").strip()
-        final_token = self.api_token or os.getenv("JIRA_API_TOKEN", "").strip()
+    @classmethod
+    def create(
+        cls,
+        url: str | None = None,
+        username: str | None = None,
+        api_token: str | None = None,
+    ) -> "JiraCredentials":
+        """Create credentials with environment variable fallback.
 
-        # Update the frozen dataclass with resolved values
-        object.__setattr__(self, "url", final_url)
-        object.__setattr__(self, "username", final_username)
-        object.__setattr__(self, "api_token", final_token)
+        Args:
+            url: Base URL of the JIRA instance (e.g., "https://mycompany.atlassian.net").
+                Falls back to JIRA_URL environment variable.
+            username: JIRA username (typically an email address).
+                Falls back to JIRA_USER environment variable.
+            api_token: JIRA API token or password.
+                Falls back to JIRA_API_TOKEN environment variable.
 
-        # Validate credentials
-        if not self.url:
+        Returns:
+            Validated JiraCredentials instance.
+
+        Raises:
+            ValueError: If any required credentials are missing or invalid.
+        """
+        final_url = (url or os.getenv("JIRA_URL", "")).strip()
+        final_username = (username or os.getenv("JIRA_USER", "")).strip()
+        final_token = (api_token or os.getenv("JIRA_API_TOKEN", "")).strip()
+
+        if not final_url:
             raise ValueError("JIRA URL is required")
-        if not self.username:
+        if not final_username:
             raise ValueError("JIRA username is required")
-        if not self.api_token:
+        if not final_token:
             raise ValueError("JIRA API token is required")
 
-        # Validate URL format
-        if not self.url.startswith(("http://", "https://")):
+        if not final_url.startswith(("http://", "https://")):
             raise ValueError("JIRA URL must start with http:// or https://")
 
-        # Clean URL by removing trailing slashes
-        object.__setattr__(self, "url", self.url.rstrip("/"))
+        return cls(
+            url=final_url.rstrip("/"),
+            username=final_username,
+            api_token=final_token,
+        )

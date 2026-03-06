@@ -1,11 +1,22 @@
 """Base JIRA client implementation."""
 
 import atexit
-import weakref
+import contextlib
+import threading
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Type, Union, cast
+from typing import Any
 
 import httpx
+
+from jira2py.exceptions import (
+    JiraAPIError,
+    JiraAuthenticationError,
+    JiraConnectionError,
+    JiraError,
+    JiraNotFoundError,
+    JiraRateLimitError,
+    JiraValidationError,
+)
 
 from .credentials import JiraCredentials
 from .factory import JiraClientFactory
@@ -22,7 +33,9 @@ class JiraClientBase(ABC):
     """
 
     # Class-level storage for shared persistent clients
-    _class_persistent_clients: Dict[str, Union[httpx.Client, httpx.AsyncClient]] = {}
+    _class_persistent_clients: dict[str, httpx.Client | httpx.AsyncClient] = {}
+    _clients_lock = threading.Lock()
+    _atexit_registered: bool = False
 
     def __init__(self, credentials: JiraCredentials):
         """Initialize the client with credentials.
@@ -32,32 +45,16 @@ class JiraClientBase(ABC):
         """
         self.credentials = credentials
         self._client: Any = None
-        self._persistent_client: Union[httpx.Client, httpx.AsyncClient] | None = None
+        self._persistent_client: httpx.Client | httpx.AsyncClient | None = None
         self._async_mode = self._get_async_mode()  # Cache for performance
         self._client_key = self._get_client_key()
 
-        # Register automatic cleanup
-        self._finalizer = weakref.finalize(
-            self, self._cleanup_instance_resources, self._client_key
-        )
+        # Register atexit cleanup exactly once on the base class
+        if not JiraClientBase._atexit_registered:
+            atexit.register(JiraClientBase.close_all)
+            JiraClientBase._atexit_registered = True
 
-        # Register atexit cleanup if not already registered
-        if not hasattr(self.__class__, "_atexit_registered"):
-            atexit.register(self.__class__._cleanup_all_clients)
-            setattr(self.__class__, "_atexit_registered", True)
-
-    @abstractmethod
-    def _get_client(self) -> Any:
-        """Get the underlying HTTP client.
-
-        Returns:
-            The HTTP client instance (sync or async).
-        """
-        pass
-
-    def _validate_client_type(
-        self, client: Union[httpx.Client, httpx.AsyncClient]
-    ) -> None:
+    def _validate_client_type(self, client: httpx.Client | httpx.AsyncClient) -> None:
         """Validate client type matches expected type.
 
         Args:
@@ -67,32 +64,32 @@ class JiraClientBase(ABC):
             AssertionError: If client type doesn't match expected type.
         """
         expected_type = self._get_client_type()
-        assert isinstance(client, expected_type), f"Expected {expected_type.__name__}"
+        if not isinstance(client, expected_type):
+            raise TypeError(f"Expected {expected_type.__name__}")
 
-    def _get_persistent_client(self) -> Union[httpx.Client, httpx.AsyncClient]:
-        """Generic template method for persistent client retrieval.
+    def _get_persistent_client(self) -> httpx.Client | httpx.AsyncClient:
+        """Get or create a persistent HTTP client for connection pooling.
 
-        This method eliminates code duplication by providing a single
-        implementation that works for both sync and async clients through
-        type parameter bounds and abstract configuration methods.
+        Uses double-checked locking for thread safety.
 
         Returns:
-            Union[httpx.Client, httpx.AsyncClient]: The persistent HTTP client instance.
+            The persistent HTTP client instance.
         """
         if self._client_key not in self._class_persistent_clients:
-            client = JiraClientFactory.create_client(
-                self.credentials, async_mode=self._async_mode
-            )
-            self._validate_client_type(client)
-            self._class_persistent_clients[self._client_key] = client
+            with self._clients_lock:
+                if self._client_key not in self._class_persistent_clients:
+                    client = JiraClientFactory.create_client(
+                        self.credentials, async_mode=self._async_mode
+                    )
+                    self._validate_client_type(client)
+                    self._class_persistent_clients[self._client_key] = client
 
         client = self._class_persistent_clients[self._client_key]
-        self._validate_client_type(client)
         self._persistent_client = client
         return client
 
     @abstractmethod
-    def _get_client_type(self) -> Type[Union[httpx.Client, httpx.AsyncClient]]:
+    def _get_client_type(self) -> type[httpx.Client | httpx.AsyncClient]:
         """Return the expected client type for this implementation.
 
         Returns:
@@ -118,7 +115,6 @@ class JiraClientBase(ABC):
         *,
         extra_params: dict[str, Any] | None = None,
         extra_data: dict[str, Any] | None = None,
-        response_type: str = "dict",
     ) -> Any:
         """Make a request to the JIRA API using the provided HTTP call function.
 
@@ -127,10 +123,9 @@ class JiraClientBase(ABC):
             context_path: API endpoint path (without leading slash)
             params: Query parameters
             data: Request body data
-            response_type: Expected response type ("dict" or "list")
 
         Returns:
-            Response data as dict or list based on response_type parameter.
+            Tuple of (client, method, full_url, request_kwargs).
         """
         # Prepare request parameters
         method, full_url, request_kwargs = self._prepare_request(
@@ -144,17 +139,6 @@ class JiraClientBase(ABC):
 
         # Return client and request kwargs for the specific HTTP call
         return client, method, full_url, request_kwargs
-
-    def _handle_response_result(self, response: Any) -> Any:
-        """Handle HTTP response and extract JSON data.
-
-        Args:
-            response: HTTP response object
-
-        Returns:
-            Parsed JSON response as dict or list.
-        """
-        return self._handle_response(response)
 
     def _prepare_request(
         self,
@@ -188,7 +172,7 @@ class JiraClientBase(ABC):
         full_url = context_path.lstrip("/")
 
         # Prepare request kwargs
-        request_kwargs: Dict[str, Any] = {
+        request_kwargs: dict[str, Any] = {
             "headers": {"Accept": "application/json"},
         }
 
@@ -227,8 +211,8 @@ class JiraClientBase(ABC):
             return public_dict
         return {**extra_dict, **public_dict}
 
-    def _clean_none_values(self, data: Any) -> dict[str, Any] | list[Any] | None:
-        """Recursively remove keys with falsy values from nested dictionaries and lists.
+    def _clean_none_values(self, data: Any) -> Any:
+        """Recursively remove keys with None values from nested dictionaries and lists.
 
         Args:
             data: Data to clean
@@ -239,30 +223,36 @@ class JiraClientBase(ABC):
         if data is None:
             return None
         elif isinstance(data, dict):
-            return {k: self._clean_none_values(v) for k, v in data.items() if v}
+            return {
+                k: self._clean_none_values(v) for k, v in data.items() if v is not None
+            }
         elif isinstance(data, list):
-            return [self._clean_none_values(item) for item in data if item]
+            return [self._clean_none_values(item) for item in data if item is not None]
         else:
-            return cast(dict[str, Any] | list[Any] | None, data)
+            return data
 
     def _handle_response(
-        self, response: Any
-    ) -> Union[dict[str, Any], list[dict[str, Any]]]:
+        self, response: httpx.Response
+    ) -> dict[str, Any] | list[dict[str, Any]] | None:
         """Handle HTTP response and extract JSON data.
 
         Args:
             response: HTTP response object
 
         Returns:
-            Parsed JSON response as dict or list.
+            Parsed JSON response as dict or list, or None for
+            responses with no content (e.g., 204 No Content).
 
         Raises:
-            ValueError: If response cannot be parsed as JSON.
+            ValueError: If response has content that cannot be parsed as JSON.
         """
+        # 204 No Content and other empty-body responses are valid successes
+        if response.status_code == 204 or not response.content:
+            return None
         try:
-            return cast(Union[dict[str, Any], list[dict[str, Any]]], response.json())
+            return response.json()
         except Exception as e:
-            raise ValueError(f"Failed to parse response as JSON: {e}")
+            raise ValueError(f"Failed to parse response as JSON: {e}") from e
 
     def _extract_error_messages(self, response: httpx.Response) -> list[str]:
         """Extract error messages from JIRA API response.
@@ -320,18 +310,6 @@ class JiraClientBase(ABC):
             JiraConnectionError: For network/timeout errors
             JiraError: For any other errors
         """
-        # Lazy import to avoid circular dependency at module level
-        # This follows Python's official best practices for handling circular imports
-        from jira2py import (
-            JiraAPIError,
-            JiraAuthenticationError,
-            JiraConnectionError,
-            JiraError,
-            JiraNotFoundError,
-            JiraRateLimitError,
-            JiraValidationError,
-        )
-
         # Handle HTTP status errors (4xx, 5xx)
         if isinstance(error, httpx.HTTPStatusError):
             response = error.response
@@ -426,41 +404,19 @@ class JiraClientBase(ABC):
         return f"{self.credentials.url}:{self.credentials.username or 'anonymous'}:{self._async_mode}"
 
     @classmethod
-    def _cleanup_instance_resources(cls, client_key: str) -> None:
-        """Cleanup resources for a specific client instance.
+    def close_all(cls) -> None:
+        """Close all persistent clients and release resources.
 
-        Args:
-            client_key: The key identifying the client to cleanup.
+        Call this in test fixtures or application shutdown to ensure
+        clean state. Also registered as an atexit handler automatically.
         """
-        # This method is called by weakref.finalizer when an instance is garbage collected
-        # We don't actually cleanup the shared client here, as other instances might still use it
-        # The actual cleanup happens in _cleanup_all_clients at program exit
-        pass
+        with cls._clients_lock:
+            for client in cls._class_persistent_clients.values():
+                with contextlib.suppress(Exception):
+                    if isinstance(client, httpx.AsyncClient):
+                        import asyncio
 
-    @classmethod
-    def _cleanup_all_clients(cls) -> None:
-        """Cleanup all persistent clients at program exit."""
-        for client_key, client in list(cls._class_persistent_clients.items()):
-            try:
-                if isinstance(client, httpx.AsyncClient):
-                    # Handle async client
-                    import asyncio
-
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            # Create task but don't wait for it
-                            loop.create_task(client.aclose())
-                        else:
-                            # Run in new event loop
-                            asyncio.run(client.aclose())
-                    except Exception:
-                        # If asyncio fails, we can't do much more
-                        pass
-                elif isinstance(client, httpx.Client):
-                    # Handle sync client
-                    client.close()
-            except Exception:
-                # Ignore cleanup errors
-                pass
-        cls._class_persistent_clients.clear()
+                        asyncio.run(client.aclose())
+                    elif isinstance(client, httpx.Client):
+                        client.close()
+            cls._class_persistent_clients.clear()

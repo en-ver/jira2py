@@ -1,6 +1,7 @@
 """Unified Projects API implementation using generic pattern."""
 
-from typing import Any, TypeVar, cast
+from collections.abc import Mapping
+from typing import Any, TypeVar
 
 from pydantic import validate_call
 
@@ -21,8 +22,8 @@ class ProjectsBase(ApiBase[T]):
         project_ids: list[int] | None,
         keys: list[str] | None,
         query: str | None,
-        expand: list[str] | None,
-        extra_params: dict[str, Any] | None,
+        expand: str | None,
+        extra_params: Mapping[str, Any] | None,
     ) -> dict[str, Any]:
         """Prepare request configuration for search_projects.
 
@@ -32,7 +33,7 @@ class ProjectsBase(ApiBase[T]):
             project_ids: The project IDs to filter the results by. Up to 50 IDs can be provided.
             keys: The project keys to filter the results by. Up to 50 keys can be provided.
             query: Filter the results using a literal string. Projects with a matching key or name are returned (case insensitive).
-            expand: A list of properties to expand. Options include: description, projectKeys, lead, issueTypes, url, insight.
+            expand: A comma-separated list of properties to expand. Options include: description, projectKeys, lead, issueTypes, url, insight.
             extra_params: Additional query parameters to include in the request.
 
         Returns:
@@ -47,23 +48,10 @@ class ProjectsBase(ApiBase[T]):
                 "id": project_ids,
                 "keys": keys,
                 "query": query,
-                "expand": _format_expand(expand) if expand else None,
+                "expand": expand,
             },
             "extra_params": extra_params,
-            "response_type": "dict",
         }
-
-
-def _format_expand(expand: list[str]) -> str:
-    """Format expand list into comma-separated string.
-
-    Args:
-        expand: List of expand options.
-
-    Returns:
-        Comma-separated string of expand options.
-    """
-    return ",".join(expand)
 
 
 class Projects(ProjectsBase[JiraClientSync]):
@@ -77,8 +65,8 @@ class Projects(ProjectsBase[JiraClientSync]):
         project_ids: list[int] | None = None,
         keys: list[str] | None = None,
         query: str | None = None,
-        expand: list[str] | None = None,
-        extra_params: dict[str, Any] | None = None,
+        expand: str | None = None,
+        extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Search for Jira projects.
 
@@ -98,13 +86,8 @@ class Projects(ProjectsBase[JiraClientSync]):
                 Defaults to None (no filtering by key).
             query: Filter the results using a literal string. Projects with a matching key or name
                 are returned (case insensitive). Defaults to None (no filtering).
-            expand: A list of properties to expand in the response. Options include:
-                - "description": Returns the project description.
-                - "projectKeys": Returns all project keys associated with a project.
-                - "lead": Returns information about the project lead.
-                - "issueTypes": Returns all issue types associated with the project.
-                - "url": Returns the URL associated with the project.
-                - "insight": EXPERIMENTAL. Returns the insight details of total issue count and last issue update time.
+            expand: A comma-separated list of properties to expand in the response. Options include:
+                description, projectKeys, lead, issueTypes, url, insight.
                 Defaults to None.
             extra_params: Additional query parameters to include in the request.
                 Defaults to None.
@@ -134,7 +117,7 @@ class Projects(ProjectsBase[JiraClientSync]):
             >>> for project in result["values"]:
             ...     print(project["key"], project["name"])
             >>> result = api.projects.search_projects(query="Service", max_results=10)
-            >>> result = api.projects.search_projects(keys=["PROJ", "TEST"], expand=["description", "lead"])
+            >>> result = api.projects.search_projects(keys=["PROJ", "TEST"], expand="description,lead")
         """
         request_config = self._search_projects_request_config(
             start_at,
@@ -145,10 +128,7 @@ class Projects(ProjectsBase[JiraClientSync]):
             expand,
             extra_params,
         )
-        return cast(
-            dict[str, Any],
-            self._client._request_jira(**request_config),
-        )
+        return self._as_dict(self._client._request_jira(**request_config))
 
 
 class ProjectsAsync(ProjectsBase[JiraClientAsync]):
@@ -162,8 +142,8 @@ class ProjectsAsync(ProjectsBase[JiraClientAsync]):
         project_ids: list[int] | None = None,
         keys: list[str] | None = None,
         query: str | None = None,
-        expand: list[str] | None = None,
-        extra_params: dict[str, Any] | None = None,
+        expand: str | None = None,
+        extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Search for Jira projects (async version).
 
@@ -183,13 +163,8 @@ class ProjectsAsync(ProjectsBase[JiraClientAsync]):
                 Defaults to None (no filtering by key).
             query: Filter the results using a literal string. Projects with a matching key or name
                 are returned (case insensitive). Defaults to None (no filtering).
-            expand: A list of properties to expand in the response. Options include:
-                - "description": Returns the project description.
-                - "projectKeys": Returns all project keys associated with a project.
-                - "lead": Returns information about the project lead.
-                - "issueTypes": Returns all issue types associated with the project.
-                - "url": Returns the URL associated with the project.
-                - "insight": EXPERIMENTAL. Returns the insight details of total issue count and last issue update time.
+            expand: A comma-separated list of properties to expand in the response. Options include:
+                description, projectKeys, lead, issueTypes, url, insight.
                 Defaults to None.
             extra_params: Additional query parameters to include in the request.
                 Defaults to None.
@@ -219,7 +194,7 @@ class ProjectsAsync(ProjectsBase[JiraClientAsync]):
             >>> for project in result["values"]:
             ...     print(project["key"], project["name"])
             >>> result = await api.projects.search_projects(query="Service", max_results=10)
-            >>> result = await api.projects.search_projects(keys=["PROJ", "TEST"], expand=["description", "lead"])
+            >>> result = await api.projects.search_projects(keys=["PROJ", "TEST"], expand="description,lead")
         """
         request_config = self._search_projects_request_config(
             start_at,
@@ -230,7 +205,4 @@ class ProjectsAsync(ProjectsBase[JiraClientAsync]):
             expand,
             extra_params,
         )
-        return cast(
-            dict[str, Any],
-            await self._client._request_jira(**request_config),
-        )
+        return self._as_dict(await self._client._request_jira(**request_config))

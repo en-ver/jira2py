@@ -1,12 +1,11 @@
 """Synchronous JIRA client implementation."""
 
-from typing import Any, Type, Union, cast
+from typing import Any
 
 import httpx
 
 from .client_base import JiraClientBase
 from .credentials import JiraCredentials
-from .factory import JiraClientFactory
 
 
 class JiraClientSync(JiraClientBase):
@@ -36,21 +35,10 @@ class JiraClientSync(JiraClientBase):
             api_token: JIRA API token. Only used if credentials is None.
         """
         if credentials is None:
-            credentials = JiraCredentials(
+            credentials = JiraCredentials.create(
                 url=url, username=username, api_token=api_token
             )
         super().__init__(credentials)
-
-    def _get_client(self) -> httpx.Client:
-        """Get the HTTP client (creates new one for one-time requests).
-
-        Returns:
-            httpx.Client: The HTTP client instance.
-        """
-        return cast(
-            httpx.Client,
-            JiraClientFactory.create_client(self.credentials, async_mode=False),
-        )
 
     def close(self) -> None:
         """Close the HTTP client references (doesn't close shared persistent client)."""
@@ -60,7 +48,7 @@ class JiraClientSync(JiraClientBase):
         # Just clear the reference, don't close the shared persistent client
         self._persistent_client = None
 
-    def _get_client_type(self) -> Type[Union[httpx.Client, httpx.AsyncClient]]:
+    def _get_client_type(self) -> type[httpx.Client | httpx.AsyncClient]:
         """Return the sync client type.
 
         Returns:
@@ -99,8 +87,7 @@ class JiraClientSync(JiraClientBase):
         *,
         extra_params: dict[str, Any] | None = None,
         extra_data: dict[str, Any] | None = None,
-        response_type: str = "dict",
-    ) -> Any:
+    ) -> dict[str, Any] | list[dict[str, Any]] | None:
         """Make a synchronous request to the JIRA API.
 
         Args:
@@ -108,10 +95,9 @@ class JiraClientSync(JiraClientBase):
             context_path: API endpoint path (without leading slash)
             params: Query parameters
             data: Request body data
-            response_type: Expected response type ("dict" or "list")
 
         Returns:
-            Response data as dict or list based on response_type parameter.
+            Response data as dict, list, or None for empty responses.
         """
         # Get prepared request components from base
         client, method, full_url, request_kwargs = self._request_jira_base(
@@ -121,11 +107,14 @@ class JiraClientSync(JiraClientBase):
             data,
             extra_params=extra_params,
             extra_data=extra_data,
-            response_type=response_type,
         )
 
         # Make synchronous HTTP request
-        response = client.request(method, full_url, **request_kwargs)
+        try:
+            response = client.request(method, full_url, **request_kwargs)
+            response.raise_for_status()
+        except Exception as e:
+            self._handle_error(e)
 
         # Handle response using shared logic
-        return self._handle_response_result(response)
+        return self._handle_response(response)

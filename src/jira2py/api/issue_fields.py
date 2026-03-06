@@ -1,10 +1,11 @@
 """Unified IssueFields API implementation using generic pattern."""
 
-from typing import Any, cast, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import validate_call
 
-from jira2py.client import JiraClientSync, JiraClientAsync
+from jira2py.client import JiraClientAsync, JiraClientSync
+
 from .api_base import ApiBase
 
 T = TypeVar("T", JiraClientSync, JiraClientAsync)
@@ -22,7 +23,6 @@ class IssueFieldsBase(ApiBase[T]):
         return {
             "method": "GET",
             "context_path": "field",
-            "response_type": "list",
         }
 
 
@@ -63,10 +63,7 @@ class IssueFields(IssueFieldsBase[JiraClientSync]):
             15
         """
         request_config = self._get_fields_request_config()
-        return cast(
-            list[dict[str, Any]],
-            self._client._request_jira(**request_config),
-        )
+        return self._as_list(self._client._request_jira(**request_config))
 
 
 class IssueFieldsAsync(IssueFieldsBase[JiraClientAsync]):
@@ -106,7 +103,4 @@ class IssueFieldsAsync(IssueFieldsBase[JiraClientAsync]):
             15
         """
         request_config = self._get_fields_request_config()
-        return cast(
-            list[dict[str, Any]],
-            await self._client._request_jira(**request_config),
-        )
+        return self._as_list(await self._client._request_jira(**request_config))

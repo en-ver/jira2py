@@ -1,9 +1,11 @@
 """Tests for JIRA client layer."""
 
+import dataclasses
+
 import httpx
 import pytest
 
-from jira2py.client import JiraCredentials, JiraClientSync
+from jira2py.client import JiraClientSync, JiraCredentials
 from jira2py.exceptions import (
     JiraAPIError,
     JiraAuthenticationError,
@@ -20,7 +22,7 @@ class TestJiraCredentials:
 
     def test_credentials_initialization(self, base_url):
         """Test that credentials can be initialized with explicit values."""
-        credentials = JiraCredentials(
+        credentials = JiraCredentials.create(
             url=base_url,
             username="test@example.com",
             api_token="test-token",
@@ -34,30 +36,37 @@ class TestJiraCredentials:
     def test_credentials_url_validation(self):
         """Test that credentials validate URL format."""
         with pytest.raises(ValueError, match="must start with"):
-            JiraCredentials(
+            JiraCredentials.create(
                 url="invalid-url", username="test@example.com", api_token="token"
             )
 
-    def test_credentials_missing_url(self):
+    def test_credentials_missing_url(self, monkeypatch):
         """Test that credentials require URL."""
+        monkeypatch.delenv("JIRA_URL", raising=False)
         with pytest.raises(ValueError, match="URL is required"):
-            JiraCredentials(url=None, username="test@example.com", api_token="token")
+            JiraCredentials.create(
+                url=None, username="test@example.com", api_token="token"
+            )
 
-    def test_credentials_missing_username(self):
+    def test_credentials_missing_username(self, monkeypatch):
         """Test that credentials require username."""
+        monkeypatch.delenv("JIRA_USER", raising=False)
         with pytest.raises(ValueError, match="username is required"):
-            JiraCredentials(url="https://test.com", username=None, api_token="token")
+            JiraCredentials.create(
+                url="https://test.com", username=None, api_token="token"
+            )
 
-    def test_credentials_missing_token(self):
+    def test_credentials_missing_token(self, monkeypatch):
         """Test that credentials require API token."""
+        monkeypatch.delenv("JIRA_API_TOKEN", raising=False)
         with pytest.raises(ValueError, match="token is required"):
-            JiraCredentials(
+            JiraCredentials.create(
                 url="https://test.com", username="test@example.com", api_token=None
             )
 
     def test_credentials_url_trailing_slash_removal(self):
         """Test that credentials remove trailing slashes from URL."""
-        credentials = JiraCredentials(
+        credentials = JiraCredentials.create(
             url="https://test.com/",
             username="test@example.com",
             api_token="token",
@@ -67,12 +76,12 @@ class TestJiraCredentials:
 
     def test_credentials_frozen(self):
         """Test that credentials dataclass is frozen."""
-        credentials = JiraCredentials(
+        credentials = JiraCredentials.create(
             url="https://test.com",
             username="test@example.com",
             api_token="token",
         )
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(dataclasses.FrozenInstanceError):
             credentials.url = "https://other.com"  # type: ignore[misc]
 
 
@@ -111,8 +120,8 @@ class TestJiraClientSync:
     def test_client_close(self, test_credentials):
         """Test that client can be closed."""
         client = JiraClientSync(credentials=test_credentials)
-        # Create a temporary client
-        client._client = client._get_client()
+        # Assign a persistent client reference
+        client._client = client._get_persistent_client()
         assert client._client is not None
 
         client.close()

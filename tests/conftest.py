@@ -17,7 +17,7 @@ def base_url():
 @pytest.fixture(scope="session")
 def test_credentials(base_url):
     """Test credentials for JIRA client."""
-    return JiraCredentials(
+    return JiraCredentials.create(
         url=base_url,
         username="test@example.com",
         api_token="test-token",
@@ -165,7 +165,13 @@ def mock_transport_projects_empty():
         if "/project/search" in request.url.path:
             return httpx.Response(
                 200,
-                json={"startAt": 0, "maxResults": 50, "total": 0, "isLast": True, "values": []},
+                json={
+                    "startAt": 0,
+                    "maxResults": 50,
+                    "total": 0,
+                    "isLast": True,
+                    "values": [],
+                },
             )
         return httpx.Response(404, json={"message": "Not found"})
 
@@ -175,8 +181,8 @@ def mock_transport_projects_empty():
 @pytest.fixture
 def projects_client(test_credentials, mock_transport_projects_success):
     """Create a Projects API client with mocked transport."""
-    from jira2py.client import JiraClientSync
     from jira2py.api.projects import Projects
+    from jira2py.client import JiraClientSync
 
     client = JiraClientSync(credentials=test_credentials)
     # Inject the mock transport
@@ -191,8 +197,8 @@ def projects_client(test_credentials, mock_transport_projects_success):
 @pytest.fixture
 def projects_client_async(test_credentials, mock_transport_projects_success):
     """Create a ProjectsAsync API client with mocked transport."""
-    from jira2py.client import JiraClientAsync
     from jira2py.api.projects import ProjectsAsync
+    from jira2py.client import JiraClientAsync
 
     client = JiraClientAsync(credentials=test_credentials)
     # Inject the mock transport

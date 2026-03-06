@@ -1,7 +1,5 @@
 """JIRA client factory implementation."""
 
-from typing import Union
-
 import httpx
 
 from .credentials import JiraCredentials
@@ -16,7 +14,7 @@ class JiraClientFactory:
     timeouts, HTTP/2 settings, and authentication.
 
     Example:
-        >>> credentials = JiraCredentials(url="https://example.atlassian.net", ...)
+        >>> credentials = JiraCredentials.create(url="https://example.atlassian.net", ...)
         >>> sync_client = JiraClientFactory.create_client(credentials, async_mode=False)
         >>> async_client = JiraClientFactory.create_client(credentials, async_mode=True)
     """
@@ -32,7 +30,7 @@ class JiraClientFactory:
     @staticmethod
     def create_client(
         credentials: JiraCredentials, async_mode: bool = False
-    ) -> Union[httpx.Client, httpx.AsyncClient]:
+    ) -> httpx.Client | httpx.AsyncClient:
         """Create HTTP client instance with connection pooling.
 
         Args:
@@ -41,24 +39,12 @@ class JiraClientFactory:
 
         Returns:
             httpx.Client or httpx.AsyncClient instance
-
-        Raises:
-            ValueError: If credentials are invalid or missing required fields.
         """
-        if not credentials.url:
-            raise ValueError("JIRA URL is required")
-        if not credentials.username:
-            raise ValueError("JIRA username is required")
-        if not credentials.api_token:
-            raise ValueError("JIRA API token is required")
-
         client_class = httpx.AsyncClient if async_mode else httpx.Client
         return client_class(
             base_url=f"{credentials.url}/rest/api/3",
             headers={"Accept": "application/json"},
-            auth=httpx.BasicAuth(
-                credentials.username or "", credentials.api_token or ""
-            ),
+            auth=httpx.BasicAuth(credentials.username, credentials.api_token),
             limits=httpx.Limits(
                 max_keepalive_connections=JiraClientFactory.DEFAULT_MAX_KEEPALIVE_CONNECTIONS,
                 max_connections=JiraClientFactory.DEFAULT_MAX_CONNECTIONS,

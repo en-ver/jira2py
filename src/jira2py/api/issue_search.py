@@ -1,6 +1,7 @@
 """Unified IssueSearch API implementation using generic pattern."""
 
-from typing import Any, TypeVar, cast
+from collections.abc import Mapping
+from typing import Any, TypeVar
 
 from pydantic import validate_call
 
@@ -21,8 +22,8 @@ class IssueSearchBase(ApiBase[T]):
         max_results: int,
         fields: list[str] | None,
         expand: str | None,
-        extra_params: dict[str, Any] | None,
-        extra_data: dict[str, Any] | None,
+        extra_params: Mapping[str, Any] | None,
+        extra_data: Mapping[str, Any] | None,
     ) -> dict[str, Any]:
         """Prepare request configuration for enhanced_search.
 
@@ -50,7 +51,6 @@ class IssueSearchBase(ApiBase[T]):
             },
             "extra_params": extra_params,
             "extra_data": extra_data,
-            "response_type": "dict",
         }
 
 
@@ -65,8 +65,8 @@ class IssueSearch(IssueSearchBase[JiraClientSync]):
         max_results: int = 50,
         fields: list[str] | None = None,
         expand: str | None = None,
-        extra_params: dict[str, Any] | None = None,
-        extra_data: dict[str, Any] | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+        extra_data: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Searches for issues using JQL.
 
@@ -119,10 +119,7 @@ class IssueSearch(IssueSearchBase[JiraClientSync]):
         request_config = self._enhanced_search_request_config(
             jql, next_page_token, max_results, fields, expand, extra_params, extra_data
         )
-        return cast(
-            dict[str, Any],
-            self._client._request_jira(**request_config),
-        )
+        return self._as_dict(self._client._request_jira(**request_config))
 
 
 class IssueSearchAsync(IssueSearchBase[JiraClientAsync]):
@@ -136,8 +133,8 @@ class IssueSearchAsync(IssueSearchBase[JiraClientAsync]):
         max_results: int = 50,
         fields: list[str] | None = None,
         expand: str | None = None,
-        extra_params: dict[str, Any] | None = None,
-        extra_data: dict[str, Any] | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+        extra_data: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Searches for issues using JQL (async version).
 
@@ -190,7 +187,4 @@ class IssueSearchAsync(IssueSearchBase[JiraClientAsync]):
         request_config = self._enhanced_search_request_config(
             jql, next_page_token, max_results, fields, expand, extra_params, extra_data
         )
-        return cast(
-            dict[str, Any],
-            await self._client._request_jira(**request_config),
-        )
+        return self._as_dict(await self._client._request_jira(**request_config))

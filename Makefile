@@ -1,14 +1,16 @@
-.PHONY: lint format type-check check clean help test test-cov test-verbose
+.PHONY: lint format type-check check clean help test test-cov test-verbose build release
 
 help:
 	@echo "Available targets:"
 	@echo "  lint        - Run ruff linting with auto-fix"
 	@echo "  format      - Run ruff formatting"
-	@echo "  type-check  - Run mypy type checking"
+	@echo "  type-check  - Run ty type checking"
 	@echo "  test        - Run pytest test suite"
 	@echo "  test-cov    - Run pytest with coverage report"
 	@echo "  test-verbose- Run pytest with verbose output"
 	@echo "  check       - Run all checks (lint, format, type-check, test)"
+	@echo "  build       - Build sdist and wheel"
+	@echo "  release     - Create a release (usage: make release v=0.5.0)"
 	@echo "  clean       - Clean Python cache files"
 	@echo "  help        - Show this help message"
 
@@ -20,9 +22,9 @@ lint:
 format:
 	ruff format src tests examples
 
-# Run mypy type checking
+# Run ty type checking
 type-check:
-	mypy src/jira2py/ tests/ examples/ --show-error-codes --strict
+	ty check src/ tests/
 
 # Run pytest test suite
 test:
@@ -39,8 +41,29 @@ test-verbose:
 # Run all checks
 check: lint format type-check test
 
+# Build sdist and wheel
+build: clean
+	uv build
+
+# Create a release: make release v=0.5.0
+release:
+ifndef v
+	$(error Usage: make release v=0.5.0)
+endif
+	@echo "Releasing v$(v)..."
+	@# Update version in pyproject.toml
+	sed -i '' 's/^version = ".*"/version = "$(v)"/' pyproject.toml
+	@# Run all checks before releasing
+	$(MAKE) check
+	@# Commit, tag, and push
+	git add pyproject.toml
+	git commit -m "release: v$(v)"
+	git tag "v$(v)"
+	git push origin main --tags
+	@echo "Release v$(v) pushed. CI will build, create GitHub Release, and publish to PyPI."
+
 # Clean Python cache files
 clean:
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
-	rm -rf .mypy_cache/ .ruff_cache/ .pytest_cache/ htmlcov/ .coverage
+	rm -rf .mypy_cache/ .ty/ .ruff_cache/ .pytest_cache/ htmlcov/ .coverage

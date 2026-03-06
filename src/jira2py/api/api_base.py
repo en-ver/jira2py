@@ -1,7 +1,7 @@
 """Generic base class for API implementations."""
 
 from abc import ABC
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from jira2py.client import JiraClientAsync, JiraClientSync
 
@@ -38,3 +38,23 @@ class ApiBase(Generic[T], ABC):
                     The client handles all I/O operations via httpx.
         """
         self._client: T = client
+
+    @staticmethod
+    def _as_dict(
+        result: dict[str, Any] | list[dict[str, Any]] | None,
+    ) -> dict[str, Any]:
+        """Narrow a response to dict, raising TypeError on unexpected types."""
+        if isinstance(result, dict):
+            return result
+        msg = f"Expected dict response, got {type(result).__name__}"
+        raise TypeError(msg)
+
+    @staticmethod
+    def _as_list(
+        result: dict[str, Any] | list[dict[str, Any]] | None,
+    ) -> list[dict[str, Any]]:
+        """Narrow a response to list, raising TypeError on unexpected types."""
+        if isinstance(result, list):
+            return result
+        msg = f"Expected list response, got {type(result).__name__}"
+        raise TypeError(msg)

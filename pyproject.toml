@@ -22,9 +22,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "email-validator>=2.3.0,<3",
     "pydantic>=2.11.0,<3",
-    "python-dotenv>=1.1.0,<2",
     "httpx[http2]>=0.28.0,<1",
 ]
 
@@ -36,7 +34,7 @@ Documentation = "https://jira2py.org/"
 
 [project.optional-dependencies]
 deployment = ["wheel", "twine", "build"]
-dev = ["ipykernel", "ruff", "mypy", "pytest>=7.0", "pytest-cov>=4.0"]
+dev = ["ipykernel", "ruff", "ty", "pytest>=7.0", "pytest-cov>=4.0"]
 docs = ["sphinx>=7.0.0", "pydata-sphinx-theme>=0.13.0", "sphinx-sitemap>=2.5.0"]
 
 [tool.setuptools.packages.find]
@@ -47,7 +45,7 @@ jira2py = ["py.typed"]
 
 [dependency-groups]
 dev = [
-    "mypy>=1.18.2",
+    "ty>=0.0.1a0",
     "pytest>=7.0",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=4.0",
@@ -63,15 +61,11 @@ addopts = ["--import-mode=importlib"]
 [tool.ruff]
 target-version = "py311"
 
+[tool.ruff.lint]
+extend-select = ["I", "UP", "B", "N", "SIM", "S"]
+
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]  # Allow assert in tests
+"tests/**/*.py" = ["S101", "S105", "S106"]
 
-[tool.mypy]
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false  # Less strict for tests
+[tool.ty.environment]
+python-version = "3.11"

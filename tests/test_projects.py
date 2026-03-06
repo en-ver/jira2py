@@ -5,27 +5,8 @@ from unittest.mock import Mock
 import httpx
 import pytest
 
-from jira2py.api.projects import Projects, ProjectsAsync, ProjectsBase, _format_expand
+from jira2py.api.projects import Projects, ProjectsAsync, ProjectsBase
 from jira2py.client import JiraClientAsync, JiraClientSync
-
-
-class TestFormatExpand:
-    """Tests for _format_expand helper function."""
-
-    def test_format_expand_single_item(self):
-        """Test formatting a single expand option."""
-        result = _format_expand(["description"])
-        assert result == "description"
-
-    def test_format_expand_multiple_items(self):
-        """Test formatting multiple expand options."""
-        result = _format_expand(["description", "lead", "issueTypes"])
-        assert result == "description,lead,issueTypes"
-
-    def test_format_expand_empty_list(self):
-        """Test formatting an empty expand list."""
-        result = _format_expand([])
-        assert result == ""
 
 
 class TestProjectsBaseRequestConfig:
@@ -55,7 +36,6 @@ class TestProjectsBaseRequestConfig:
         assert config["params"]["query"] is None
         assert config["params"]["expand"] is None
         assert config["extra_params"] is None
-        assert config["response_type"] == "dict"
 
     def test_request_config_with_all_params(self):
         """Test request config with all parameters provided."""
@@ -68,7 +48,7 @@ class TestProjectsBaseRequestConfig:
             project_ids=[10000, 10001],
             keys=["PROJ", "TEST"],
             query="service",
-            expand=["description", "lead"],
+            expand="description,lead",
             extra_params=None,
         )
 
@@ -80,7 +60,7 @@ class TestProjectsBaseRequestConfig:
         assert config["params"]["expand"] == "description,lead"
 
     def test_request_config_with_expand(self):
-        """Test request config formats expand parameter correctly."""
+        """Test request config passes expand parameter correctly."""
         mock_client = Mock(spec=JiraClientSync)
         projects_base = ProjectsBase(mock_client)
 
@@ -90,7 +70,7 @@ class TestProjectsBaseRequestConfig:
             project_ids=None,
             keys=None,
             query=None,
-            expand=["url", "insight"],
+            expand="url,insight",
             extra_params=None,
         )
 
@@ -227,7 +207,7 @@ class TestProjectsSearch:
         )
         projects = Projects(client)
 
-        result = projects.search_projects(expand=["description", "lead"], max_results=5)
+        result = projects.search_projects(expand="description,lead", max_results=5)
 
         assert result["total"] == 1
         assert "description" in result["values"][0]

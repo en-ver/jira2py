@@ -1,12 +1,11 @@
 """Asynchronous JIRA client implementation."""
 
-from typing import Any, Type, Union, cast
+from typing import Any
 
 import httpx
 
 from .client_base import JiraClientBase
 from .credentials import JiraCredentials
-from .factory import JiraClientFactory
 
 
 class JiraClientAsync(JiraClientBase):
@@ -36,23 +35,12 @@ class JiraClientAsync(JiraClientBase):
             api_token: JIRA API token. Only used if credentials is None.
         """
         if credentials is None:
-            credentials = JiraCredentials(
+            credentials = JiraCredentials.create(
                 url=url, username=username, api_token=api_token
             )
         super().__init__(credentials)
 
-    def _get_client(self) -> httpx.AsyncClient:
-        """Get the asynchronous HTTP client (creates new one for one-time requests).
-
-        Returns:
-            httpx.AsyncClient: The asynchronous HTTP client instance.
-        """
-        return cast(
-            httpx.AsyncClient,
-            JiraClientFactory.create_client(self.credentials, async_mode=True),
-        )
-
-    def _get_client_type(self) -> Type[Union[httpx.Client, httpx.AsyncClient]]:
+    def _get_client_type(self) -> type[httpx.Client | httpx.AsyncClient]:
         """Return the async client type.
 
         Returns:
@@ -99,8 +87,7 @@ class JiraClientAsync(JiraClientBase):
         *,
         extra_params: dict[str, Any] | None = None,
         extra_data: dict[str, Any] | None = None,
-        response_type: str = "dict",
-    ) -> Any:
+    ) -> dict[str, Any] | list[dict[str, Any]] | None:
         """Make an asynchronous request to the JIRA API.
 
         Args:
@@ -108,10 +95,9 @@ class JiraClientAsync(JiraClientBase):
             context_path: API endpoint path (without leading slash)
             params: Query parameters
             data: Request body data
-            response_type: Expected response type ("dict" or "list")
 
         Returns:
-            Response data as dict or list based on response_type parameter.
+            Response data as dict, list, or None for empty responses.
         """
         # Get prepared request components from base
         client, method, full_url, request_kwargs = self._request_jira_base(
@@ -121,11 +107,14 @@ class JiraClientAsync(JiraClientBase):
             data,
             extra_params=extra_params,
             extra_data=extra_data,
-            response_type=response_type,
         )
 
         # Make asynchronous HTTP request
-        response = await client.request(method, full_url, **request_kwargs)
+        try:
+            response = await client.request(method, full_url, **request_kwargs)
+            response.raise_for_status()
+        except Exception as e:
+            self._handle_error(e)
 
         # Handle response using shared logic
-        return self._handle_response_result(response)
+        return self._handle_response(response)
