@@ -2,11 +2,14 @@
 
 import atexit
 import contextlib
+import logging
+import random
 import threading
 from collections.abc import Mapping
 from typing import Any, NoReturn
 
 import httpx
+from tenacity import RetryCallState, Retrying, retry_if_exception, stop_after_attempt
 
 from jira2py.exceptions import (
     JiraAPIError,
@@ -20,6 +23,8 @@ from jira2py.exceptions import (
 
 from .credentials import JiraCredentials
 
+logger = logging.getLogger("jira2py")
+
 # Default HTTP client configuration
 _DEFAULT_TIMEOUT = 30.0
 _DEFAULT_CONNECT_TIMEOUT = 10.0
@@ -27,6 +32,12 @@ _DEFAULT_POOL_TIMEOUT = 5.0
 _DEFAULT_MAX_KEEPALIVE_CONNECTIONS = 20
 _DEFAULT_MAX_CONNECTIONS = 50
 _DEFAULT_KEEPALIVE_EXPIRY = 30.0
+
+# Default retry configuration (per Atlassian official documentation)
+_DEFAULT_MAX_RETRIES = 4
+_DEFAULT_INITIAL_RETRY_DELAY = 5.0
+_DEFAULT_MAX_RETRY_DELAY = 30.0
+_DEFAULT_JITTER_RANGE = (0.7, 1.3)
 
 
 def _create_httpx_client(credentials: JiraCredentials) -> httpx.Client:
@@ -59,23 +70,35 @@ def _create_httpx_client(credentials: JiraCredentials) -> httpx.Client:
 class JiraClientSync:
     """Synchronous JIRA client.
 
-    Provides synchronous HTTP requests to the JIRA API with connection pooling.
+    Provides synchronous HTTP requests to the JIRA API with connection pooling
+    and automatic retry with exponential backoff on rate limit (429) responses.
 
     Args:
         credentials: JIRA authentication credentials.
+        max_retries: Maximum number of retries on 429 responses. Set to 0 to disable.
+        max_retry_delay: Maximum delay in seconds between retries.
     """
 
     # Class-level storage for shared persistent clients
     _class_persistent_clients: dict[str, httpx.Client] = {}
     _clients_lock = threading.Lock()
 
-    def __init__(self, credentials: JiraCredentials) -> None:
+    def __init__(
+        self,
+        credentials: JiraCredentials,
+        max_retries: int = _DEFAULT_MAX_RETRIES,
+        max_retry_delay: float = _DEFAULT_MAX_RETRY_DELAY,
+    ) -> None:
         """Initialize the synchronous client.
 
         Args:
             credentials: JIRA authentication credentials.
+            max_retries: Maximum number of retries on 429 responses. Set to 0 to disable.
+            max_retry_delay: Maximum delay in seconds between retries.
         """
         self.credentials = credentials
+        self._max_retries = max_retries
+        self._max_retry_delay = max_retry_delay
         self._client_key = f"{credentials.url}:{credentials.username or 'anonymous'}"
 
     def _get_persistent_client(self) -> httpx.Client:
@@ -106,6 +129,9 @@ class JiraClientSync:
     ) -> dict[str, Any] | list[dict[str, Any]] | None:
         """Make a synchronous request to the JIRA API.
 
+        Automatically retries on HTTP 429 (rate limit) responses with exponential
+        backoff and jitter, respecting the ``Retry-After`` header when present.
+
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
             context_path: API endpoint path (without leading slash).
@@ -135,12 +161,66 @@ class JiraClientSync:
         client = self._get_persistent_client()
 
         try:
-            response = client.request(method, context_path, **request_kwargs)
-            response.raise_for_status()
+            for attempt in Retrying(
+                stop=stop_after_attempt(self._max_retries + 1),
+                wait=self._wait_for_retry,
+                retry=retry_if_exception(self._is_retryable),
+                before_sleep=self._log_retry,
+                reraise=True,
+            ):
+                with attempt:
+                    response = client.request(method, context_path, **request_kwargs)
+                    response.raise_for_status()
         except Exception as e:
             self._handle_error(e)
 
         return self._handle_response(response)
+
+    @staticmethod
+    def _is_retryable(error: BaseException) -> bool:
+        """Check if an error is retryable (HTTP 429 only)."""
+        return (
+            isinstance(error, httpx.HTTPStatusError)
+            and error.response.status_code == 429
+        )
+
+    def _wait_for_retry(self, retry_state: RetryCallState) -> float:
+        """Calculate wait time for retry, respecting Retry-After header.
+
+        Follows Atlassian's official retry strategy:
+        - Use Retry-After header value when present
+        - Fall back to exponential backoff: initial_delay * 2^(attempt-1)
+        - Apply jitter (0.7x–1.3x) to avoid thundering herd
+        - Cap at max_retry_delay
+        """
+        wait = _DEFAULT_INITIAL_RETRY_DELAY * (2 ** (retry_state.attempt_number - 1))
+
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
+        if isinstance(exc, httpx.HTTPStatusError):
+            retry_after = exc.response.headers.get("Retry-After")
+            if retry_after:
+                with contextlib.suppress(ValueError):
+                    wait = float(retry_after)
+
+        jitter = random.uniform(*_DEFAULT_JITTER_RANGE)  # noqa: S311
+        return min(wait * jitter, self._max_retry_delay)
+
+    @staticmethod
+    def _log_retry(retry_state: RetryCallState) -> None:
+        """Log retry attempts at WARNING level."""
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
+        retry_after = None
+        reason = None
+        if isinstance(exc, httpx.HTTPStatusError):
+            retry_after = exc.response.headers.get("Retry-After")
+            reason = exc.response.headers.get("RateLimit-Reason")
+
+        logger.warning(
+            "Rate limited by Jira (attempt %d). reason=%s, retry_after=%s",
+            retry_state.attempt_number,
+            reason,
+            retry_after,
+        )
 
     @staticmethod
     def _handle_response(
@@ -236,11 +316,20 @@ class JiraClientSync:
                 ) from error
 
             if status_code == 429:
+                retry_after_header = response.headers.get("Retry-After")
+                retry_after = None
+                if retry_after_header:
+                    with contextlib.suppress(ValueError):
+                        retry_after = float(retry_after_header)
+
                 raise JiraRateLimitError(
-                    "API rate limit exceeded. Implement backoff and retry.",
+                    "API rate limit exceeded.",
                     status_code=status_code,
                     response=response,
                     error_messages=error_messages,
+                    retry_after=retry_after,
+                    rate_limit_reason=response.headers.get("RateLimit-Reason"),
+                    reset_at=response.headers.get("X-RateLimit-Reset"),
                 ) from error
 
             if status_code == 400:

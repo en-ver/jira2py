@@ -111,15 +111,41 @@ class JiraNotFoundError(JiraAPIError):
 class JiraRateLimitError(JiraAPIError):
     """Raised when API rate limit is exceeded (HTTP 429).
 
+    Attributes:
+        retry_after: Seconds to wait before retrying (from Retry-After header).
+        rate_limit_reason: Which limit was hit (from RateLimit-Reason header).
+            Values: ``jira-burst-based``, ``jira-quota-global-based``,
+            ``jira-quota-tenant-based``, ``jira-per-issue-on-write``.
+        reset_at: ISO 8601 timestamp when the rate limit window resets
+            (from X-RateLimit-Reset header).
+
     Example:
         >>> try:
-        ...     # Many rapid requests
         ...     issues = [jira.get_issue(f"PROJ-{i}") for i in range(1000)]
-        ... except JiraRateLimitError:
-        ...     print("Rate limit exceeded - implement backoff")
+        ... except JiraRateLimitError as e:
+        ...     print(f"Rate limited: retry after {e.retry_after}s, reason: {e.rate_limit_reason}")
     """
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        response: httpx.Response,
+        error_messages: list[str] | None = None,
+        retry_after: float | None = None,
+        rate_limit_reason: str | None = None,
+        reset_at: str | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            status_code=status_code,
+            response=response,
+            error_messages=error_messages,
+        )
+        self.retry_after = retry_after
+        self.rate_limit_reason = rate_limit_reason
+        self.reset_at = reset_at
 
 
 class JiraValidationError(JiraAPIError):

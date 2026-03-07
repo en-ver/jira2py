@@ -33,6 +33,8 @@ class JiraAPI:
         url: str | None = None,
         username: str | None = None,
         api_token: str | None = None,
+        max_retries: int = 4,
+        max_retry_delay: float = 30.0,
     ) -> None:
         """Initialize the Jira API facade.
 
@@ -40,11 +42,17 @@ class JiraAPI:
             url: Base URL of the JIRA instance.
             username: JIRA username.
             api_token: JIRA API token.
+            max_retries: Maximum number of retries on 429 responses. Set to 0 to disable.
+            max_retry_delay: Maximum delay in seconds between retries.
         """
         self._credentials = JiraCredentials.create(
             url=url, username=username, api_token=api_token
         )
-        self._client = JiraClientSync(self._credentials)
+        self._client = JiraClientSync(
+            self._credentials,
+            max_retries=max_retries,
+            max_retry_delay=max_retry_delay,
+        )
 
     @property
     def credentials(self) -> JiraCredentials:

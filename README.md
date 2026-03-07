@@ -61,6 +61,7 @@ jira = JiraAPI()  # Credentials loaded from environment
 - **Attachments**: Access issue attachments
 - **Issue Links**: Create and manage issue links
 - **User Search**: Find JIRA users
+- **Automatic Rate Limit Handling**: Retries on HTTP 429 with exponential backoff, respects `Retry-After` header. Configurable via `max_retries` (default: 4) and `max_retry_delay` (default: 30s). Disable with `max_retries=0`.
 - **Type Safety**: Full type hints with `py.typed` marker (PEP 561)
 
 ## Documentation
