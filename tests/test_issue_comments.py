@@ -33,6 +33,16 @@ class TestIssueComments:
         assert result["total"] == 1
         assert len(result["comments"]) == 1
 
+    def test_get_comments_order_by(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["orderBy"] == "-created"
+            return httpx.Response(200, json=SAMPLE_COMMENTS)
+
+        api = IssueComments(make_client(handler))
+        result = api.get_comments("TEST-1", order_by="-created")
+
+        assert result["total"] == 1
+
     def test_add_comment(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(201, json=SAMPLE_COMMENT)

@@ -40,7 +40,7 @@ class IssueComments(ApiBase):
                 params={
                     "startAt": start_at,
                     "maxResults": max_results,
-                    "orderby": order_by,
+                    "orderBy": order_by,
                     "expand": expand,
                 },
                 extra_params=extra_params,
