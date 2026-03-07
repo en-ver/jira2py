@@ -4,9 +4,9 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/jira2py.svg)](https://pypi.org/project/jira2py/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**jira2py** is a Python package designed for seamless integration with JIRA API. It provides an intuitive and modular approach to managing issues, searching for data, handling fields, and interacting with JIRA. The package is built on top of the official Jira API and simply wraps the API calls into a Pythonic interface.
+A lightweight, type-safe Python client for the [Jira Cloud REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/).
 
----
+Built for developers who want to interact with Jira programmatically without pulling in heavyweight dependencies — just two runtime dependencies (`httpx`, `tenacity`).
 
 ## Installation
 
@@ -31,46 +31,52 @@ issue = jira.issues.get_issue("PROJECT-123")
 # Search with JQL
 results = jira.search.enhanced_search("project = PROJECT AND status = 'In Progress'")
 
-# Get project list
-projects = jira.projects.search_projects()
+# Create an issue
+new_issue = jira.issues.create_issue(fields={
+    "project": {"key": "PROJECT"},
+    "issuetype": {"name": "Task"},
+    "summary": "New task from jira2py",
+})
 ```
 
-### Environment Variables
-
-Credentials can be loaded automatically from environment variables:
-
-```bash
-export JIRA_URL="https://your-domain.atlassian.net"
-export JIRA_USER="your-email@example.com"
-export JIRA_API_TOKEN="your-api-token"
-```
+Credentials can also be loaded automatically from environment variables (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`):
 
 ```python
-from jira2py import JiraAPI
-
-jira = JiraAPI()  # Credentials loaded from environment
+jira = JiraAPI()  # no arguments needed
 ```
 
-## Features
+## Key Features
 
-- **Issue Management**: Retrieve, create, edit, and delete JIRA issues
-- **JQL Search**: Search for issues using JIRA Query Language
-- **Field Management**: Fetch metadata about JIRA fields
-- **Comments**: Add and retrieve issue comments
-- **Projects**: Search and list projects
-- **Attachments**: Access issue attachments
-- **Issue Links**: Create and manage issue links
-- **User Search**: Find JIRA users
-- **Automatic Rate Limit Handling**: Retries on HTTP 429 with exponential backoff, respects `Retry-After` header. Configurable via `max_retries` (default: 4) and `max_retry_delay` (default: 30s). Disable with `max_retries=0`.
-- **Type Safety**: Full type hints with `py.typed` marker (PEP 561)
+- **Unified API** — single `JiraAPI` entry point with access to all endpoints via `jira.issues`, `jira.search`, `jira.comments`, `jira.projects`, and more
+- **Automatic rate limit handling** — retries on HTTP 429 with exponential backoff, jitter, and `Retry-After` header support
+- **Performant** — persistent connections with HTTP/2, configurable timeouts
+- **Structured error handling** — typed exception hierarchy (`JiraNotFoundError`, `JiraValidationError`, `JiraRateLimitError`, etc.) instead of generic errors
+- **Type-safe** — full type annotations and a `py.typed` marker for downstream static analysis (PEP 561)
+- **Lightweight** — two runtime dependencies: `httpx` and `tenacity`
+
+## API Coverage
+
+| Module             | Operations                                                           |
+| ------------------ | -------------------------------------------------------------------- |
+| **Issues**         | Get, create, edit issues; changelogs; edit metadata; create metadata |
+| **Issue Search**   | JQL search with pagination                                           |
+| **Issue Comments** | List and add comments                                                |
+| **Issue Fields**   | List system and custom fields                                        |
+| **Issue Links**    | List link types, create and delete links                             |
+| **Projects**       | Search and list projects                                             |
+| **Attachments**    | Get attachment metadata                                              |
+| **Users**          | Search users by name or email                                        |
 
 ## Documentation
 
-Full documentation is available at [jira2py.org](https://jira2py.org).
+Full documentation is available at **[jira2py.org](https://jira2py.org)** — including installation, configuration, error handling, rate limiting, and a complete API reference.
 
----
+Machine-readable documentation for AI agents and LLMs:
 
-## Development
+- [llms.txt](https://jira2py.org/llms.txt) — documentation index with links to Markdown versions of each page
+- [llms-full.txt](https://jira2py.org/llms-full.txt) — all documentation pages in a single file
+- [api-reference.json](https://jira2py.org/api-reference.json) — full API schema with signatures, types, and docstrings
 
-This project includes a Makefile for common development tasks:
+## License
 
+[MIT](LICENSE)
