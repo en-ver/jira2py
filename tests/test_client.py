@@ -357,8 +357,9 @@ class TestRetryOnRateLimit:
         )
         try:
             client._request_jira("GET", "issue/TEST-1")
-            # With jitter=1.0 and Retry-After=7, sleep should be 7.0
-            mock_sleep.assert_called_once_with(7.0)
+            # With Retry-After=7, additive jitter: 7 + uniform(0, 2.1) = 7 + 1.0 = 8.0
+            # Jitter is applied *above* the server minimum to respect Retry-After
+            mock_sleep.assert_called_once_with(8.0)
         finally:
             client._class_persistent_clients.pop(client._client_key, None)
 

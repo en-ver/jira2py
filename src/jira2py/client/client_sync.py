@@ -192,10 +192,16 @@ class JiraClientSync:
         Follows Atlassian's official retry strategy:
         - Use Retry-After header value when present
         - Fall back to exponential backoff: initial_delay * 2^(attempt-1)
-        - Apply jitter (0.7x–1.3x) to avoid thundering herd
+        - Apply jitter to avoid thundering herd
         - Cap at max_retry_delay
+
+        When the server provides a Retry-After header, jitter is applied only
+        *above* the server-specified minimum (additive, 0–30%) to respect the
+        minimum wait. For exponential backoff, multiplicative jitter (0.7x–1.3x)
+        is used.
         """
         wait = _DEFAULT_INITIAL_RETRY_DELAY * (2 ** (retry_state.attempt_number - 1))
+        has_retry_after = False
 
         exc = retry_state.outcome.exception() if retry_state.outcome else None
         if isinstance(exc, httpx.HTTPStatusError):
@@ -203,9 +209,17 @@ class JiraClientSync:
             if retry_after:
                 with contextlib.suppress(ValueError):
                     wait = float(retry_after)
+                    has_retry_after = True
 
-        jitter = random.uniform(*_DEFAULT_JITTER_RANGE)  # noqa: S311
-        return min(wait * jitter, self._max_retry_delay)
+        if has_retry_after:
+            # Additive jitter above the server minimum (0–30%)
+            wait += random.uniform(0, wait * 0.3)  # noqa: S311
+        else:
+            # Multiplicative jitter for exponential backoff
+            jitter = random.uniform(*_DEFAULT_JITTER_RANGE)  # noqa: S311
+            wait *= jitter
+
+        return min(wait, self._max_retry_delay)
 
     @staticmethod
     def _log_retry(retry_state: RetryCallState) -> None:
