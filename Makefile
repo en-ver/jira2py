@@ -1,4 +1,4 @@
-.PHONY: lint format type-check check clean help test test-cov test-verbose build release
+.PHONY: lint format type-check check clean help test test-cov test-verbose build release docs docs-serve
 
 help:
 	@echo "Available targets:"
@@ -11,6 +11,8 @@ help:
 	@echo "  check       - Run all checks (lint, format, type-check, test)"
 	@echo "  build       - Build sdist and wheel"
 	@echo "  release     - Create a release (usage: make release v=0.5.0)"
+	@echo "  docs        - Build documentation"
+	@echo "  docs-serve  - Serve documentation locally with live reload"
 	@echo "  clean       - Clean Python cache files"
 	@echo "  help        - Show this help message"
 
@@ -61,6 +63,14 @@ endif
 	git tag "v$(v)"
 	git push origin main --tags
 	@echo "Release v$(v) pushed. CI will build, create GitHub Release, and publish to PyPI."
+
+# Build documentation
+docs:
+	uv run --group docs mkdocs build
+
+# Serve documentation locally with live reload
+docs-serve:
+	uv run --group docs mkdocs serve
 
 # Clean Python cache files
 clean:
