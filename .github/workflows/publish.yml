@@ -5,12 +5,23 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+# Restrict default permissions to read-only for all jobs
+# Individual jobs explicitly escalate only what they need
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Verify tag is on main branch
         run: |
@@ -41,6 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -52,13 +65,13 @@ jobs:
         run: uv sync --group dev
 
       - name: Ruff lint
-        run: uv run ruff check src tests
+        run: uv run ruff check src tests examples
 
       - name: Ruff format
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check src tests examples
 
       - name: Type check
-        run: uv run ty check src/ tests/
+        run: uv run ty check src/ tests/ examples/
 
       - name: Tests
         run: uv run pytest tests/ -v
@@ -69,6 +82,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -93,6 +108,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -124,3 +141,5 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true

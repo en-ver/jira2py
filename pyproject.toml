@@ -50,11 +50,6 @@ docs = [
     "pydata-sphinx-theme>=0.13.0",
     "sphinx-sitemap>=2.5.0",
 ]
-publish = [
-    "twine",
-    "build",
-]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
