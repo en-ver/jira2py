@@ -170,6 +170,34 @@ class TestClientErrorHandling:
         messages = client._extract_error_messages(mock_http_response)
         assert messages == ["Single error message"]
 
+    def test_extract_error_messages_empty_error_messages_with_field_errors(
+        self, test_credentials, mock_http_response
+    ):
+        """Test that field-level errors are returned when errorMessages is empty."""
+        mock_http_response.json.return_value = {
+            "errorMessages": [],
+            "errors": {"summary": "Field 'summary' is required"},
+        }
+
+        client = JiraClientSync(test_credentials)
+        messages = client._extract_error_messages(mock_http_response)
+        assert messages == ["Field 'summary' is required"]
+
+    def test_extract_error_messages_both_populated(
+        self, test_credentials, mock_http_response
+    ):
+        """Test that both errorMessages and field errors are collected."""
+        mock_http_response.json.return_value = {
+            "errorMessages": ["General error"],
+            "errors": {"issuetype": "Specify an issue type"},
+        }
+
+        client = JiraClientSync(test_credentials)
+        messages = client._extract_error_messages(mock_http_response)
+        assert "General error" in messages
+        assert "Specify an issue type" in messages
+        assert len(messages) == 2
+
     def test_extract_error_messages_empty_response(
         self, test_credentials, mock_http_response
     ):

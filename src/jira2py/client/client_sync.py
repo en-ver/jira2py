@@ -264,6 +264,11 @@ class JiraClientSync:
     def _extract_error_messages(self, response: httpx.Response) -> list[str]:
         """Extract error messages from JIRA API response.
 
+        Accumulates messages from all error fields in the Jira Error Collection
+        schema (``errorMessages``, ``errors``, ``message``). Jira always includes
+        both ``errorMessages`` and ``errors`` in error responses, and either or
+        both may contain content.
+
         Args:
             response: httpx.Response object.
 
@@ -272,24 +277,24 @@ class JiraClientSync:
         """
         try:
             data = response.json()
-
-            if isinstance(data, dict):
-                if "errorMessages" in data:
-                    error_msgs = data["errorMessages"]
-                    return error_msgs if isinstance(error_msgs, list) else [error_msgs]
-                if "errors" in data:
-                    errors = data["errors"]
-                    return (
-                        list(errors.values())
-                        if isinstance(errors, dict)
-                        else [str(errors)]
-                    )
-                if "message" in data:
-                    return [data["message"]]
-
-            return []
         except Exception:
             return []
+
+        if not isinstance(data, dict):
+            return []
+
+        messages: list[str] = []
+
+        if isinstance(data.get("errorMessages"), list):
+            messages.extend(data["errorMessages"])
+
+        if isinstance(data.get("errors"), dict):
+            messages.extend(str(v) for v in data["errors"].values())
+
+        if "message" in data:
+            messages.append(data["message"])
+
+        return messages
 
     def _handle_error(self, error: Exception) -> NoReturn:
         """Handle HTTP errors and convert to appropriate jira2py exceptions.
