@@ -99,7 +99,9 @@ class JiraClientSync:
         self.credentials = credentials
         self._max_retries = max_retries
         self._max_retry_delay = max_retry_delay
-        self._client_key = f"{credentials.url}:{credentials.username or 'anonymous'}"
+        self._client_key = (
+            f"{credentials.url}:{credentials.username}:{credentials.api_token}"
+        )
 
     def _get_persistent_client(self) -> httpx.Client:
         """Get or create a persistent HTTP client for connection pooling.
