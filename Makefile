@@ -52,7 +52,7 @@ ifndef v
 endif
 	@echo "Releasing v$(v)..."
 	@# Update version in pyproject.toml
-	sed -i '' 's/^version = ".*"/version = "$(v)"/' pyproject.toml
+	perl -i -pe 's/^version = ".*"/version = "$(v)"/' pyproject.toml
 	@# Run all checks before releasing
 	$(MAKE) check
 	@# Commit, tag, and push
