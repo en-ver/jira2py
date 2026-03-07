@@ -1,6 +1,10 @@
 name: documentation
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,21 +14,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
-      - name: Install dependencies
-        run: |
-          pip install sphinx sphinx_rtd_theme myst_parser sphinx-sitemap pydata-sphinx-theme
-      - name: Sphinx build
-        run: |
-          sphinx-build -b dirhtml docs _build
-      - name: Add CNAME file
-        run: |
-          echo 'jira2py.org' > _build/CNAME
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         with:
-          publish_branch: gh-pages
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _build/
-          force_orphan: true
+          python-version: "3.x"
+
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: ~/.cache
+          restore-keys: |
+            mkdocs-material-
+
+      - run: pip install mkdocs-material "mkdocs>=1.6,<2" mkdocs-llmstxt griffe
+
+      - name: Generate API reference JSON
+        run: |
+          griffe dump jira2py --search src -o docs/api-reference.json 2>/dev/null
+          python -c "
+          import json, re, pathlib
+          data = pathlib.Path('docs/api-reference.json').read_text()
+          # Normalize absolute paths to relative
+          data = re.sub(r'\"filepath\": \"[^\"]*?/src/', '\"filepath\": \"src/', data)
+          data = re.sub(r'\"repository\": \"[^\"]*\"', '\"repository\": \".\"', data)
+          pathlib.Path('docs/api-reference.json').write_text(data)
+          "
+
+      - name: Configure Git credentials
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - run: mkdocs gh-deploy --force

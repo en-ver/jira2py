@@ -1,4 +1,0 @@
-User-agent: *
-Disallow:
-
-Sitemap: https://jira2py.org/sitemap.xml

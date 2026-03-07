@@ -1,19 +1,36 @@
-from jira2py import IssueComments
-from dotenv import load_dotenv
-import pprint
+"""Example: Issue Comments API usage."""
 
-# Make sure to set the environment variables in the .env file
-load_dotenv()
-comments = IssueComments()
+import os
+
+from jira2py import JiraAPI
 
 
-# Get the paginated list of comments for the issue
-def get_comments():
-    jira_comments = comments.get_comments(issue_id="PR-24458", expand="renderedBody")
-    pprint.pprint(jira_comments)
+def get_comments() -> None:
+    """Get comments for an issue."""
+    jira = JiraAPI()
+    result = jira.comments.get_comments("PROJECT-123")
+    print(f"Total comments: {result['total']}")
+    for comment in result["comments"]:
+        print(f"  Comment {comment['id']}")
+
+
+def get_comments_with_expand() -> None:
+    """Get comments with rendered body."""
+    jira = JiraAPI()
+    result = jira.comments.get_comments(
+        "PROJECT-123",
+        expand="renderedBody",
+        order_by="-created",
+        max_results=10,
+    )
+    for comment in result["comments"]:
+        print(f"  Comment {comment['id']}")
 
 
 if __name__ == "__main__":
-    pass
-    # Uncomment the function you want to test
-    # get_comments()
+    # Set these environment variables before running:
+    # JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN
+    assert os.environ.get("JIRA_URL"), "Set JIRA_URL environment variable"
+
+    get_comments()
+    get_comments_with_expand()

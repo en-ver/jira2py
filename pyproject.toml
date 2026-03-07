@@ -1,43 +1,72 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "jira2py"
-version = "0.3.1"
+version = "0.4.0"
 description = "The Python library to interact with Atlassian Jira REST API"
 readme = "README.md"
-authors = [
-    {name = "nEver1", email = "7fhhwpuuo@mozmail.com"}
-]
+authors = [{ name = "nEver1", email = "7fhhwpuuo@mozmail.com" }]
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "email-validator==2.2.0",
-    "pydantic==2.11.4",
-    "pydantic-core==2.33.2",
-    "python-dotenv==1.1.0",
-    "requests==2.32.3",
+    "httpx[http2]>=0.28.0,<1",
+    "tenacity>=9.1.4",
 ]
 
 [project.urls]
 Homepage = "https://github.com/en-ver/jira2py"
 Repository = "https://github.com/en-ver/jira2py"
+Documentation = "https://jira2py.org/"
+"Issue Tracker" = "https://github.com/en-ver/jira2py/issues"
 
-[project.optional-dependencies]
-deployment = [
-    "setuptools>=42",
-    "wheel",
-    "twine",
-    "build",
-]
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+jira2py = ["py.typed"]
+
+[dependency-groups]
 dev = [
-    "ipykernel",
+    "ruff",
+    "ty>=0.0.1a0",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
 ]
+docs = [
+    "mkdocs-material>=9.0.0",
+    "mkdocs>=1.6,<2",
+    "mkdocs-llmstxt>=0.5.0",
+    "griffe>=1.0.0",
+]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["--import-mode=importlib"]
 
-[tool.setuptools]
-packages = ["jira2py"]
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = ["I", "UP", "B", "N", "SIM", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+"examples/**/*.py" = ["S101"]
+
+[tool.ty.environment]
+python-version = "3.11"

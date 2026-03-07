@@ -1,22 +1,46 @@
-from jira2py import IssueSearch
-from dotenv import load_dotenv
-import pprint
+"""Example: Issue Search API usage."""
 
-# Make sure to set the environment variables in the .env file
-load_dotenv()
-search = IssueSearch()
+import os
 
-# Change the JQL query to the one you want to test
-jql = "project IN (PR) AND statuscategory IN ('In Progress')"
+from jira2py import JiraAPI
 
 
-# Search for issues using JQL
-def enhanced_search():
-    search_results = search.enhanced_search(jql=jql, fields=["summary"])
-    pprint.pprint(search_results)
+def basic_search() -> None:
+    """Basic JQL search."""
+    jira = JiraAPI()
+    result = jira.search.enhanced_search("project = PROJECT AND status = 'Open'")
+    print(f"Found {result['total']} issues")
+    for issue in result["issues"]:
+        print(f"  {issue['key']}: {issue['fields']['summary']}")
+
+
+def search_with_fields() -> None:
+    """Search with specific fields."""
+    jira = JiraAPI()
+    result = jira.search.enhanced_search(
+        jql="project = PROJECT",
+        fields=["summary", "status", "assignee"],
+        max_results=10,
+    )
+    for issue in result["issues"]:
+        print(f"  {issue['key']}: {issue['fields']['summary']}")
+
+
+def search_with_extra_params() -> None:
+    """Search with extra parameters."""
+    jira = JiraAPI()
+    result = jira.search.enhanced_search(
+        jql="project = PROJECT",
+        extra_data={"expand": ["renderedFields"]},
+    )
+    print(f"Found {result['total']} issues")
 
 
 if __name__ == "__main__":
-    pass
-    # Uncomment the function you want to test
-    # enhanced_search()
+    # Set these environment variables before running:
+    # JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN
+    assert os.environ.get("JIRA_URL"), "Set JIRA_URL environment variable"
+
+    basic_search()
+    search_with_fields()
+    search_with_extra_params()

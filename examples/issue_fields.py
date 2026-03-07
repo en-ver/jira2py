@@ -1,19 +1,26 @@
-from jira2py import IssueFields
-from dotenv import load_dotenv
-import pprint
+"""Example: Issue Fields API usage."""
 
-# Make sure to set the environment variables in the .env file
-load_dotenv()
-fields = IssueFields()
+import os
+
+from jira2py import JiraAPI
 
 
-# Get all Jira fields with its metadata
-def get_all_fields():
-    jira_fields = fields.get_fields()
-    pprint.pprint(jira_fields)
+def get_fields() -> None:
+    """Get all Jira fields."""
+    jira = JiraAPI()
+    fields = jira.fields.get_fields()
+    print(f"Total fields: {len(fields)}")
+
+    custom_fields = [f for f in fields if f.get("custom")]
+    print(f"Custom fields: {len(custom_fields)}")
+
+    for field in custom_fields[:5]:
+        print(f"  {field['id']}: {field['name']}")
 
 
 if __name__ == "__main__":
-    pass
-    # Uncomment the function you want to test
-    # get_all_fields()
+    # Set these environment variables before running:
+    # JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN
+    assert os.environ.get("JIRA_URL"), "Set JIRA_URL environment variable"
+
+    get_fields()
