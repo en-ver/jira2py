@@ -25,8 +25,9 @@ def get_issue_with_extra_params() -> None:
 def get_changelogs() -> None:
     """Get changelogs for an issue."""
     jira = JiraAPI()
-    changelogs = jira.issues.get_changelogs("PROJECT-123")
-    for log in changelogs:
+    result = jira.issues.get_changelogs("PROJECT-123")
+    print(f"Total changelogs: {result['total']}")
+    for log in result["values"]:
         for item in log.get("items", []):
             print(
                 f"  {item['field']}: {item.get('fromString')} → {item.get('toString')}"

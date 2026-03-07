@@ -10,12 +10,20 @@ SAMPLE_ISSUE = {
     "fields": {"summary": "Test issue", "status": {"name": "Open"}},
 }
 
-SAMPLE_CHANGELOGS = [
-    {
-        "id": "100",
-        "items": [{"field": "status", "fromString": "Open", "toString": "In Progress"}],
-    },
-]
+SAMPLE_CHANGELOGS = {
+    "startAt": 0,
+    "maxResults": 50,
+    "total": 1,
+    "isLast": True,
+    "values": [
+        {
+            "id": "100",
+            "items": [
+                {"field": "status", "fromString": "Open", "toString": "In Progress"}
+            ],
+        },
+    ],
+}
 
 SAMPLE_EDIT_META = {
     "fields": {
@@ -65,8 +73,10 @@ class TestIssues:
         api = Issues(make_client(handler))
         result = api.get_changelogs("TEST-1")
 
-        assert len(result) == 1
-        assert result[0]["items"][0]["field"] == "status"
+        assert result["total"] == 1
+        assert result["isLast"] is True
+        assert len(result["values"]) == 1
+        assert result["values"][0]["items"][0]["field"] == "status"
 
     def test_edit_issue_returns_none_on_204(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:

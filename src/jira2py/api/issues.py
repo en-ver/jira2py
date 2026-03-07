@@ -44,7 +44,7 @@ class Issues(ApiBase):
         start_at: int = 0,
         max_results: int = 50,
         extra_params: Mapping[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """Get the changelogs for a Jira issue.
 
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-changelog-get
@@ -56,9 +56,11 @@ class Issues(ApiBase):
             extra_params: Additional query parameters.
 
         Returns:
-            List of changelog entries with author, timestamp, and field changes.
+            Paginated response dict with keys: startAt, maxResults, total, isLast,
+            and values (list of changelog entries with author, timestamp, and
+            field changes).
         """
-        return self._as_list(
+        return self._as_dict(
             self._client._request_jira(
                 method="GET",
                 context_path=f"issue/{issue_id}/changelog",
