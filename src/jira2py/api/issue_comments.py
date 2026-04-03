@@ -28,7 +28,7 @@ class IssueComments(ApiBase):
             max_results: Maximum number of comments to return.
             order_by: Order by "created", "-created", "updated", or "-updated".
             expand: Comma-separated fields to expand (e.g., "renderedBody").
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Paginated comments with startAt, maxResults, total, and comments list.
@@ -65,8 +65,8 @@ class IssueComments(ApiBase):
             body: Comment body in Atlassian Document Format (ADF).
             visibility: Visibility restriction (e.g., {"type": "role", "value": "Administrators"}).
             expand: Comma-separated fields to expand (e.g., "renderedBody").
-            extra_params: Additional query parameters.
-            extra_data: Additional request body data.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+            extra_data: Additional request body data. Takes priority over named data parameters.
 
         Returns:
             Created comment details including id, body, author, and created timestamp.

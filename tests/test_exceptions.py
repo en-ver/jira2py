@@ -1,5 +1,6 @@
 """Tests for jira2py exception hierarchy."""
 
+import httpx
 import pytest
 
 from jira2py.exceptions import (
@@ -86,14 +87,47 @@ class TestJiraAuthenticationError:
 
     def test_authentication_error_message(self):
         """Test that JiraAuthenticationError stores message correctly."""
-        error = JiraAuthenticationError("Invalid credentials")
+        error = JiraAuthenticationError(
+            "Invalid credentials",
+            status_code=401,
+            response=httpx.Response(401, json={}),
+        )
         assert "credentials" in str(error).lower()
 
     def test_authentication_error_with_response(self):
         """Test that JiraAuthenticationError can store response."""
-        mock_response = None
-        error = JiraAuthenticationError("Auth failed", response=mock_response)
-        assert error.response is None
+        mock_response = httpx.Response(401, json={})
+        error = JiraAuthenticationError(
+            "Auth failed",
+            status_code=401,
+            response=mock_response,
+        )
+        assert error.response is not None
+
+    def test_authentication_error_has_status_code(self):
+        """Test that JiraAuthenticationError exposes status_code and error_messages."""
+        error = JiraAuthenticationError(
+            "Auth failed",
+            status_code=401,
+            response=httpx.Response(401, json={}),
+        )
+        assert error.status_code == 401
+        assert error.error_messages == []
+
+    def test_authentication_error_distinguishable_401_vs_403(self):
+        """Test that 401 and 403 errors can be distinguished by status_code."""
+        err_401 = JiraAuthenticationError(
+            "Unauthorized",
+            status_code=401,
+            response=httpx.Response(401, json={}),
+        )
+        err_403 = JiraAuthenticationError(
+            "Forbidden",
+            status_code=403,
+            response=httpx.Response(403, json={}),
+        )
+        assert err_401.status_code == 401
+        assert err_403.status_code == 403
 
 
 class TestJiraConnectionError:

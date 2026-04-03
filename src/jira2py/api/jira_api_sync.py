@@ -3,6 +3,7 @@
 from functools import cached_property
 
 from jira2py.client import JiraClientSync, JiraCredentials
+from jira2py.client.client_sync import _DEFAULT_MAX_RETRIES, _DEFAULT_MAX_RETRY_DELAY
 
 from .attachments import Attachments
 from .issue_comments import IssueComments
@@ -33,8 +34,8 @@ class JiraAPI:
         url: str | None = None,
         username: str | None = None,
         api_token: str | None = None,
-        max_retries: int = 4,
-        max_retry_delay: float = 30.0,
+        max_retries: int = _DEFAULT_MAX_RETRIES,
+        max_retry_delay: float = _DEFAULT_MAX_RETRY_DELAY,
     ) -> None:
         """Initialize the Jira API facade.
 
@@ -43,7 +44,9 @@ class JiraAPI:
             username: JIRA username.
             api_token: JIRA API token.
             max_retries: Maximum number of retries on 429 responses. Set to 0 to disable.
+                Mirrors the client default ``_DEFAULT_MAX_RETRIES``.
             max_retry_delay: Maximum delay in seconds between retries.
+                Mirrors the client default ``_DEFAULT_MAX_RETRY_DELAY``.
         """
         self._credentials = JiraCredentials.create(
             url=url, username=username, api_token=api_token

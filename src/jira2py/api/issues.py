@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-from .api_base import ApiBase
+from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class Issues(ApiBase):
@@ -24,7 +24,7 @@ class Issues(ApiBase):
             issue_id: The ID or key of the issue (e.g., "PROJ-123").
             fields: Comma-separated list of fields to retrieve. Use "*all" for all fields.
             expand: Comma-separated list of properties to expand (e.g., "renderedFields").
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Issue details including key, summary, status, and other requested fields.
@@ -42,7 +42,7 @@ class Issues(ApiBase):
         self,
         issue_id: str,
         start_at: int = 0,
-        max_results: int = 50,
+        max_results: int = _DEFAULT_PAGE_SIZE,
         extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Get the changelogs for a Jira issue.
@@ -53,7 +53,7 @@ class Issues(ApiBase):
             issue_id: The ID or key of the issue (e.g., "PROJ-123").
             start_at: Index of the first item to return (0-based).
             max_results: Maximum number of results to return.
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Paginated response dict with keys: startAt, maxResults, total, isLast,
@@ -89,8 +89,8 @@ class Issues(ApiBase):
             notify_users: Whether to send email notifications.
             return_issue: Whether to return the updated issue in the response.
             expand: Comma-separated list of properties to expand.
-            extra_params: Additional query parameters.
-            extra_data: Additional request body data.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+            extra_data: Additional request body data. Takes priority over named data parameters.
 
         Returns:
             Updated issue details if return_issue is True, otherwise None.
@@ -126,7 +126,7 @@ class Issues(ApiBase):
             issue_id: The ID or key of the issue (e.g., "PROJ-123").
             override_screen_security: Override screen security.
             override_editable_flag: Override editable flag.
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Edit metadata including available fields and their schemas.
@@ -147,7 +147,7 @@ class Issues(ApiBase):
         self,
         project_id_or_key: str,
         start_at: int = 0,
-        max_results: int = 50,
+        max_results: int = _DEFAULT_PAGE_SIZE,
         extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Get issue types available for creating issues in a project.
@@ -158,7 +158,7 @@ class Issues(ApiBase):
             project_id_or_key: The project ID or key (e.g., "PROJ").
             start_at: Index of the first item to return (0-based).
             max_results: Maximum number of items to return.
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Issue types available for the project.
@@ -177,7 +177,7 @@ class Issues(ApiBase):
         project_id_or_key: str,
         issue_type_id: str,
         start_at: int = 0,
-        max_results: int = 50,
+        max_results: int = _DEFAULT_PAGE_SIZE,
         extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Get fields available when creating an issue of a specific type.
@@ -189,7 +189,7 @@ class Issues(ApiBase):
             issue_type_id: The issue type ID (e.g., "10001").
             start_at: Index of the first item to return (0-based).
             max_results: Maximum number of items to return.
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Fields available for creating the issue type.
@@ -217,8 +217,8 @@ class Issues(ApiBase):
         Args:
             fields: Issue fields. Must include project, issuetype, and summary.
             update_history: Whether to add the project to browse history.
-            extra_params: Additional query parameters.
-            extra_data: Additional request body data.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+            extra_data: Additional request body data. Takes priority over named data parameters.
 
         Returns:
             Created issue's id, key, and self URL.

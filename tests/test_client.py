@@ -453,3 +453,36 @@ class TestRetryOnRateLimit:
             assert call_count == 1  # No retries for 500
         finally:
             client._class_persistent_clients.pop(client._client_key, None)
+
+
+class TestExtraParamsOverride:
+    """Tests for extra_params/extra_data merge priority."""
+
+    def test_extra_params_override_named_params(self, test_credentials):
+        """extra_params keys take priority over named params when both are supplied."""
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, json={"key": "TEST-1"})
+
+        client = JiraClientSync(test_credentials)
+        client._class_persistent_clients[client._client_key] = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url=f"{test_credentials.url}/rest/api/3",
+            auth=httpx.BasicAuth(test_credentials.username, test_credentials.api_token),
+        )
+        try:
+            client._request_jira(
+                "GET",
+                "issue/TEST-1",
+                params={"fields": "summary"},
+                extra_params={"fields": "status"},
+            )
+            assert len(captured) == 1
+            # extra_params should win: fields=status not fields=summary
+            query_string = str(captured[0].url.params)
+            assert "status" in query_string
+            assert "summary" not in query_string
+        finally:
+            client._class_persistent_clients.pop(client._client_key, None)

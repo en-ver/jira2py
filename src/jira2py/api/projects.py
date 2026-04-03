@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-from .api_base import ApiBase
+from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class Projects(ApiBase):
@@ -12,7 +12,7 @@ class Projects(ApiBase):
     def search_projects(
         self,
         start_at: int = 0,
-        max_results: int = 50,
+        max_results: int = _DEFAULT_PAGE_SIZE,
         project_ids: list[int] | None = None,
         keys: list[str] | None = None,
         query: str | None = None,
@@ -31,7 +31,7 @@ class Projects(ApiBase):
             query: Filter by matching key or name (case insensitive).
             expand: Comma-separated properties to expand
                 (description, projectKeys, lead, issueTypes, url, insight).
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Paginated results with startAt, maxResults, total, isLast, and values.

@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
+from typing import Self
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,7 @@ class JiraCredentials:
         url: str | None = None,
         username: str | None = None,
         api_token: str | None = None,
-    ) -> "JiraCredentials":
+    ) -> Self:
         """Create credentials with environment variable fallback.
 
         Args:

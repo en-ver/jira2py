@@ -37,3 +37,23 @@ class TestIssueSearch:
         )
 
         assert result["total"] == 1
+
+    def test_enhanced_search_omits_none_fields(self, make_client):
+        """Optional fields absent from the request body when not supplied."""
+        captured: list[bytes] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request.content)
+            return httpx.Response(200, json=SAMPLE_SEARCH)
+
+        api = IssueSearch(make_client(handler))
+        api.enhanced_search("project = TEST")
+
+        import json
+
+        body = json.loads(captured[0])
+        assert "nextPageToken" not in body
+        assert "fields" not in body
+        assert "expand" not in body
+        assert body["jql"] == "project = TEST"
+        assert body["maxResults"] == 50
