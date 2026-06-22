@@ -429,7 +429,9 @@ class JiraClientSync:
                 try:
                     client.close()
                 except Exception:
-                    logger.debug("Failed to close HTTP client during cleanup", exc_info=True)
+                    logger.debug(
+                        "Failed to close HTTP client during cleanup", exc_info=True
+                    )
             cls._class_persistent_clients.clear()
 
 

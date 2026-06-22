@@ -6,9 +6,9 @@ All errors raised by jira2py are subclasses of `JiraError`, so you can catch eve
 
 ```
 JiraError
-├── JiraAuthenticationError        → 401, 403
 ├── JiraConnectionError            → timeouts, DNS failures, network errors
 └── JiraAPIError                   → HTTP 4xx / 5xx
+    ├── JiraAuthenticationError    → 401, 403
     ├── JiraNotFoundError          → 404
     ├── JiraRateLimitError         → 429
     └── JiraValidationError        → 400
@@ -76,6 +76,8 @@ HTTP error exceptions add:
 |---|---|---|
 | `status_code` | `int` | HTTP status code |
 | `error_messages` | `list[str]` | Error messages extracted from the Jira response body |
+
+`JiraAuthenticationError` is a subclass of `JiraAPIError`, so 401/403 failures are also caught by `except JiraAPIError` and include the same `status_code`, `response`, and `error_messages` metadata when available.
 
 ```python
 from jira2py import JiraAPIError

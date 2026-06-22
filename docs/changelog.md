@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+## v0.4.1
+
+### Documentation
+
+- Clarified that `extra_params` and `extra_data` override named query/body fields on key conflicts.
+- Documented that `JiraAuthenticationError` now subclasses `JiraAPIError` and includes API error metadata (`status_code`, `response`, and `error_messages`) when available.
+- Documented that `search.enhanced_search()` omits optional `None` values from the request body instead of sending JSON `null`.
+
+### Tooling
+
+- Added a reusable version bump helper plus safer release-prep and tag-push automation for the `dev -> PR -> main -> tag` release flow.
+
 ## v0.4.0
 
 ### Breaking Changes

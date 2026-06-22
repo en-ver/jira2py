@@ -38,8 +38,8 @@ jira.users             # Users — search
 
 Most methods accept two optional keyword arguments for extensibility:
 
-- **`extra_params`** — Additional query parameters merged into the request URL. Named parameters take precedence over `extra_params` if there's a key conflict.
-- **`extra_data`** — Additional fields merged into the request body. Named data fields take precedence over `extra_data` if there's a key conflict.
+- **`extra_params`** — Additional query parameters merged into the request URL. `extra_params` takes precedence over named parameters if there's a key conflict.
+- **`extra_data`** — Additional fields merged into the request body. `extra_data` takes precedence over named data fields if there's a key conflict.
 
 These allow you to use Jira REST API parameters that jira2py doesn't expose as named arguments:
 
