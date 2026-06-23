@@ -77,7 +77,7 @@ HTTP error exceptions add:
 | `status_code` | `int` | HTTP status code |
 | `error_messages` | `list[str]` | Error messages extracted from the Jira response body |
 
-`JiraAuthenticationError` is a subclass of `JiraAPIError`, so 401/403 failures are also caught by `except JiraAPIError` and include the same `status_code`, `response`, and `error_messages` metadata when available.
+`JiraAuthenticationError` is a subclass of `JiraAPIError`, so 401/403 failures are also caught by `except JiraAPIError` and include the same `status_code`, `response`, and `error_messages` metadata when available. When constructing one directly, `status_code` defaults to `401` and `response` defaults to `None`.
 
 ```python
 from jira2py import JiraAPIError
@@ -86,6 +86,7 @@ try:
     jira.issues.create_issue(fields={"project": {"key": "INVALID"}})
 except JiraAPIError as e:
     print(e.status_code)      # 400
+    print(e.response)         # Response | None
     print(e.error_messages)   # ["Field 'summary' is required", ...]
 ```
 

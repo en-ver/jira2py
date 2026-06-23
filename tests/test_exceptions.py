@@ -87,12 +87,16 @@ class TestJiraAuthenticationError:
 
     def test_authentication_error_message(self):
         """Test that JiraAuthenticationError stores message correctly."""
-        error = JiraAuthenticationError(
-            "Invalid credentials",
-            status_code=401,
-            response=httpx.Response(401, json={}),
-        )
+        error = JiraAuthenticationError("Invalid credentials")
         assert "credentials" in str(error).lower()
+
+    def test_authentication_error_direct_construction_defaults(self):
+        """Test that JiraAuthenticationError supports message-only construction."""
+        error = JiraAuthenticationError("Invalid credentials")
+        assert error.status_code == 401
+        assert error.response is None
+        assert error.error_messages == []
+        assert str(error) == "Invalid credentials"
 
     def test_authentication_error_with_response(self):
         """Test that JiraAuthenticationError can store response."""
@@ -171,6 +175,13 @@ class TestJiraAPIError:
 
         mock_response = httpx.Response(500, json={"message": "Server error"})
         error = JiraAPIError("API error", status_code=500, response=mock_response)
+        assert error.error_messages == []
+
+    def test_api_error_allows_missing_response(self):
+        """Test that JiraAPIError accepts response=None when status is known."""
+        error = JiraAPIError("API error", status_code=500, response=None)
+        assert error.status_code == 500
+        assert error.response is None
         assert error.error_messages == []
 
 

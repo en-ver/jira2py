@@ -23,7 +23,7 @@ comments = jira.comments.get_comments("PROJ-123", order_by="-created")
 |---|---|---|---|
 | `issue_id` | `str` | required | Issue ID or key |
 | `start_at` | `int` | `0` | Index of the first comment to return (0-based) |
-| `max_results` | `int` | `100` | Maximum number of comments |
+| `max_results` | `int` | shared default page size (`50`) | Maximum number of comments |
 | `order_by` | `str \| None` | `None` | Sort order: `"created"`, `"-created"`, `"updated"`, or `"-updated"` |
 | `expand` | `str \| None` | `None` | Comma-separated fields to expand (e.g., `"renderedBody"`) |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |

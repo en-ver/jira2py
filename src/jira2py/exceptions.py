@@ -57,7 +57,7 @@ class JiraAPIError(JiraError):
 
     Attributes:
         status_code: HTTP status code
-        response: Full httpx.Response object
+        response: Full httpx.Response object when available, otherwise ``None``
         error_messages: List of error messages extracted from JIRA response
 
     Example:
@@ -72,7 +72,7 @@ class JiraAPIError(JiraError):
         message: str,
         *,
         status_code: int,
-        response: httpx.Response,
+        response: httpx.Response | None,
         error_messages: list[str] | None = None,
     ):
         self.status_code = status_code
@@ -93,7 +93,7 @@ class JiraAuthenticationError(JiraAPIError):
 
     Attributes:
         status_code: HTTP status code (401 or 403).
-        response: Full httpx.Response object.
+        response: Full httpx.Response object when available, otherwise ``None``.
         error_messages: List of error messages extracted from JIRA response.
 
     Example:
@@ -107,8 +107,8 @@ class JiraAuthenticationError(JiraAPIError):
         self,
         message: str,
         *,
-        status_code: int,
-        response: httpx.Response,
+        status_code: int = 401,
+        response: httpx.Response | None = None,
         error_messages: list[str] | None = None,
     ):
         super().__init__(

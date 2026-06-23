@@ -263,6 +263,9 @@ class TestHTTPStatusMapping:
             client._handle_error(http_error)
 
         assert error_message.lower() in str(exc_info.value).lower()
+        assert exc_info.value.status_code == status_code
+        assert exc_info.value.response is mock_response
+        assert exc_info.value.error_messages == ["Error"]
         assert exc_info.value.__cause__ is http_error
 
 

@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from .api_base import ApiBase
+from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class IssueComments(ApiBase):
@@ -13,7 +13,7 @@ class IssueComments(ApiBase):
         self,
         issue_id: str,
         start_at: int = 0,
-        max_results: int = 100,
+        max_results: int = _DEFAULT_PAGE_SIZE,
         order_by: Literal["created", "-created", "updated", "-updated"] | None = None,
         expand: str | None = None,
         extra_params: Mapping[str, Any] | None = None,
