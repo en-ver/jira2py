@@ -65,13 +65,13 @@ jobs:
         run: uv sync --group dev
 
       - name: Ruff lint
-        run: uv run ruff check src tests examples
+        run: uv run ruff check src tests examples scripts
 
       - name: Ruff format
-        run: uv run ruff format --check src tests examples
+        run: uv run ruff format --check src tests examples scripts
 
       - name: Type check
-        run: uv run ty check src/ tests/ examples/
+        run: uv run ty check src/ tests/ examples/ scripts/
 
       - name: Tests
         run: uv run pytest tests/ -v

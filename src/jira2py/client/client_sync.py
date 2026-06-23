@@ -9,7 +9,13 @@ from collections.abc import Mapping
 from typing import Any, NoReturn
 
 import httpx
-from tenacity import RetryCallState, Retrying, retry_if_exception, stop_after_attempt
+from tenacity import (
+    RetryCallState,
+    Retrying,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from jira2py.exceptions import (
     JiraAPIError,
@@ -38,6 +44,11 @@ _DEFAULT_MAX_RETRIES = 4
 _DEFAULT_INITIAL_RETRY_DELAY = 5.0
 _DEFAULT_MAX_RETRY_DELAY = 30.0
 _DEFAULT_JITTER_RANGE = (0.7, 1.3)
+
+# HTTP header and status code constants
+_HEADER_RETRY_AFTER = "Retry-After"
+_HEADER_RATELIMIT_REASON = "RateLimit-Reason"
+_STATUS_RATE_LIMITED = 429
 
 
 def _create_httpx_client(credentials: JiraCredentials) -> httpx.Client:
@@ -102,6 +113,11 @@ class JiraClientSync:
         self._client_key = (
             f"{credentials.url}:{credentials.username}:{credentials.api_token}"
         )
+        self._backoff = wait_exponential(
+            multiplier=_DEFAULT_INITIAL_RETRY_DELAY,
+            min=_DEFAULT_INITIAL_RETRY_DELAY,
+            max=float("inf"),
+        )
 
     def _get_persistent_client(self) -> httpx.Client:
         """Get or create a persistent HTTP client for connection pooling.
@@ -139,20 +155,24 @@ class JiraClientSync:
             context_path: API endpoint path (without leading slash).
             params: Query parameters.
             data: Request body data.
-            extra_params: Additional query parameters (lower priority than params).
-            extra_data: Additional body data (lower priority than data).
+            extra_params: Additional query parameters. Keys in extra_params take priority
+                over named parameters and can be used to override or extend them.
+            extra_data: Additional body data. Keys in extra_data take priority over named
+                data parameters and can be used to override or extend them.
 
         Returns:
             Response data as dict, list, or None for empty responses.
         """
         # Merge parameters; strip None from query params (httpx sends None as "None")
+        # extra_params takes priority over params (later keys win in dict merge)
         merged_params = {
             k: v
-            for k, v in {**(extra_params or {}), **(params or {})}.items()
+            for k, v in {**(params or {}), **(extra_params or {})}.items()
             if v is not None
         }
         # Preserve None in body data (serialized as JSON null, needed to clear fields)
-        merged_data = {**(extra_data or {}), **(data or {})}
+        # extra_data takes priority over data (later keys win in dict merge)
+        merged_data = {**(data or {}), **(extra_data or {})}
 
         request_kwargs: dict[str, Any] = {}
         if merged_params:
@@ -183,7 +203,7 @@ class JiraClientSync:
         """Check if an error is retryable (HTTP 429 only)."""
         return (
             isinstance(error, httpx.HTTPStatusError)
-            and error.response.status_code == 429
+            and error.response.status_code == _STATUS_RATE_LIMITED
         )
 
     def _wait_for_retry(self, retry_state: RetryCallState) -> float:
@@ -198,14 +218,14 @@ class JiraClientSync:
         When the server provides a Retry-After header, jitter is applied only
         *above* the server-specified minimum (additive, 0–30%) to respect the
         minimum wait. For exponential backoff, multiplicative jitter (0.7x–1.3x)
-        is used.
+        is used. The exponential base is computed via ``tenacity.wait_exponential``.
         """
-        wait = _DEFAULT_INITIAL_RETRY_DELAY * (2 ** (retry_state.attempt_number - 1))
+        wait = self._backoff(retry_state)
         has_retry_after = False
 
         exc = retry_state.outcome.exception() if retry_state.outcome else None
         if isinstance(exc, httpx.HTTPStatusError):
-            retry_after = exc.response.headers.get("Retry-After")
+            retry_after = exc.response.headers.get(_HEADER_RETRY_AFTER)
             if retry_after:
                 with contextlib.suppress(ValueError):
                     wait = float(retry_after)
@@ -228,8 +248,8 @@ class JiraClientSync:
         retry_after = None
         reason = None
         if isinstance(exc, httpx.HTTPStatusError):
-            retry_after = exc.response.headers.get("Retry-After")
-            reason = exc.response.headers.get("RateLimit-Reason")
+            retry_after = exc.response.headers.get(_HEADER_RETRY_AFTER)
+            reason = exc.response.headers.get(_HEADER_RATELIMIT_REASON)
 
         logger.warning(
             "Rate limited by Jira (attempt %d). reason=%s, retry_after=%s",
@@ -267,7 +287,8 @@ class JiraClientSync:
         Accumulates messages from all error fields in the Jira Error Collection
         schema (``errorMessages``, ``errors``, ``message``). Jira always includes
         both ``errorMessages`` and ``errors`` in error responses, and either or
-        both may contain content.
+        both may contain content. Only JSON/encoding parse errors (ValueError,
+        UnicodeDecodeError) are suppressed; programming errors propagate.
 
         Args:
             response: httpx.Response object.
@@ -277,7 +298,7 @@ class JiraClientSync:
         """
         try:
             data = response.json()
-        except Exception:
+        except (ValueError, UnicodeDecodeError):
             return []
 
         if not isinstance(data, dict):
@@ -319,13 +340,17 @@ class JiraClientSync:
             if status_code == 401:
                 raise JiraAuthenticationError(
                     "Authentication failed. Check your credentials.",
+                    status_code=401,
                     response=response,
+                    error_messages=error_messages,
                 ) from error
 
             if status_code == 403:
                 raise JiraAuthenticationError(
                     "Access forbidden. You don't have permission to access this resource.",
+                    status_code=403,
                     response=response,
+                    error_messages=error_messages,
                 ) from error
 
             if status_code == 404:
@@ -336,8 +361,8 @@ class JiraClientSync:
                     error_messages=error_messages,
                 ) from error
 
-            if status_code == 429:
-                retry_after_header = response.headers.get("Retry-After")
+            if status_code == _STATUS_RATE_LIMITED:
+                retry_after_header = response.headers.get(_HEADER_RETRY_AFTER)
                 retry_after = None
                 if retry_after_header:
                     with contextlib.suppress(ValueError):
@@ -349,7 +374,7 @@ class JiraClientSync:
                     response=response,
                     error_messages=error_messages,
                     retry_after=retry_after,
-                    rate_limit_reason=response.headers.get("RateLimit-Reason"),
+                    rate_limit_reason=response.headers.get(_HEADER_RATELIMIT_REASON),
                     reset_at=response.headers.get("X-RateLimit-Reset"),
                 ) from error
 
@@ -401,8 +426,12 @@ class JiraClientSync:
         """Close all persistent clients and release resources."""
         with cls._clients_lock:
             for client in cls._class_persistent_clients.values():
-                with contextlib.suppress(Exception):
+                try:
                     client.close()
+                except Exception:
+                    logger.debug(
+                        "Failed to close HTTP client during cleanup", exc_info=True
+                    )
             cls._class_persistent_clients.clear()
 
 

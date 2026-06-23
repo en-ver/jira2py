@@ -20,7 +20,7 @@ class Attachments(ApiBase):
 
         Args:
             attachment_id: The ID of the attachment (e.g., "10000").
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             Attachment metadata: id, filename, size, mimeType, content URL, author, created.

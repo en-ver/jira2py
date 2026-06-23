@@ -39,10 +39,10 @@ while results.get("nextPageToken"):
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `jql` | `str` | required | JQL query string |
-| `next_page_token` | `str \| None` | `None` | Token for fetching the next page of results |
+| `next_page_token` | `str \| None` | `None` | Token for fetching the next page of results. Omitted from the request body when `None`. |
 | `max_results` | `int` | `50` | Maximum items per page |
-| `fields` | `list[str] \| None` | `None` | Fields to return (e.g., `["summary", "status"]`). Use `["*all"]` for all. |
-| `expand` | `str \| None` | `None` | Comma-separated properties to expand |
+| `fields` | `list[str] \| None` | `None` | Fields to return (e.g., `["summary", "status"]`). Use `["*all"]` for all. Omitted from the request body when `None`. |
+| `expand` | `str \| None` | `None` | Comma-separated properties to expand. Omitted from the request body when `None`. |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
 | `extra_data` | `Mapping[str, Any] \| None` | `None` | Additional request body data |
 

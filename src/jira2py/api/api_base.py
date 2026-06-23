@@ -4,6 +4,8 @@ from typing import Any
 
 from jira2py.client import JiraClientSync
 
+_DEFAULT_PAGE_SIZE = 50
+
 
 class ApiBase:
     """Base class for API implementations.

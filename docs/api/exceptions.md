@@ -20,9 +20,9 @@ For usage patterns and examples, see [Error Handling](../guide/error-handling.md
 
 ```
 JiraError
-├── JiraAuthenticationError
 ├── JiraConnectionError
 └── JiraAPIError
+    ├── JiraAuthenticationError
     ├── JiraNotFoundError
     ├── JiraRateLimitError
     └── JiraValidationError
@@ -41,7 +41,7 @@ Base exception for all jira2py errors.
 
 Raised when authentication or authorization fails (HTTP 401, 403).
 
-Inherits all attributes from [`JiraError`](#jiraerror).
+Inherits from [`JiraAPIError`](#jiraapierror), so it is also caught by `except JiraAPIError` and carries the same `status_code`, `response`, and `error_messages` metadata when available. For direct construction, `status_code` defaults to `401` and `response` defaults to `None`.
 
 ## `JiraConnectionError`
 
@@ -58,7 +58,9 @@ Raised for HTTP 4xx and 5xx responses not covered by a more specific exception.
 | `status_code` | `int` | HTTP status code |
 | `error_messages` | `list[str]` | Error messages extracted from the Jira response body |
 
-Also inherits `message` and `response` from [`JiraError`](#jiraerror).
+Includes `JiraAuthenticationError` and all other HTTP-error subclasses.
+
+Also inherits `message` and `response` from [`JiraError`](#jiraerror). `response` may be `None` when no HTTP response object is available.
 
 ## `JiraNotFoundError`
 

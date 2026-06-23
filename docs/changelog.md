@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+## v0.5.0
+
+Compatibility-honest minor release for accepted caller-visible behavior changes that should not be framed as a patch-only update.
+
+### Compatibility notes
+
+- `extra_params` and `extra_data` override named query/body fields when the same keys are provided in both places.
+- `JiraAuthenticationError` subclasses `JiraAPIError`, so broad `except JiraAPIError` handlers also catch authentication/authorization failures.
+- `search.enhanced_search()` omits optional `None` values from the request body instead of sending JSON `null`.
+
+### Documentation
+
+- Clarified the caller-visible precedence behavior for `extra_params` and `extra_data`.
+- Documented the `JiraAuthenticationError` / `JiraAPIError` hierarchy and shared API error metadata (`status_code`, `response`, and `error_messages`) when available.
+- Documented that `search.enhanced_search()` omits optional `None` values from the request body.
+
+### Tooling
+
+- Added a reusable version bump helper plus safer release-prep and tag-push automation for the `dev -> PR -> main -> tag` release flow.
+
 ## v0.4.0
 
 ### Breaking Changes

@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-from .api_base import ApiBase
+from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class Users(ApiBase):
@@ -13,7 +13,7 @@ class Users(ApiBase):
         self,
         query: str,
         start_at: int = 0,
-        max_results: int = 50,
+        max_results: int = _DEFAULT_PAGE_SIZE,
         extra_params: Mapping[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Search for Jira users by name or email.
@@ -24,7 +24,7 @@ class Users(ApiBase):
             query: Search string for display name or email.
             start_at: Index of the first item to return (0-based).
             max_results: Maximum results to return (max 1000).
-            extra_params: Additional query parameters.
+            extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
             List of user objects with accountId, displayName, emailAddress, active.

@@ -33,21 +33,6 @@ class JiraError(Exception):
         super().__init__(message)
 
 
-class JiraAuthenticationError(JiraError):
-    """Raised when authentication or authorization fails.
-
-    Typically raised for HTTP 401 (unauthorized) or 403 (forbidden) responses.
-
-    Example:
-        >>> try:
-        ...     jira.get_issue("PROJ-123")
-        ... except JiraAuthenticationError:
-        ...     print("Invalid credentials or insufficient permissions")
-    """
-
-    pass
-
-
 class JiraConnectionError(JiraError):
     """Raised when network or connection issues occur.
 
@@ -72,7 +57,7 @@ class JiraAPIError(JiraError):
 
     Attributes:
         status_code: HTTP status code
-        response: Full httpx.Response object
+        response: Full httpx.Response object when available, otherwise ``None``
         error_messages: List of error messages extracted from JIRA response
 
     Example:
@@ -87,12 +72,51 @@ class JiraAPIError(JiraError):
         message: str,
         *,
         status_code: int,
-        response: httpx.Response,
+        response: httpx.Response | None,
         error_messages: list[str] | None = None,
     ):
         self.status_code = status_code
         self.error_messages = error_messages or []
         super().__init__(message, response=response)
+
+
+class JiraAuthenticationError(JiraAPIError):
+    """Raised when authentication or authorization fails.
+
+    Inherits from ``JiraAPIError``, so callers using ``except JiraAPIError`` will
+    also catch this exception (unlike before this change).
+
+    Typically raised for HTTP 401 (unauthorized) or 403 (forbidden) responses.
+    The ``status_code`` attribute (401 or 403) can be used to distinguish the
+    two cases. The ``error_messages`` attribute contains any additional error
+    details from the Jira response.
+
+    Attributes:
+        status_code: HTTP status code (401 or 403).
+        response: Full httpx.Response object when available, otherwise ``None``.
+        error_messages: List of error messages extracted from JIRA response.
+
+    Example:
+        >>> try:
+        ...     jira.get_issue("PROJ-123")
+        ... except JiraAuthenticationError as e:
+        ...     print(f"Auth failed ({e.status_code}): invalid credentials or insufficient permissions")
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int = 401,
+        response: httpx.Response | None = None,
+        error_messages: list[str] | None = None,
+    ):
+        super().__init__(
+            message,
+            status_code=status_code,
+            response=response,
+            error_messages=error_messages,
+        )
 
 
 class JiraNotFoundError(JiraAPIError):

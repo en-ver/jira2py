@@ -1,5 +1,6 @@
 """Tests for jira2py exception hierarchy."""
 
+import httpx
 import pytest
 
 from jira2py.exceptions import (
@@ -89,11 +90,48 @@ class TestJiraAuthenticationError:
         error = JiraAuthenticationError("Invalid credentials")
         assert "credentials" in str(error).lower()
 
+    def test_authentication_error_direct_construction_defaults(self):
+        """Test that JiraAuthenticationError supports message-only construction."""
+        error = JiraAuthenticationError("Invalid credentials")
+        assert error.status_code == 401
+        assert error.response is None
+        assert error.error_messages == []
+        assert str(error) == "Invalid credentials"
+
     def test_authentication_error_with_response(self):
         """Test that JiraAuthenticationError can store response."""
-        mock_response = None
-        error = JiraAuthenticationError("Auth failed", response=mock_response)
-        assert error.response is None
+        mock_response = httpx.Response(401, json={})
+        error = JiraAuthenticationError(
+            "Auth failed",
+            status_code=401,
+            response=mock_response,
+        )
+        assert error.response is not None
+
+    def test_authentication_error_has_status_code(self):
+        """Test that JiraAuthenticationError exposes status_code and error_messages."""
+        error = JiraAuthenticationError(
+            "Auth failed",
+            status_code=401,
+            response=httpx.Response(401, json={}),
+        )
+        assert error.status_code == 401
+        assert error.error_messages == []
+
+    def test_authentication_error_distinguishable_401_vs_403(self):
+        """Test that 401 and 403 errors can be distinguished by status_code."""
+        err_401 = JiraAuthenticationError(
+            "Unauthorized",
+            status_code=401,
+            response=httpx.Response(401, json={}),
+        )
+        err_403 = JiraAuthenticationError(
+            "Forbidden",
+            status_code=403,
+            response=httpx.Response(403, json={}),
+        )
+        assert err_401.status_code == 401
+        assert err_403.status_code == 403
 
 
 class TestJiraConnectionError:
@@ -137,6 +175,13 @@ class TestJiraAPIError:
 
         mock_response = httpx.Response(500, json={"message": "Server error"})
         error = JiraAPIError("API error", status_code=500, response=mock_response)
+        assert error.error_messages == []
+
+    def test_api_error_allows_missing_response(self):
+        """Test that JiraAPIError accepts response=None when status is known."""
+        error = JiraAPIError("API error", status_code=500, response=None)
+        assert error.status_code == 500
+        assert error.response is None
         assert error.error_messages == []
 
 
