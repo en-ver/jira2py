@@ -83,11 +83,13 @@ nav:
   - Home: index.md
   - Getting Started:
       - Installation: installation.md
+      - High-level Helpers: guide/high-level-helpers.md
       - Configuration: guide/configuration.md
       - Error Handling: guide/error-handling.md
       - Rate Limiting: guide/rate-limiting.md
   - API Reference:
       - Overview: api/index.md
+      - High-level Helpers: api/helpers.md
       - JiraAPI: api/jira-api.md
       - Issues: api/issues.md
       - Issue Search: api/issue-search.md

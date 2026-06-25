@@ -6,7 +6,7 @@
 
 A lightweight, type-safe Python client for the [Jira Cloud REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/).
 
-Built for developers who want to interact with Jira programmatically without pulling in heavyweight dependencies — just two runtime dependencies (`httpx`, `tenacity`).
+Built for developers who want to interact with Jira programmatically without pulling in a heavyweight Jira SDK.
 
 ## Installation
 
@@ -45,14 +45,58 @@ Credentials can also be loaded automatically from environment variables (`JIRA_U
 jira = JiraAPI()  # no arguments needed
 ```
 
+## Choose Your API Layer
+
+`jira2py` now has two complementary layers:
+
+- **Low-level `JiraAPI`** — the existing endpoint-oriented facade that returns Jira REST JSON shapes directly.
+- **High-level `JiraHelpers`** — an optional workflow/helper facade built on top of `JiraAPI`.
+
+Import helpers from `jira2py.helpers`, not top-level `jira2py`:
+
+```python
+from jira2py import JiraAPI
+from jira2py.helpers import JiraHelpers
+
+api = JiraAPI()
+helpers = JiraHelpers(api)
+
+issue = helpers.issues.read("PROJECT-123")
+search = helpers.search.issues("project = PROJECT ORDER BY updated DESC")
+comments = helpers.comments.list("PROJECT-123")
+worklogs = helpers.worklogs.report(
+    start_date="2026-01-01",
+    end_date="2026-01-31",
+    jql="project = PROJECT",
+)
+attachment = helpers.attachments.plan_download("10001", output_path="downloads/")
+metadata = helpers.metadata.issue_types("PROJECT")
+links = helpers.links.types()
+
+print(issue.text)
+print(search.data["issues"][0]["key"] if search.data and search.data["issues"] else "No issues")
+print(comments.text)
+print(worklogs.text)
+print(attachment.data.output_file if attachment.data else "No plan")
+print(metadata.text)
+print(links.text)
+```
+
+Helper methods return `HelperResult`, which combines human-readable `text` with optional structured `data` and `raw_content`. They raise helper-layer errors such as `JiraHelperValidationError` and `JiraHelperOperationError`.
+
+Internal converters/formatters such as `jira2py.helpers._adf` and `jira2py.helpers._text` are intentionally private implementation details, not supported public API.
+
+See also `docs/guide/high-level-helpers.md` and `examples/high_level_helpers.py` in the repository.
+
 ## Key Features
 
-- **Unified API** — single `JiraAPI` entry point with access to all endpoints via `jira.issues`, `jira.search`, `jira.comments`, `jira.projects`, and more
+- **Two API layers** — unchanged low-level `JiraAPI` plus optional high-level `jira2py.helpers.JiraHelpers`
+- **Unified low-level facade** — single `JiraAPI` entry point with access to all endpoints via `jira.issues`, `jira.search`, `jira.comments`, `jira.projects`, and more
 - **Automatic rate limit handling** — retries on HTTP 429 with exponential backoff, jitter, and `Retry-After` header support
 - **Performant** — persistent connections with HTTP/2, configurable timeouts
 - **Structured error handling** — typed exception hierarchy (`JiraNotFoundError`, `JiraValidationError`, `JiraRateLimitError`, etc.) instead of generic errors
 - **Type-safe** — full type annotations and a `py.typed` marker for downstream static analysis (PEP 561)
-- **Lightweight** — two runtime dependencies: `httpx` and `tenacity`
+- **Lightweight** — lean transport/client stack without a heavyweight Jira SDK
 
 ## API Coverage
 

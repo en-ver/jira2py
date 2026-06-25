@@ -1,6 +1,31 @@
 # API Reference
 
-All Jira operations are accessed through the `JiraAPI` facade. Each API module is available as a property:
+jira2py exposes two complementary layers:
+
+- `from jira2py import JiraAPI` — the unchanged low-level Jira REST facade
+- `from jira2py.helpers import JiraHelpers` — a grouped high-level workflow facade built on top of `JiraAPI`
+
+## High-level facade
+
+```python
+from jira2py import JiraAPI
+from jira2py.helpers import JiraHelpers
+
+api = JiraAPI()
+helpers = JiraHelpers(api)
+
+helpers.issues         # Read/create/edit issue workflows
+helpers.search         # JQL search workflows
+helpers.comments       # Comment workflows
+helpers.worklogs       # Worklog reporting workflows
+helpers.attachments    # Attachment validation/planning workflows
+helpers.metadata       # Issue-type/field/project/user discovery workflows
+helpers.links          # Issue-link workflows
+```
+
+Helper methods return `HelperResult` objects with human-readable `text` plus optional structured `data` and `raw_content`.
+
+## Low-level facade
 
 ```python
 from jira2py import JiraAPI
@@ -22,7 +47,8 @@ jira.users             # Users — search
 
 | Module | Property | Description |
 |---|---|---|
-| [JiraAPI](jira-api.md) | — | Entry point and facade |
+| [High-level Helpers](helpers.md) | `helpers.<group>` | Grouped helper facade returning `HelperResult` |
+| [JiraAPI](jira-api.md) | — | Entry point and low-level facade |
 | [Issues](issues.md) | `jira.issues` | Create, read, and update issues; changelogs and create/edit metadata |
 | [Issue Search](issue-search.md) | `jira.search` | Search issues with JQL |
 | [Issue Comments](issue-comments.md) | `jira.comments` | List and add comments |
@@ -54,6 +80,6 @@ issue = jira.issues.get_issue(
 
 ### Return types
 
-- Methods that return data give back `dict[str, Any]` or `list[dict[str, Any]]` — the parsed JSON from the Jira REST API.
-- Methods for operations with no response body (e.g., delete, create link) return `None`.
-- Paginated endpoints return the full response dict including `startAt`, `maxResults`, `total`, and the results list.
+- Low-level `JiraAPI` methods return `dict[str, Any]`, `list[dict[str, Any]]`, or `None` — the parsed Jira REST API response bodies.
+- High-level `JiraHelpers` methods return [`HelperResult`](helpers.md#helperresult), which combines readable `text` with optional structured `data` and `raw_content`.
+- Paginated low-level endpoints return the full Jira response dict including pagination metadata.
