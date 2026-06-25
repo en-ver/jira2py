@@ -155,11 +155,12 @@ class IssueHelpers:
         fields: Mapping[str, Any] | None = None,
     ) -> None:
         """Validate create-issue input without performing Jira API calls."""
-        del description
         require_non_empty_string(project_key, field_name="project_key")
         require_non_empty_string(issue_type, field_name="issue_type")
         require_non_empty_string(summary, field_name="summary")
         validate_field_conflicts(fields, reserved_fields=_CREATE_FIELD_CONFLICTS)
+        if description is not None:
+            validate_field_conflicts(fields, reserved_fields={"description"})
 
     def validate_edit(
         self,

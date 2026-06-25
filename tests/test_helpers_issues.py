@@ -126,6 +126,26 @@ def test_create_converts_description_and_markdown_fields(monkeypatch) -> None:
     assert result.data == {"key": "PROJ-123"}
 
 
+def test_create_rejects_conflicting_description_field() -> None:
+    api = _make_api()
+    helper = IssueHelpers(cast(JiraAPI, api))
+
+    with pytest.raises(
+        JiraHelperValidationError,
+        match="Use explicit parameters instead of fields for: description",
+    ):
+        helper.create(
+            "PROJ",
+            "Bug",
+            "Fix thing",
+            description="Body",
+            fields={"description": {"type": "doc"}},
+        )
+
+    api.fields.get_fields.assert_not_called()
+    api.issues.create_issue.assert_not_called()
+
+
 def test_create_raises_when_adf_field_metadata_lookup_fails() -> None:
     api = _make_api()
     api.fields.get_fields.side_effect = RuntimeError("metadata boom")
