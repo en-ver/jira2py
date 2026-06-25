@@ -15,25 +15,62 @@ A lightweight, type-safe Python client for the Jira REST API.
 
 ## Why jira2py?
 
-jira2py provides a clean, minimal interface to the Jira Cloud REST API v3. It's built for developers who want to interact with Jira programmatically without pulling in heavyweight dependencies.
+jira2py provides a clean, minimal interface to the Jira Cloud REST API v3. It now offers two complementary layers:
+
+- `from jira2py import JiraAPI` for the unchanged low-level REST facade
+- `from jira2py.helpers import JiraHelpers` for grouped high-level workflows
+
+### Low-level `JiraAPI`
 
 ```python
 from jira2py import JiraAPI
 
 jira = JiraAPI()
-
 issue = jira.issues.get_issue("PROJ-123")
 print(issue["fields"]["summary"])
 ```
 
+### High-level `JiraHelpers`
+
+```python
+from jira2py import JiraAPI
+from jira2py.helpers import JiraHelpers
+
+api = JiraAPI()
+helpers = JiraHelpers(api)
+
+issue = helpers.issues.read("PROJ-123")
+search = helpers.search.issues("project = PROJ ORDER BY updated DESC")
+comments = helpers.comments.list("PROJ-123")
+worklogs = helpers.worklogs.report(
+    start_date="2026-01-01",
+    end_date="2026-01-31",
+    jql="project = PROJ",
+)
+attachment = helpers.attachments.plan_download("10001", output_path="downloads/")
+metadata = helpers.metadata.issue_types("PROJ")
+links = helpers.links.types()
+
+print(issue.text)
+print(search.text)
+print(comments.text)
+print(worklogs.text)
+print(attachment.text)
+print(metadata.text)
+print(links.text)
+```
+
+High-level helper methods return `HelperResult` objects and raise helper-layer errors such as `JiraHelperValidationError` and `JiraHelperOperationError`.
+
 ## Key Features
 
-- **Unified API** — Single `JiraAPI` entry point with access to all endpoints via `jira.issues`, `jira.search`, `jira.comments`, `jira.projects`, and more
+- **Two API layers** — Unchanged low-level `JiraAPI` plus grouped high-level `jira2py.helpers.JiraHelpers`
+- **Unified low-level facade** — Single `JiraAPI` entry point with access to all endpoints via `jira.issues`, `jira.search`, `jira.comments`, `jira.projects`, and more
 - **Automatic rate limit handling** — Retries on HTTP 429 with exponential backoff, jitter, and `Retry-After` header support
 - **Performant** — Persistent connections with HTTP/2, configurable timeouts
 - **Structured error handling** — Typed exception hierarchy (`JiraNotFoundError`, `JiraValidationError`, `JiraRateLimitError`, etc.) instead of generic errors
 - **Type-safe** — Full type annotations and a `py.typed` marker for downstream static analysis
-- **Lightweight** — Minimal runtime dependencies
+- **Lightweight** — Focused runtime dependencies without a heavyweight Jira SDK
 
 ## API Coverage
 
@@ -53,8 +90,8 @@ print(issue["fields"]["summary"])
 
 This documentation is available in machine-readable formats:
 
-- **[llms.txt](llms.txt)** — documentation index with links to Markdown versions of each page
-- **[llms-full.txt](llms-full.txt)** — all documentation pages expanded into a single file
+- **[llms.txt](https://jira2py.org/llms.txt)** — documentation index with links to Markdown versions of each page
+- **[llms-full.txt](https://jira2py.org/llms-full.txt)** — all documentation pages expanded into a single file
 - **[api-reference.json](api-reference.json)** — full API schema with signatures, types, and docstrings, generated from source with [griffe](https://github.com/mkdocstrings/griffe)
 
 These files are regenerated on every release and always reflect the latest source code.
@@ -91,4 +128,6 @@ new_issue = jira.issues.create_issue(fields={
 print(f"Created {new_issue['key']}")
 ```
 
-See the [Installation](installation.md) guide for detailed setup instructions.
+Private helper internals such as `jira2py.helpers._adf` and `jira2py.helpers._text` are not part of the supported public API.
+
+See the [Installation](installation.md) guide for detailed setup instructions, the [High-level Helpers](guide/high-level-helpers.md) guide for workflow examples, and the API reference for both layers.
