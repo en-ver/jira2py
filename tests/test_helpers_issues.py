@@ -126,6 +126,27 @@ def test_create_converts_description_and_markdown_fields(monkeypatch) -> None:
     assert result.data == {"key": "PROJ-123"}
 
 
+def test_create_raises_when_adf_field_metadata_lookup_fails() -> None:
+    api = _make_api()
+    api.fields.get_fields.side_effect = RuntimeError("metadata boom")
+    helper = IssueHelpers(cast(JiraAPI, api))
+
+    with pytest.raises(
+        JiraHelperOperationError,
+        match="Failed to fetch Jira field metadata needed for Markdown-to-ADF conversion",
+    ) as exc_info:
+        helper.create(
+            "PROJ",
+            "Bug",
+            "Fix thing",
+            fields={"customfield_10001": "Extra details"},
+        )
+
+    api.issues.create_issue.assert_not_called()
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+    assert str(exc_info.value.__cause__) == "metadata boom"
+
+
 def test_edit_raw_response_handles_empty_response_body() -> None:
     api = _make_api()
     api.issues.edit_issue.return_value = None

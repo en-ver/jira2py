@@ -193,8 +193,11 @@ class IssueHelpers:
     def _get_adf_field_ids(self) -> set[str]:
         try:
             all_fields = self.api.fields.get_fields()
-        except Exception:
-            return set()
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                "Failed to fetch Jira field metadata needed for Markdown-to-ADF "
+                f"conversion: {exc}"
+            ) from exc
         return detect_adf_field_ids(all_fields)
 
 
