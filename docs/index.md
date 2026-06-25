@@ -42,6 +42,7 @@ print(issue["fields"]["summary"])
 | **Issues**         | Get, create, edit issues; changelogs; edit metadata; create metadata |
 | **Issue Search**   | JQL search with pagination                                           |
 | **Issue Comments** | List and add comments                                                |
+| **Issue Worklogs** | Retrieve issue worklogs as raw Jira pages                            |
 | **Issue Fields**   | List system and custom fields                                        |
 | **Issue Links**    | List link types, create and delete links                             |
 | **Projects**       | Search and list projects                                             |
