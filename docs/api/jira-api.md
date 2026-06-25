@@ -33,6 +33,7 @@ See [Configuration](../guide/configuration.md) for credential resolution and [Ra
 | `issues` | [`Issues`](issues.md) | Issue operations |
 | `search` | [`IssueSearch`](issue-search.md) | JQL search |
 | `comments` | [`IssueComments`](issue-comments.md) | Issue comments |
+| `worklogs` | [`IssueWorklogs`](issue-worklogs.md) | Issue worklogs |
 | `fields` | [`IssueFields`](issue-fields.md) | System and custom fields |
 | `issue_links` | [`IssueLinks`](issue-links.md) | Issue link operations |
 | `projects` | [`Projects`](projects.md) | Project search |

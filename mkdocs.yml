@@ -92,6 +92,7 @@ nav:
       - Issues: api/issues.md
       - Issue Search: api/issue-search.md
       - Issue Comments: api/issue-comments.md
+      - Issue Worklogs: api/issue-worklogs.md
       - Issue Fields: api/issue-fields.md
       - Issue Links: api/issue-links.md
       - Projects: api/projects.md

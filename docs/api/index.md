@@ -10,6 +10,7 @@ jira = JiraAPI()
 jira.issues            # Issues — get, create, edit, metadata
 jira.search            # Issue Search — JQL queries
 jira.comments          # Issue Comments — list, add
+jira.worklogs          # Issue Worklogs — list worklogs for an issue
 jira.fields            # Issue Fields — list system and custom fields
 jira.issue_links       # Issue Links — link types, create, delete
 jira.projects          # Projects — search and list
@@ -25,6 +26,7 @@ jira.users             # Users — search
 | [Issues](issues.md) | `jira.issues` | Create, read, and update issues; changelogs and create/edit metadata |
 | [Issue Search](issue-search.md) | `jira.search` | Search issues with JQL |
 | [Issue Comments](issue-comments.md) | `jira.comments` | List and add comments |
+| [Issue Worklogs](issue-worklogs.md) | `jira.worklogs` | Retrieve issue worklogs as raw Jira pages |
 | [Issue Fields](issue-fields.md) | `jira.fields` | List system and custom fields |
 | [Issue Links](issue-links.md) | `jira.issue_links` | List link types, create and delete links |
 | [Projects](projects.md) | `jira.projects` | Search and list projects |

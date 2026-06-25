@@ -10,6 +10,7 @@ from .issue_comments import IssueComments
 from .issue_fields import IssueFields
 from .issue_links import IssueLinks
 from .issue_search import IssueSearch
+from .issue_worklogs import IssueWorklogs
 from .issues import Issues
 from .projects import Projects
 from .users import Users
@@ -81,6 +82,11 @@ class JiraAPI:
     def comments(self) -> IssueComments:
         """Get comments client."""
         return IssueComments(self._client)
+
+    @cached_property
+    def worklogs(self) -> IssueWorklogs:
+        """Get worklogs client."""
+        return IssueWorklogs(self._client)
 
     @cached_property
     def projects(self) -> Projects:
