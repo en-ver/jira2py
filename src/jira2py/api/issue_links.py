@@ -1,12 +1,42 @@
 """Issue Links API implementation."""
 
+from collections.abc import Mapping
 from typing import Any
 
 from .api_base import ApiBase
 
 
 class IssueLinks(ApiBase):
-    """Issue Links API — create, delete, and list issue link types."""
+    """Issue Links API — create, delete, and list issue links/types."""
+
+    def get_issue_links(
+        self,
+        issue_id: str,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """List issue links on a Jira issue.
+
+        Jira Cloud issues endpoint:
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-get
+
+        Args:
+            issue_id: The ID or key of the issue (e.g., "PROJ-123").
+            extra_params: Additional query parameters. Takes priority over named parameters.
+
+        Returns:
+            A list of issue-link objects from the issue ``issuelinks`` field.
+        """
+        issue = self._as_dict(
+            self._client._request_jira(
+                method="GET",
+                context_path=f"issue/{issue_id}",
+                params={"fields": "issuelinks"},
+                extra_params=extra_params,
+            )
+        )
+        fields = issue.get("fields")
+        links = fields.get("issuelinks", []) if isinstance(fields, dict) else []
+        return self._as_list(links)
 
     def get_link_types(self) -> dict[str, Any]:
         """Get all available issue link types.

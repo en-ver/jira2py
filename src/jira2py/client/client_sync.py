@@ -144,6 +144,9 @@ class JiraClientSync:
         *,
         extra_params: Mapping[str, Any] | None = None,
         extra_data: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+        files: Any | None = None,
+        follow_redirects: bool = False,
     ) -> dict[str, Any] | list[dict[str, Any]] | None:
         """Make a synchronous request to the JIRA API.
 
@@ -159,10 +162,67 @@ class JiraClientSync:
                 over named parameters and can be used to override or extend them.
             extra_data: Additional body data. Keys in extra_data take priority over named
                 data parameters and can be used to override or extend them.
+            headers: Optional request headers to merge into the request.
+            files: Optional multipart file payload for uploads.
+            follow_redirects: Whether to follow HTTP redirects for this request.
 
         Returns:
             Response data as dict, list, or None for empty responses.
         """
+        response = self._send_jira_request(
+            method=method,
+            context_path=context_path,
+            params=params,
+            data=data,
+            extra_params=extra_params,
+            extra_data=extra_data,
+            headers=headers,
+            files=files,
+            follow_redirects=follow_redirects,
+        )
+        return self._handle_response(response)
+
+    def _request_jira_bytes(
+        self,
+        method: str,
+        context_path: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        *,
+        extra_params: Mapping[str, Any] | None = None,
+        extra_data: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+        files: Any | None = None,
+        follow_redirects: bool = False,
+    ) -> bytes:
+        """Make a synchronous request and return raw response bytes."""
+        response = self._send_jira_request(
+            method=method,
+            context_path=context_path,
+            params=params,
+            data=data,
+            extra_params=extra_params,
+            extra_data=extra_data,
+            headers=headers,
+            files=files,
+            follow_redirects=follow_redirects,
+        )
+        return response.content
+
+    def _send_jira_request(
+        self,
+        method: str,
+        context_path: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        *,
+        extra_params: Mapping[str, Any] | None = None,
+        extra_data: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+        files: Any | None = None,
+        follow_redirects: bool = False,
+    ) -> httpx.Response:
+        """Make a synchronous request to the JIRA API and return the raw response."""
         # Merge parameters; strip None from query params (httpx sends None as "None")
         # extra_params takes priority over params (later keys win in dict merge)
         merged_params = {
@@ -174,13 +234,20 @@ class JiraClientSync:
         # extra_data takes priority over data (later keys win in dict merge)
         merged_data = {**(data or {}), **(extra_data or {})}
 
-        request_kwargs: dict[str, Any] = {}
+        request_kwargs: dict[str, Any] = {"follow_redirects": follow_redirects}
         if merged_params:
             request_kwargs["params"] = merged_params
-        if merged_data:
+        if headers:
+            request_kwargs["headers"] = dict(headers)
+        if files is not None:
+            request_kwargs["files"] = files
+            if merged_data:
+                request_kwargs["data"] = merged_data
+        elif merged_data:
             request_kwargs["json"] = merged_data
 
         client = self._get_persistent_client()
+        response: httpx.Response | None = None
 
         try:
             for attempt in Retrying(
@@ -196,7 +263,9 @@ class JiraClientSync:
         except Exception as e:
             self._handle_error(e)
 
-        return self._handle_response(response)
+        if response is None:
+            raise JiraError("Unexpected error: request completed without a response")
+        return response
 
     @staticmethod
     def _is_retryable(error: BaseException) -> bool:

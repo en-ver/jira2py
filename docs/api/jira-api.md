@@ -1,6 +1,6 @@
 # JiraAPI
 
-The main entry point for all Jira operations.
+`JiraAPI` is the low-level entry point for Jira Cloud operations.
 
 ## Constructor
 
@@ -8,37 +8,41 @@ The main entry point for all Jira operations.
 from jira2py import JiraAPI
 
 jira = JiraAPI(
-    url: str | None = None,
-    username: str | None = None,
-    api_token: str | None = None,
-    max_retries: int = 4,
-    max_retry_delay: float = 30.0,
+    url=None,
+    username=None,
+    api_token=None,
+    max_retries=4,
+    max_retry_delay=30.0,
+    credentials_file=None,
 )
 ```
 
 | Parameter | Default | Description |
-|---|---|---|
-| `url` | `None` | Jira instance URL. Falls back to `JIRA_URL` env var. |
-| `username` | `None` | Atlassian account email. Falls back to `JIRA_USER` env var. |
-| `api_token` | `None` | API token. Falls back to `JIRA_API_TOKEN` env var. |
+| --- | --- | --- |
+| `url` | `None` | Jira site URL. Overrides file/env values when provided. |
+| `username` | `None` | Atlassian account email. Overrides file/env values when provided. |
+| `api_token` | `None` | Jira API token. Overrides file/env values when provided. |
 | `max_retries` | `4` | Max retry attempts on HTTP 429. |
 | `max_retry_delay` | `30.0` | Max delay between retries in seconds. |
+| `credentials_file` | `None` | Explicit path to a JSON file with `url`, `username`, and `api_token`. No default path is used. |
 
-See [Configuration](../guide/configuration.md) for credential resolution and [Rate Limiting](../guide/rate-limiting.md) for retry behavior.
+If `credentials_file` is omitted, jira2py falls back to `JIRA_URL`, `JIRA_USER`, and `JIRA_API_TOKEN`.
 
 ## Properties
 
 | Property | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `issues` | [`Issues`](issues.md) | Issue operations |
 | `search` | [`IssueSearch`](issue-search.md) | JQL search |
 | `comments` | [`IssueComments`](issue-comments.md) | Issue comments |
 | `worklogs` | [`IssueWorklogs`](issue-worklogs.md) | Issue worklogs |
 | `fields` | [`IssueFields`](issue-fields.md) | System and custom fields |
-| `issue_links` | [`IssueLinks`](issue-links.md) | Issue link operations |
-| `projects` | [`Projects`](projects.md) | Project search |
-| `attachments` | [`Attachments`](attachments.md) | Attachment metadata |
-| `users` | [`Users`](users.md) | User search |
+| `issue_links` | [`IssueLinks`](issue-links.md) | Issue-link operations |
+| `projects` | [`Projects`](projects.md) | Project lookup and search |
+| `metadata` | [`Metadata`](metadata.md) | Statuses and priorities |
+| `filters` | [`Filters`](filters.md) | Saved filter discovery and lookup |
+| `attachments` | [`Attachments`](attachments.md) | Attachment operations |
+| `users` | [`Users`](users.md) | User search and current user |
 
 ## Usage
 
@@ -47,9 +51,12 @@ from jira2py import JiraAPI
 
 jira = JiraAPI()
 
-# Access any module through the facade
 issue = jira.issues.get_issue("PROJ-123")
-results = jira.search.enhanced_search("project = PROJ")
-fields = jira.fields.get_fields()
-projects = jira.projects.search_projects()
+me = jira.users.get_current_user()
+transitions = jira.issues.get_transitions("PROJ-123")
+project = jira.projects.get_project("PROJ")
+statuses = jira.metadata.get_statuses()
+filters = jira.filters.search_filters(max_results=10)
 ```
+
+See [Configuration](../guide/configuration.md) for credential resolution and [Rate Limiting](../guide/rate-limiting.md) for retry behavior.

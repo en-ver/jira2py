@@ -7,7 +7,34 @@ from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class Projects(ApiBase):
-    """Projects API — search and list Jira projects."""
+    """Projects API — search, list, and get Jira projects."""
+
+    def get_project(
+        self,
+        project_id_or_key: str,
+        expand: str | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Get a single Jira project by explicit key or ID.
+
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/#api-rest-api-3-project-projectidorkey-get
+
+        Args:
+            project_id_or_key: The Jira project key or numeric project ID.
+            expand: Comma-separated properties to expand.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+
+        Returns:
+            Jira project details for the requested project.
+        """
+        return self._as_dict(
+            self._client._request_jira(
+                method="GET",
+                context_path=f"project/{project_id_or_key}",
+                params={"expand": expand},
+                extra_params=extra_params,
+            )
+        )
 
     def search_projects(
         self,

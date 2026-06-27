@@ -46,6 +46,13 @@ SAMPLE_CREATE_FIELDS = {
     ]
 }
 
+SAMPLE_TRANSITIONS = {
+    "transitions": [
+        {"id": "11", "name": "Start Progress", "to": {"name": "In Progress"}},
+        {"id": "21", "name": "Close Issue", "to": {"name": "Done"}},
+    ]
+}
+
 SAMPLE_CREATED_ISSUE = {
     "id": "10002",
     "key": "TEST-3",
@@ -107,6 +114,41 @@ class TestIssues:
         result = api.get_edit_metadata("TEST-1")
 
         assert "summary" in result["fields"]
+
+    def test_get_transitions(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/rest/api/3/issue/TEST-1/transitions"
+            assert request.url.params["expand"] == "transitions.fields"
+            assert request.url.params["transitionId"] == "21"
+            return httpx.Response(200, json=SAMPLE_TRANSITIONS)
+
+        api = Issues(make_client(handler))
+        result = api.get_transitions(
+            "TEST-1",
+            expand="transitions.fields",
+            transition_id="21",
+        )
+
+        assert len(result["transitions"]) == 2
+        assert result["transitions"][1]["name"] == "Close Issue"
+
+    def test_transition_issue_returns_none_on_204(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/rest/api/3/issue/TEST-1/transitions"
+            assert request.method == "POST"
+            assert request.read() == (
+                b'{"transition":{"id":"21"},"fields":{"resolution":{"name":"Done"}}}'
+            )
+            return httpx.Response(204)
+
+        api = Issues(make_client(handler))
+        result = api.transition_issue(
+            "TEST-1",
+            transition_id="21",
+            fields={"resolution": {"name": "Done"}},
+        )
+
+        assert result is None
 
     def test_get_create_issue_types(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:

@@ -1,41 +1,78 @@
 # Issue Worklogs
 
-Accessed via `jira.worklogs`. Retrieve the raw Jira worklog page for a single issue.
+Accessed via `jira.worklogs`. List, add, update, and delete raw Jira issue worklogs.
 
 !!! note
-    This is a low-level wrapper around Jira's issue worklogs endpoint. It returns the raw Jira response page and does not auto-paginate, aggregate, or build reports.
+    `jira.worklogs` is the low-level endpoint wrapper. For cross-issue reporting, use the helper layer's `helpers.worklogs.report()`.
 
 ## `get_worklogs`
 
-Get worklogs for an issue.
-
 ```python
 worklogs = jira.worklogs.get_worklogs("PROJ-123")
-print(f"Total worklogs: {worklogs['total']}")
-
-for worklog in worklogs["worklogs"]:
-    print(worklog["author"]["displayName"], worklog["timeSpentSeconds"])
-```
-
-```python
-# Pass Jira worklog query params through extra_params
-worklogs = jira.worklogs.get_worklogs(
-    "PROJ-123",
-    extra_params={
-        "startedAfter": 1719273600000,
-        "startedBefore": 1719360000000,
-        "expand": "properties",
-    },
-)
 ```
 
 | Parameter | Type | Default | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `issue_id` | `str` | required | Issue ID or key |
-| `start_at` | `int` | `0` | Index of the first worklog to return (0-based) |
-| `max_results` | `int` | `50` | Maximum number of worklogs to return |
+| `start_at` | `int` | `0` | First worklog index |
+| `max_results` | `int` | `50` | Maximum worklogs |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters such as `startedAfter`, `startedBefore`, and `expand` |
 
-**Returns:** `dict[str, Any]` — paginated response with `startAt`, `maxResults`, `total`, and `worklogs`.
+**Returns:** `dict[str, Any]`
 
-:link: [Jira REST API — Get issue worklogs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/#api-rest-api-3-issue-issueidorkey-worklog-get)
+---
+
+## `add_worklog`
+
+```python
+worklog = jira.worklogs.add_worklog("PROJ-123", "1h 30m")
+```
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `issue_id` | `str` | required | Issue ID or key |
+| `time_spent` | `str` | required | Jira time-tracking duration |
+| `started` | `str \| None` | `None` | Optional started timestamp |
+| `comment` | `Mapping[str, Any] \| None` | `None` | Optional ADF comment |
+| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
+| `extra_data` | `Mapping[str, Any] \| None` | `None` | Additional request body data |
+
+**Returns:** `dict[str, Any]`
+
+---
+
+## `update_worklog`
+
+```python
+updated = jira.worklogs.update_worklog("PROJ-123", "10010", time_spent="2h")
+```
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `issue_id` | `str` | required | Issue ID or key |
+| `worklog_id` | `str` | required | Jira worklog ID |
+| `time_spent` | `str \| None` | `None` | Optional replacement duration |
+| `started` | `str \| None` | `None` | Optional replacement started timestamp |
+| `comment` | `Mapping[str, Any] \| None` | `None` | Optional replacement ADF comment |
+| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
+| `extra_data` | `Mapping[str, Any] \| None` | `None` | Additional request body data |
+
+**Returns:** `dict[str, Any]`
+
+---
+
+## `delete_worklog`
+
+```python
+jira.worklogs.delete_worklog("PROJ-123", "10010")
+```
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `issue_id` | `str` | required | Issue ID or key |
+| `worklog_id` | `str` | required | Jira worklog ID |
+| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
+
+**Returns:** `None`
+
+:link: [Jira REST API — Issue worklogs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/)

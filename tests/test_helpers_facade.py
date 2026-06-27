@@ -6,7 +6,9 @@ from typing import cast
 from jira2py import JiraAPI
 from jira2py.helpers import (
     AttachmentHelpers,
+    AuthHelpers,
     CommentHelpers,
+    FiltersHelpers,
     IssueHelpers,
     JiraHelpers,
     LinkHelpers,
@@ -22,6 +24,7 @@ def test_jira_helpers_exposes_grouped_helpers_for_one_api_instance() -> None:
     helpers = JiraHelpers(cast(JiraAPI, api))
 
     assert helpers.api is api
+    assert isinstance(helpers.auth, AuthHelpers)
     assert isinstance(helpers.issues, IssueHelpers)
     assert isinstance(helpers.search, SearchHelpers)
     assert isinstance(helpers.comments, CommentHelpers)
@@ -29,6 +32,8 @@ def test_jira_helpers_exposes_grouped_helpers_for_one_api_instance() -> None:
     assert isinstance(helpers.attachments, AttachmentHelpers)
     assert isinstance(helpers.links, LinkHelpers)
     assert isinstance(helpers.metadata, MetadataHelpers)
+    assert isinstance(helpers.filters, FiltersHelpers)
+    assert helpers.auth.api is api
     assert helpers.issues.api is api
     assert helpers.search.api is api
     assert helpers.comments.api is api
@@ -36,3 +41,4 @@ def test_jira_helpers_exposes_grouped_helpers_for_one_api_instance() -> None:
     assert helpers.attachments.api is api
     assert helpers.links.api is api
     assert helpers.metadata.api is api
+    assert helpers.filters.api is api

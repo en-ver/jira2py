@@ -12,6 +12,39 @@ def _make_api() -> SimpleNamespace:
     return SimpleNamespace(issue_links=Mock())
 
 
+def test_list_issue_links_formats_explicit_issue_links() -> None:
+    api = _make_api()
+    api.issue_links.get_issue_links.return_value = [
+        {
+            "id": "10000",
+            "type": {
+                "name": "Blocks",
+                "outward": "blocks",
+                "inward": "is blocked by",
+            },
+            "outwardIssue": {
+                "key": "PROJ-2",
+                "fields": {
+                    "summary": "Linked issue",
+                    "status": {"name": "In Progress"},
+                },
+            },
+        }
+    ]
+
+    result = LinkHelpers(cast(JiraAPI, api)).list("PROJ-1")
+
+    api.issue_links.get_issue_links.assert_called_once_with(issue_id="PROJ-1")
+    assert result.data == {
+        "issue_key": "PROJ-1",
+        "links": api.issue_links.get_issue_links.return_value,
+    }
+    assert result.text == (
+        "Issue links on PROJ-1: 1 total\n\n"
+        "- blocks PROJ-2: Linked issue [In Progress] (link id: 10000)"
+    )
+
+
 def test_link_types_formats_available_types() -> None:
     api = _make_api()
     api.issue_links.get_link_types.return_value = {

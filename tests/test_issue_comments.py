@@ -62,3 +62,28 @@ class TestIssueComments:
         result = api.add_comment("TEST-1", body={"type": "doc", "content": []})
 
         assert result["id"] == "10001"
+
+    def test_update_comment(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/rest/api/3/issue/TEST-1/comment/10001"
+            assert request.method == "PUT"
+            return httpx.Response(200, json=SAMPLE_COMMENT)
+
+        api = IssueComments(make_client(handler))
+        result = api.update_comment(
+            "TEST-1",
+            "10001",
+            body={"type": "doc", "content": []},
+        )
+
+        assert result["id"] == "10001"
+
+    def test_delete_comment(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/rest/api/3/issue/TEST-1/comment/10001"
+            assert request.method == "DELETE"
+            return httpx.Response(204)
+
+        api = IssueComments(make_client(handler))
+
+        assert api.delete_comment("TEST-1", "10001") is None

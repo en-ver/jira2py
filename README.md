@@ -6,7 +6,7 @@
 
 A lightweight, type-safe Python client for the [Jira Cloud REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/).
 
-Built for developers who want to interact with Jira programmatically without pulling in a heavyweight Jira SDK.
+`jira2py` is **Jira Cloud only**. It does not add Jira Server/Data Center support, board/sprint/epic workflows, issue delete/archive workflows, or a dedicated issue-assign helper/API.
 
 ## Installation
 
@@ -25,34 +25,44 @@ jira = JiraAPI(
     api_token="your-api-token",
 )
 
-# Get an issue
 issue = jira.issues.get_issue("PROJECT-123")
-
-# Search with JQL
 results = jira.search.enhanced_search("project = PROJECT AND status = 'In Progress'")
-
-# Create an issue
-new_issue = jira.issues.create_issue(fields={
-    "project": {"key": "PROJECT"},
-    "issuetype": {"name": "Task"},
-    "summary": "New task from jira2py",
-})
 ```
 
-Credentials can also be loaded automatically from environment variables (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`):
+By default, `JiraAPI()` loads credentials from environment variables:
+
+```bash
+export JIRA_URL="https://your-domain.atlassian.net"
+export JIRA_USER="your-email@example.com"
+export JIRA_API_TOKEN="your-api-token"
+```
 
 ```python
-jira = JiraAPI()  # no arguments needed
+jira = JiraAPI()
 ```
+
+You can also pass an explicit JSON credentials file path. There is **no default credentials file path**.
+
+```json
+{
+  "url": "https://your-domain.atlassian.net",
+  "username": "your-email@example.com",
+  "api_token": "your-api-token"
+}
+```
+
+```python
+jira = JiraAPI(credentials_file="./jira-credentials.json")
+```
+
+When `credentials_file` is provided, jira2py loads that file. Explicit `url`, `username`, and `api_token` arguments still override file values.
 
 ## Choose Your API Layer
 
-`jira2py` now has two complementary layers:
+`jira2py` has two complementary layers:
 
-- **Low-level `JiraAPI`** — the existing endpoint-oriented facade that returns Jira REST JSON shapes directly.
-- **High-level `JiraHelpers`** — an optional workflow/helper facade built on top of `JiraAPI`.
-
-Import helpers from `jira2py.helpers`, not top-level `jira2py`:
+- **Low-level `JiraAPI`** — endpoint-oriented methods that return Jira REST JSON shapes directly.
+- **High-level `JiraHelpers`** — grouped workflows that return readable `HelperResult` objects with optional structured data.
 
 ```python
 from jira2py import JiraAPI
@@ -61,66 +71,59 @@ from jira2py.helpers import JiraHelpers
 api = JiraAPI()
 helpers = JiraHelpers(api)
 
-issue = helpers.issues.read("PROJECT-123")
-search = helpers.search.issues("project = PROJECT ORDER BY updated DESC")
-comments = helpers.comments.list("PROJECT-123")
-worklogs = helpers.worklogs.report(
-    start_date="2026-01-01",
-    end_date="2026-01-31",
-    jql="project = PROJECT",
-)
-attachment = helpers.attachments.plan_download("10001", output_path="downloads/")
-metadata = helpers.metadata.issue_types("PROJECT")
-links = helpers.links.types()
-
-print(issue.text)
-print(search.data["issues"][0]["key"] if search.data and search.data["issues"] else "No issues")
-print(comments.text)
-print(worklogs.text)
-print(attachment.data.output_file if attachment.data else "No plan")
-print(metadata.text)
-print(links.text)
+print(helpers.auth.status().text)
+print(helpers.auth.me().text)
+print(helpers.metadata.transitions("PROJECT-123").text)
+print(helpers.comments.update("PROJECT-123", "10001", "Updated comment").text)
+print(helpers.attachments.list("PROJECT-123").text)
+print(helpers.links.list("PROJECT-123").text)
+print(helpers.worklogs.list("PROJECT-123").text)
+print(helpers.metadata.project("PROJECT").text)
+print(helpers.metadata.statuses().text)
+print(helpers.metadata.priorities().text)
+print(helpers.filters.search("Team").text)
+print(helpers.filters.run("12345", fields=["summary", "status"]).text)
 ```
 
-Helper methods return `HelperResult`, which combines human-readable `text` with optional structured `data` and `raw_content`. They raise helper-layer errors such as `JiraHelperValidationError` and `JiraHelperOperationError`.
+Helper methods cover:
 
-Internal converters/formatters such as `jira2py.helpers._adf` and `jira2py.helpers._text` are intentionally private implementation details, not supported public API.
+- auth status and current user (`helpers.auth.status()`, `helpers.auth.me()`)
+- issue read/create/edit and workflow transitions
+- comment list/add/update/delete
+- attachment list/read/plan/download/upload/delete
+- issue-link list/types/create/delete
+- worklog list/add/update/delete/report
+- project lookup, project search, transitions, statuses, priorities, users, and field metadata
+- saved filter list/search and filter-run via resolved JQL
 
-See also `docs/guide/high-level-helpers.md` and `examples/high_level_helpers.py` in the repository.
-
-## Key Features
-
-- **Two API layers** — unchanged low-level `JiraAPI` plus optional high-level `jira2py.helpers.JiraHelpers`
-- **Unified low-level facade** — single `JiraAPI` entry point with access to all endpoints via `jira.issues`, `jira.search`, `jira.comments`, `jira.projects`, and more
-- **Automatic rate limit handling** — retries on HTTP 429 with exponential backoff, jitter, and `Retry-After` header support
-- **Performant** — persistent connections with HTTP/2, configurable timeouts
-- **Structured error handling** — typed exception hierarchy (`JiraNotFoundError`, `JiraValidationError`, `JiraRateLimitError`, etc.) instead of generic errors
-- **Type-safe** — full type annotations and a `py.typed` marker for downstream static analysis (PEP 561)
-- **Lightweight** — lean transport/client stack without a heavyweight Jira SDK
+`filter-run` is exposed as a helper workflow: it resolves the saved filter JQL and returns the same output shape as normal issue search.
 
 ## API Coverage
 
-| Module             | Operations                                                           |
-| ------------------ | -------------------------------------------------------------------- |
-| **Issues**         | Get, create, edit issues; changelogs; edit metadata; create metadata |
-| **Issue Search**   | JQL search with pagination                                           |
-| **Issue Comments** | List and add comments                                                |
-| **Issue Worklogs** | Retrieve issue worklogs as raw Jira pages                            |
-| **Issue Fields**   | List system and custom fields                                        |
-| **Issue Links**    | List link types, create and delete links                             |
-| **Projects**       | Search and list projects                                             |
-| **Attachments**    | Get attachment metadata                                              |
-| **Users**          | Search users by name or email                                        |
+| Module | Operations |
+| --- | --- |
+| **Issues** | Get, create, edit, transition issues; changelogs; edit metadata; create metadata |
+| **Issue Search** | JQL search with pagination |
+| **Issue Comments** | List, add, update, delete comments |
+| **Issue Worklogs** | List, add, update, delete issue worklogs |
+| **Issue Fields** | List system and custom fields |
+| **Issue Links** | List issue links, list link types, create and delete links |
+| **Projects** | Get, search, and list projects |
+| **Attachments** | List issue attachments, read metadata, download, upload, and delete attachments |
+| **Users** | Search users and get the current authenticated user |
+| **Metadata** | Statuses and priorities |
+| **Filters** | Search/list saved filters and resolve filter JQL |
+| **Helpers** | High-level auth, issues, search, comments, worklogs, attachments, metadata, links, and filters workflows |
 
 ## Documentation
 
-Full documentation is available at **[jira2py.org](https://jira2py.org)** — including installation, configuration, error handling, rate limiting, and a complete API reference.
+Full documentation is available at **[jira2py.org](https://jira2py.org)**.
 
 Machine-readable documentation for AI agents and LLMs:
 
-- [llms.txt](https://jira2py.org/llms.txt) — documentation index with links to Markdown versions of each page
-- [llms-full.txt](https://jira2py.org/llms-full.txt) — all documentation pages in a single file
-- [api-reference.json](https://jira2py.org/api-reference.json) — full API schema with signatures, types, and docstrings
+- [llms.txt](https://jira2py.org/llms.txt)
+- [llms-full.txt](https://jira2py.org/llms-full.txt)
+- [api-reference.json](https://jira2py.org/api-reference.json)
 
 ## License
 

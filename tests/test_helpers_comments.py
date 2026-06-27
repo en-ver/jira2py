@@ -79,3 +79,64 @@ def test_add_comment_converts_markdown_and_returns_browse_url(monkeypatch) -> No
     assert result.text == (
         "Added comment to PROJ-1\nURL: https://example.atlassian.net/browse/PROJ-1"
     )
+
+
+def test_update_comment_formats_updated_comment(monkeypatch) -> None:
+    api = _make_api()
+    api.comments.update_comment.return_value = {
+        "id": "10000",
+        "author": {"displayName": "Alice"},
+        "created": "2026-01-02T03:04:05.000+0000",
+        "updated": "2026-01-03T03:04:05.000+0000",
+        "body": {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Updated body"}],
+                }
+            ],
+        },
+    }
+    monkeypatch.setattr(
+        comments_module,
+        "markdown_to_adf",
+        lambda text: {"type": "doc", "markdown": text},
+    )
+
+    result = CommentHelpers(cast(JiraAPI, api)).update(
+        "PROJ-1",
+        "10000",
+        "Updated **body**",
+    )
+
+    api.comments.update_comment.assert_called_once_with(
+        issue_id="PROJ-1",
+        comment_id="10000",
+        body={"type": "doc", "markdown": "Updated **body**"},
+    )
+    assert result.data == api.comments.update_comment.return_value
+    assert "Updated comment 10000 on PROJ-1" in result.text
+    assert "### Alice — 2026-01-02 (edited 2026-01-03)" in result.text
+    assert "Updated body" in result.text
+
+
+def test_delete_comment_returns_explicit_ids_without_confirmation() -> None:
+    api = _make_api()
+
+    result = CommentHelpers(cast(JiraAPI, api)).delete("PROJ-1", "10000")
+
+    api.comments.delete_comment.assert_called_once_with(
+        issue_id="PROJ-1",
+        comment_id="10000",
+    )
+    assert result.data == {
+        "status": "deleted",
+        "issue_key": "PROJ-1",
+        "comment_id": "10000",
+    }
+    assert result.text == (
+        "Deleted comment 10000 from PROJ-1\n"
+        "URL: https://example.atlassian.net/browse/PROJ-1"
+    )

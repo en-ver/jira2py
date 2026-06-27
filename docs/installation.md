@@ -6,6 +6,9 @@
 - A Jira Cloud instance with API access
 - A Jira API token ([create one here](https://id.atlassian.com/manage-profile/security/api-tokens))
 
+!!! note
+    jira2py supports **Jira Cloud only**.
+
 ## Installation
 
 === "pip"
@@ -22,7 +25,9 @@
 
 ## Authentication
 
-jira2py uses [Jira API tokens](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/) with HTTP Basic authentication. The quickest way to get started is to set environment variables:
+jira2py uses Jira API tokens with HTTP Basic authentication.
+
+### Default: environment variables
 
 ```bash
 export JIRA_URL="https://your-domain.atlassian.net"
@@ -36,23 +41,39 @@ from jira2py import JiraAPI
 jira = JiraAPI()  # credentials loaded from environment
 ```
 
-You can also pass credentials explicitly, or mix both approaches. See [Configuration](guide/configuration.md) for the full details on credential resolution, validation, and precedence rules.
+### Optional: explicit credentials file
+
+If you pass `credentials_file`, jira2py loads that explicit JSON file. There is **no default credentials file path**.
+
+```json
+{
+  "url": "https://your-domain.atlassian.net",
+  "username": "your-email@example.com",
+  "api_token": "your-api-token"
+}
+```
+
+```python
+from jira2py import JiraAPI
+
+jira = JiraAPI(credentials_file="./jira-credentials.json")
+```
+
+Explicit constructor arguments still override values loaded from the file.
+
+See [Configuration](guide/configuration.md) for credential resolution and validation details.
 
 ## Your First Script
-
-Here's a complete working example that fetches an issue, searches with JQL, and creates a new issue:
 
 ```python
 from jira2py import JiraAPI, JiraNotFoundError
 
 jira = JiraAPI()
 
-# Fetch a single issue
 issue = jira.issues.get_issue("PROJ-123", fields="summary,status,assignee")
 print(f"{issue['key']}: {issue['fields']['summary']}")
 print(f"  Status: {issue['fields']['status']['name']}")
 
-# Search with JQL
 results = jira.search.enhanced_search(
     "project = PROJ AND status = 'In Progress' ORDER BY updated DESC",
     fields=["summary", "status", "assignee"],
@@ -62,41 +83,22 @@ print(f"\nFound {results['total']} issues in progress:")
 for item in results["issues"]:
     print(f"  {item['key']}: {item['fields']['summary']}")
 
-# Create a new issue
 new_issue = jira.issues.create_issue(fields={
     "project": {"key": "PROJ"},
     "issuetype": {"name": "Task"},
     "summary": "Created with jira2py",
-    "description": {
-        "type": "doc",
-        "version": 1,
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [
-                    {"type": "text", "text": "This issue was created via the API."}
-                ],
-            }
-        ],
-    },
 })
 print(f"\nCreated issue: {new_issue['key']}")
+
+print(jira.users.get_current_user()["displayName"])
 ```
 
 !!! tip "Working with Atlassian Document Format (ADF)"
-The `description` and comment `body` fields use Jira's
-[Atlassian Document Format](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/),
-which can be verbose to build by hand. Consider using a converter library
-to generate ADF from Markdown or other formats. For example:
-
-    - [marklassian](https://pypi.org/project/marklassian/) — Markdown to ADF
-    - [pyadf](https://pypi.org/project/pyadf/) — ADF to Markdown
-
-    Several other Python packages are available on PyPI for ADF conversion as well.
+    The `description`, comment `body`, and worklog `comment` fields use Jira's
+    [Atlassian Document Format](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
+    Libraries such as [marklassian](https://pypi.org/project/marklassian/) can help convert Markdown to ADF.
 
 ```python
-# Handle errors gracefully
-
 try:
     jira.issues.get_issue("NONEXISTENT-999")
 except JiraNotFoundError:
@@ -105,7 +107,8 @@ except JiraNotFoundError:
 
 ## What's Next
 
-- [Configuration](guide/configuration.md) — Retry settings, timeouts, and credential details
-- [Error Handling](guide/error-handling.md) — Working with the exception hierarchy
-- [Rate Limiting](guide/rate-limiting.md) — How automatic retry works
-- [API Reference](api/index.md) — All available endpoints and their parameters
+- [Configuration](guide/configuration.md)
+- [High-level Helpers](guide/high-level-helpers.md)
+- [Error Handling](guide/error-handling.md)
+- [Rate Limiting](guide/rate-limiting.md)
+- [API Reference](api/index.md)

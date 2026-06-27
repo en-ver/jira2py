@@ -10,18 +10,25 @@ from jira2py.helpers import (
     AttachmentDownloadPlan,
     AttachmentError,
     AttachmentHelpers,
+    AuthHelpers,
     CommentHelpers,
     FieldMeta,
     FieldSchema,
+    FilterSearchResult,
+    FiltersHelpers,
     HelperResult,
     IssueHelpers,
+    JiraFilter,
     JiraHelperConfigError,
     JiraHelperOperationError,
     JiraHelpers,
     JiraHelperValidationError,
+    JiraPriority,
+    JiraStatus,
     LinkHelpers,
     MetadataHelpers,
     SearchHelpers,
+    StatusCategory,
     WorklogHelpers,
 )
 from jira2py.helpers.errors import JiraHelperError
@@ -114,6 +121,8 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert "IssueHelpers" in helpers.__all__
     assert "SearchHelpers" in helpers.__all__
     assert "CommentHelpers" in helpers.__all__
+    assert "AuthHelpers" in helpers.__all__
+    assert "FiltersHelpers" in helpers.__all__
     assert "WorklogHelpers" in helpers.__all__
     assert "AttachmentHelpers" in helpers.__all__
     assert "LinkHelpers" in helpers.__all__
@@ -122,6 +131,8 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert helpers.IssueHelpers is IssueHelpers
     assert helpers.SearchHelpers is SearchHelpers
     assert helpers.CommentHelpers is CommentHelpers
+    assert helpers.AuthHelpers is AuthHelpers
+    assert helpers.FiltersHelpers is FiltersHelpers
     assert helpers.WorklogHelpers is WorklogHelpers
     assert helpers.AttachmentHelpers is AttachmentHelpers
     assert helpers.LinkHelpers is LinkHelpers
@@ -130,6 +141,31 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert "format_issue_full" not in helpers.__all__
     assert not hasattr(helpers, "adf_to_markdown")
     assert not hasattr(helpers, "format_issue_full")
+
+
+def test_filter_models_are_available_as_foundational_exports() -> None:
+    result = FilterSearchResult.model_validate(
+        {
+            "values": [
+                {
+                    "id": "10100",
+                    "name": "My open issues",
+                    "owner": {"displayName": "Alice", "accountId": "acct-1"},
+                    "jql": "project = PROJ",
+                }
+            ]
+        }
+    )
+
+    assert isinstance(result.values[0], JiraFilter)
+    assert JiraPriority.model_validate({"id": "1", "name": "High"}).name == "High"
+    assert JiraStatus.model_validate(
+        {
+            "id": "3",
+            "name": "Done",
+            "statusCategory": {"id": 3, "key": "done", "name": "Done"},
+        }
+    ).statusCategory == StatusCategory(id=3, key="done", name="Done", colorName=None)
 
 
 def test_importing_helper_models_with_warning_errors_enabled_succeeds() -> None:

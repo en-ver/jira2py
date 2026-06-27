@@ -1,17 +1,20 @@
 """Synchronous Jira API facade."""
 
+import os
 from functools import cached_property
 
 from jira2py.client import JiraClientSync, JiraCredentials
 from jira2py.client.client_sync import _DEFAULT_MAX_RETRIES, _DEFAULT_MAX_RETRY_DELAY
 
 from .attachments import Attachments
+from .filters import Filters
 from .issue_comments import IssueComments
 from .issue_fields import IssueFields
 from .issue_links import IssueLinks
 from .issue_search import IssueSearch
 from .issue_worklogs import IssueWorklogs
 from .issues import Issues
+from .metadata import Metadata
 from .projects import Projects
 from .users import Users
 
@@ -37,6 +40,7 @@ class JiraAPI:
         api_token: str | None = None,
         max_retries: int = _DEFAULT_MAX_RETRIES,
         max_retry_delay: float = _DEFAULT_MAX_RETRY_DELAY,
+        credentials_file: str | os.PathLike[str] | None = None,
     ) -> None:
         """Initialize the Jira API facade.
 
@@ -48,9 +52,14 @@ class JiraAPI:
                 Mirrors the client default ``_DEFAULT_MAX_RETRIES``.
             max_retry_delay: Maximum delay in seconds between retries.
                 Mirrors the client default ``_DEFAULT_MAX_RETRY_DELAY``.
+            credentials_file: Optional path to a JSON credentials file containing
+                ``url``, ``username``, and ``api_token``.
         """
         self._credentials = JiraCredentials.create(
-            url=url, username=username, api_token=api_token
+            url=url,
+            username=username,
+            api_token=api_token,
+            credentials_file=credentials_file,
         )
         self._client = JiraClientSync(
             self._credentials,
@@ -92,6 +101,16 @@ class JiraAPI:
     def projects(self) -> Projects:
         """Get projects client."""
         return Projects(self._client)
+
+    @cached_property
+    def metadata(self) -> Metadata:
+        """Get metadata client."""
+        return Metadata(self._client)
+
+    @cached_property
+    def filters(self) -> Filters:
+        """Get filters client."""
+        return Filters(self._client)
 
     @cached_property
     def attachments(self) -> Attachments:

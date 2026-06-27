@@ -8,11 +8,19 @@ from typing import Any
 from ._adf import adf_to_markdown, is_adf_value
 from ._utils import format_date, format_size
 from .models import (
+    AttachmentMeta,
     FieldMeta,
+    IssueLink,
+    IssueTransition,
     IssueType,
     JiraComment,
+    JiraFilter,
     JiraIssue,
+    JiraPriority,
+    JiraProject,
+    JiraStatus,
     JiraUser,
+    JiraWorklog,
     SearchResult,
     WorklogReport,
     WorklogReportRow,
@@ -112,18 +120,7 @@ def format_issue_full(
         lines.append("")
         lines.append(_section(f"Issue Links ({len(fields.issuelinks)})"))
         for link in fields.issuelinks:
-            if link.outwardIssue:
-                target = link.outwardIssue
-                direction = link.type.outward
-            elif link.inwardIssue:
-                target = link.inwardIssue
-                direction = link.type.inward
-            else:
-                continue
-            status = _named(target.fields.status)
-            lines.append(
-                f"- {direction} {target.key}: {target.fields.summary} [{status}] (link id: {link.id})"
-            )
+            lines.append(_format_issue_link_line(link))
 
     lines.append("")
     lines.append(_section("Description"))
@@ -185,6 +182,49 @@ def format_comment(comment: JiraComment) -> str:
     return f"### {author} — {date_str}\n{body}"
 
 
+def format_attachment_list(issue_key: str, attachments: list[AttachmentMeta]) -> str:
+    """Format an explicit issue attachment list."""
+    if not attachments:
+        return f"No attachments on {issue_key}"
+
+    lines = [f"Attachments on {issue_key}: {len(attachments)} total\n"]
+    for attachment in attachments:
+        lines.append(
+            f"- {attachment.filename or '?'} "
+            f"(id: {attachment.id}, {attachment.mimeType}, {format_size(attachment.size)})"
+        )
+    return "\n".join(lines)
+
+
+def format_attachment_metadata(attachment: AttachmentMeta) -> str:
+    """Format attachment metadata for display."""
+    lines = [
+        f"Attachment {attachment.id}: {attachment.filename or '?'}",
+        f"Type: {attachment.mimeType}",
+        f"Size: {format_size(attachment.size)}",
+    ]
+    if attachment.created:
+        lines.append(f"Created: {format_date(attachment.created)}")
+    if attachment.author:
+        lines.append(f"Author: {user_display(attachment.author)}")
+    if attachment.content:
+        lines.append(f"Content URL: {attachment.content}")
+    if attachment.thumbnail:
+        lines.append(f"Thumbnail URL: {attachment.thumbnail}")
+    return "\n".join(lines)
+
+
+def format_issue_link_list(issue_key: str, links: list[IssueLink]) -> str:
+    """Format an explicit issue-link list."""
+    if not links:
+        return f"No issue links on {issue_key}"
+
+    lines = [f"Issue links on {issue_key}: {len(links)} total\n"]
+    for link in links:
+        lines.append(_format_issue_link_line(link))
+    return "\n".join(lines)
+
+
 def format_search_results(result: SearchResult, jql: str = "") -> str:
     """Format search results as a compact list."""
     if not result.issues:
@@ -202,6 +242,79 @@ def format_search_results(result: SearchResult, jql: str = "") -> str:
     if result.nextPageToken:
         output += "\n\n(more results available — refine JQL or increase max_results)"
     return output
+
+
+def format_worklog(worklog: JiraWorklog) -> str:
+    """Format a single Jira worklog."""
+    author = worklog.author
+    author_label = user_display(author)
+    account_id = author.accountId if author else "?"
+
+    lines = [f"Worklog {worklog.id or '?'} — {author_label} ({account_id})"]
+
+    if worklog.issueId:
+        lines.append(f"Issue ID: {worklog.issueId}")
+
+    time_parts: list[str] = []
+    if worklog.timeSpent:
+        time_parts.append(worklog.timeSpent)
+    if worklog.timeSpentSeconds:
+        time_parts.append(f"{worklog.timeSpentSeconds}s")
+    if time_parts:
+        lines.append(f"Time spent: {' / '.join(time_parts)}")
+
+    if worklog.started:
+        lines.append(f"Started: {worklog.started}")
+    if worklog.created:
+        lines.append(f"Created: {format_date(worklog.created)}")
+    if worklog.updated:
+        lines.append(f"Updated: {format_date(worklog.updated)}")
+    if worklog.updateAuthor:
+        lines.append(f"Updated by: {_format_user(worklog.updateAuthor)}")
+    if worklog.visibility:
+        visibility_parts = [worklog.visibility.type or "?"]
+        if worklog.visibility.value:
+            visibility_parts.append(worklog.visibility.value)
+        lines.append(f"Visibility: {' / '.join(visibility_parts)}")
+    if worklog.comment:
+        lines.append("Comment:")
+        lines.extend(f"  {line}" for line in _format_worklog_comment(worklog.comment))
+
+    return "\n".join(lines)
+
+
+def format_worklog_list(
+    issue_key: str,
+    worklogs: list[JiraWorklog],
+    *,
+    start_at: int = 0,
+    total: int | None = None,
+    next_start: int | None = None,
+) -> str:
+    """Format an explicit issue worklog list."""
+    if not worklogs:
+        if start_at > 0 and total is not None:
+            return f"No worklogs at offset {start_at} (total: {total})"
+        return f"No worklogs on {issue_key}"
+
+    if total is not None and (total > len(worklogs) or start_at > 0):
+        end = start_at + len(worklogs)
+        header = f"Worklogs on {issue_key}: showing {start_at + 1}–{end} of {total}"
+    else:
+        header = f"Worklogs on {issue_key}: {total or len(worklogs)} total"
+
+    lines = [header, ""]
+    for worklog in worklogs:
+        lines.append(format_worklog(worklog))
+        lines.append("")
+
+    if next_start is not None and total is not None and next_start < total:
+        lines.append(
+            "--- More worklogs available. "
+            f"Use start_at={next_start} to fetch the next page. ---"
+        )
+
+    return "\n".join(lines).rstrip()
 
 
 def format_worklog_report(report: WorklogReport) -> str:
@@ -251,6 +364,33 @@ def format_issue_type_list(project_key: str, issue_types: list[IssueType]) -> st
     return "\n".join(lines)
 
 
+def format_transition_list(
+    issue_key: str,
+    transitions: list[IssueTransition],
+) -> str:
+    """Format available issue transitions for display."""
+    if not transitions:
+        return f"No transitions available for {issue_key}"
+
+    lines = [f"Available transitions for {issue_key}:\n"]
+    for transition in transitions:
+        target = f" → {transition.to.name}" if transition.to else ""
+        required_fields = [
+            field_id
+            for field_id, meta in transition.fields.items()
+            if isinstance(meta, dict) and meta.get("required")
+        ]
+        required_suffix = (
+            f" [required fields: {', '.join(required_fields)}]"
+            if required_fields
+            else ""
+        )
+        lines.append(
+            f"  • {transition.name} (id: {transition.id}){target}{required_suffix}"
+        )
+    return "\n".join(lines)
+
+
 def format_field_metadata(
     project_key: str,
     type_name: str,
@@ -275,6 +415,80 @@ def format_field_metadata(
         for field in optional:
             lines.extend(_format_field(field))
 
+    return "\n".join(lines)
+
+
+def format_project(project: JiraProject) -> str:
+    """Format a Jira project for display."""
+    lines = [f"Project {project.key} — {project.name}"]
+    if project.id:
+        lines.append(f"ID: {project.id}")
+    if project.projectTypeKey:
+        lines.append(f"Type: {project.projectTypeKey}")
+    if project.style:
+        lines.append(f"Style: {project.style}")
+    if project.lead:
+        lines.append(f"Lead: {_format_user(project.lead)}")
+    if project.description:
+        lines.append("Description:")
+        lines.append(project.description)
+    return "\n".join(lines)
+
+
+def format_status_list(statuses: list[JiraStatus]) -> str:
+    """Format Jira statuses for display."""
+    if not statuses:
+        return "No statuses found"
+
+    lines = [f"Jira statuses: {len(statuses)} total", ""]
+    for status in statuses:
+        category = (
+            f" [category: {status.statusCategory.name}]"
+            if status.statusCategory
+            else ""
+        )
+        description = f" — {status.description}" if status.description else ""
+        lines.append(f"- {status.name} (id: {status.id}){category}{description}")
+    return "\n".join(lines)
+
+
+def format_priority_list(priorities: list[JiraPriority]) -> str:
+    """Format Jira priorities for display."""
+    if not priorities:
+        return "No priorities found"
+
+    lines = [f"Jira priorities: {len(priorities)} total", ""]
+    for priority in priorities:
+        default_suffix = " [default]" if priority.isDefault else ""
+        description = f" — {priority.description}" if priority.description else ""
+        lines.append(
+            f"- {priority.name} (id: {priority.id}){default_suffix}{description}"
+        )
+    return "\n".join(lines)
+
+
+def format_filter_list(
+    filters: list[JiraFilter],
+    *,
+    title: str,
+    start_at: int = 0,
+    total: int | None = None,
+) -> str:
+    """Format saved Jira filters for display."""
+    if total is not None and (total > len(filters) or start_at > 0):
+        end = start_at + len(filters)
+        header = f"{title}: showing {start_at + 1}–{end} of {total}"
+    else:
+        header = f"{title}: {total or len(filters)} total"
+
+    lines = [header, ""]
+    for jira_filter in filters:
+        owner = user_display(jira_filter.owner)
+        lines.append(f"- {jira_filter.name} (id: {jira_filter.id}) — owner: {owner}")
+        if jira_filter.jql:
+            lines.append(f"  JQL: {jira_filter.jql}")
+        if jira_filter.description:
+            lines.append(f"  Description: {jira_filter.description}")
     return "\n".join(lines)
 
 
@@ -335,6 +549,22 @@ def _format_worklog_comment(comment: dict[str, Any]) -> list[str]:
 
 def _format_user(user: JiraUser) -> str:
     return f"{user.displayName} ({user.accountId})"
+
+
+def _format_issue_link_line(link: IssueLink) -> str:
+    if link.outwardIssue:
+        target = link.outwardIssue
+        direction = link.type.outward
+    elif link.inwardIssue:
+        target = link.inwardIssue
+        direction = link.type.inward
+    else:
+        return f"- unresolved link (id: {link.id})"
+    status = _named(target.fields.status)
+    return (
+        f"- {direction} {target.key}: {target.fields.summary} "
+        f"[{status}] (link id: {link.id})"
+    )
 
 
 def _named(resource: Any) -> str:

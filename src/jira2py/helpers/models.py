@@ -50,11 +50,16 @@ class AttachmentMeta(JiraModel):
     filename: str = ""
     mimeType: str = "application/octet-stream"
     size: int = 0
+    created: str | None = None
+    author: JiraUser | None = None
+    content: str | None = None
+    thumbnail: str | None = None
 
 
 class JiraComment(JiraModel):
     """A single Jira comment."""
 
+    id: str = ""
     author: JiraUser | None = None
     created: str | None = None
     updated: str | None = None
@@ -116,6 +121,19 @@ class IssueLink(JiraModel):
     outwardIssue: LinkedIssue | None = None
 
 
+class IssueTransition(JiraModel):
+    """A Jira issue transition option."""
+
+    id: str = ""
+    name: str = "?"
+    to: NamedResource | None = None
+    hasScreen: bool = False
+    isAvailable: bool | None = None
+    isGlobal: bool | None = None
+    isInitial: bool | None = None
+    fields: dict[str, Any] = Field(default_factory=dict)
+
+
 class IssueFields(JiraModel):
     """Fields of a Jira issue."""
 
@@ -158,8 +176,14 @@ class SearchResult(JiraModel):
 class JiraProject(JiraModel):
     """A Jira project."""
 
+    id: str = ""
     key: str = "?"
     name: str = "?"
+    description: str | None = None
+    projectTypeKey: str | None = None
+    simplified: bool | None = None
+    style: str | None = None
+    lead: JiraUser | None = None
 
 
 class ProjectSearchResult(JiraModel):
@@ -263,6 +287,59 @@ class IssueType(JiraModel):
     subtask: bool = False
 
 
+class StatusCategory(JiraModel):
+    """A Jira status category."""
+
+    id: int | None = None
+    key: str | None = None
+    name: str = "?"
+    colorName: str | None = None
+
+
+class JiraStatus(JiraModel):
+    """A Jira workflow status."""
+
+    id: str = ""
+    name: str = "?"
+    description: str | None = None
+    statusCategory: StatusCategory | None = None
+
+
+class JiraPriority(JiraModel):
+    """A Jira issue priority."""
+
+    id: str = ""
+    name: str = "?"
+    description: str | None = None
+    statusColor: str | None = None
+    iconUrl: str | None = None
+    isDefault: bool | None = None
+
+
+class JiraFilter(JiraModel):
+    """A saved Jira filter."""
+
+    id: str = ""
+    name: str = "?"
+    description: str | None = None
+    jql: str | None = None
+    owner: JiraUser | None = None
+    viewUrl: str | None = None
+    searchUrl: str | None = None
+    isWritable: bool | None = None
+    sharePermissions: list[Any] = Field(default_factory=list)
+
+
+class FilterSearchResult(JiraModel):
+    """Response from Jira filter search."""
+
+    values: list[JiraFilter] = Field(default_factory=list)
+    isLast: bool = True
+    total: int | None = None
+    startAt: int = 0
+    maxResults: int = 0
+
+
 class FieldSchema(JiraModel):
     """Schema info for a field."""
 
@@ -315,15 +392,20 @@ __all__ = [
     "CommentPage",
     "FieldMeta",
     "FieldSchema",
+    "FilterSearchResult",
     "IssueFields",
     "IssueLink",
     "IssueLinkType",
     "IssueRef",
+    "IssueTransition",
     "IssueType",
     "JiraComment",
+    "JiraFilter",
     "JiraIssue",
     "JiraModel",
+    "JiraPriority",
     "JiraProject",
+    "JiraStatus",
     "JiraUser",
     "JiraWorklog",
     "LinkedIssue",
@@ -332,6 +414,7 @@ __all__ = [
     "ProjectRef",
     "ProjectSearchResult",
     "SearchResult",
+    "StatusCategory",
     "Subtask",
     "SubtaskFields",
     "WorklogIssueSelector",

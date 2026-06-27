@@ -16,8 +16,29 @@ SAMPLE_PROJECTS = {
 }
 
 
+SAMPLE_PROJECT = {
+    "id": "10000",
+    "key": "PROJ",
+    "name": "Project One",
+    "projectTypeKey": "software",
+    "lead": {"accountId": "user123", "displayName": "John Doe"},
+}
+
+
 class TestProjectsSync:
     """Tests for sync Projects API."""
+
+    def test_get_project(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/rest/api/3/project/PROJ"
+            assert request.url.params["expand"] == "lead"
+            return httpx.Response(200, json=SAMPLE_PROJECT)
+
+        api = Projects(make_client(handler))
+        result = api.get_project("PROJ", expand="lead")
+
+        assert result["id"] == "10000"
+        assert result["projectTypeKey"] == "software"
 
     def test_search_projects(self, projects_client, sample_projects_response):
         result = projects_client.search_projects()

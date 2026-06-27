@@ -5,19 +5,20 @@ hide:
 
 # jira2py
 
-A lightweight, type-safe Python client for the Jira REST API.
+A lightweight, type-safe Python client for the **Jira Cloud REST API v3**.
 
 [![PyPI](https://img.shields.io/pypi/v/jira2py)](https://pypi.org/project/jira2py/)
 [![Python](https://img.shields.io/pypi/pyversions/jira2py)](https://pypi.org/project/jira2py/)
 [![License](https://img.shields.io/github/license/en-ver/jira2py)](https://github.com/en-ver/jira2py/blob/main/LICENSE)
 
----
+!!! note
+    jira2py is **Jira Cloud only**. It does not add Jira Server/Data Center support, board/sprint/epic workflows, issue delete/archive workflows, or a dedicated issue-assign helper/API.
 
 ## Why jira2py?
 
-jira2py provides a clean, minimal interface to the Jira Cloud REST API v3. It now offers two complementary layers:
+jira2py provides a clean, minimal interface to Jira Cloud. It offers two complementary layers:
 
-- `from jira2py import JiraAPI` for the unchanged low-level REST facade
+- `from jira2py import JiraAPI` for the low-level REST facade
 - `from jira2py.helpers import JiraHelpers` for grouped high-level workflows
 
 ### Low-level `JiraAPI`
@@ -39,95 +40,59 @@ from jira2py.helpers import JiraHelpers
 api = JiraAPI()
 helpers = JiraHelpers(api)
 
-issue = helpers.issues.read("PROJ-123")
-search = helpers.search.issues("project = PROJ ORDER BY updated DESC")
-comments = helpers.comments.list("PROJ-123")
-worklogs = helpers.worklogs.report(
-    start_date="2026-01-01",
-    end_date="2026-01-31",
-    jql="project = PROJ",
-)
-attachment = helpers.attachments.plan_download("10001", output_path="downloads/")
-metadata = helpers.metadata.issue_types("PROJ")
-links = helpers.links.types()
-
-print(issue.text)
-print(search.text)
-print(comments.text)
-print(worklogs.text)
-print(attachment.text)
-print(metadata.text)
-print(links.text)
+print(helpers.auth.status().text)
+print(helpers.metadata.transitions("PROJ-123").text)
+print(helpers.attachments.list("PROJ-123").text)
+print(helpers.worklogs.list("PROJ-123").text)
+print(helpers.filters.run("12345").text)
 ```
 
-High-level helper methods return `HelperResult` objects and raise helper-layer errors such as `JiraHelperValidationError` and `JiraHelperOperationError`.
+High-level helpers return `HelperResult` objects with readable `text` plus optional structured `data` and `raw_content`.
 
-## Key Features
+## Credentials
 
-- **Two API layers** — Unchanged low-level `JiraAPI` plus grouped high-level `jira2py.helpers.JiraHelpers`
-- **Unified low-level facade** — Single `JiraAPI` entry point with access to all endpoints via `jira.issues`, `jira.search`, `jira.comments`, `jira.projects`, and more
-- **Automatic rate limit handling** — Retries on HTTP 429 with exponential backoff, jitter, and `Retry-After` header support
-- **Performant** — Persistent connections with HTTP/2, configurable timeouts
-- **Structured error handling** — Typed exception hierarchy (`JiraNotFoundError`, `JiraValidationError`, `JiraRateLimitError`, etc.) instead of generic errors
-- **Type-safe** — Full type annotations and a `py.typed` marker for downstream static analysis
-- **Lightweight** — Focused runtime dependencies without a heavyweight Jira SDK
+By default, `JiraAPI()` reads credentials from `JIRA_URL`, `JIRA_USER`, and `JIRA_API_TOKEN`.
+
+You can also pass an explicit JSON credentials file path with `credentials_file="./jira-credentials.json"`.
+
+```json
+{
+  "url": "https://your-domain.atlassian.net",
+  "username": "your-email@example.com",
+  "api_token": "your-api-token"
+}
+```
+
+There is **no default credentials file path**. If you do not pass `credentials_file`, jira2py uses environment variables.
 
 ## API Coverage
 
-| Module             | Operations                                                           |
-| ------------------ | -------------------------------------------------------------------- |
-| **Issues**         | Get, create, edit issues; changelogs; edit metadata; create metadata |
-| **Issue Search**   | JQL search with pagination                                           |
-| **Issue Comments** | List and add comments                                                |
-| **Issue Worklogs** | Retrieve issue worklogs as raw Jira pages                            |
-| **Issue Fields**   | List system and custom fields                                        |
-| **Issue Links**    | List link types, create and delete links                             |
-| **Projects**       | Search and list projects                                             |
-| **Attachments**    | Get attachment metadata                                              |
-| **Users**          | Search users by name or email                                        |
+| Module | Operations |
+| --- | --- |
+| **Issues** | Get, create, edit, transition issues; changelogs; edit metadata; create metadata |
+| **Issue Search** | JQL search with pagination |
+| **Issue Comments** | List, add, update, delete comments |
+| **Issue Worklogs** | List, add, update, delete issue worklogs |
+| **Issue Fields** | List system and custom fields |
+| **Issue Links** | List issue links, list link types, create and delete links |
+| **Projects** | Get, search, and list projects |
+| **Attachments** | List issue attachments, read metadata, download, upload, and delete attachments |
+| **Users/Auth** | Search users and get the current authenticated user |
+| **Metadata** | Statuses and priorities |
+| **Filters** | Search/list saved filters and resolve saved JQL for search |
+| **Helpers** | High-level auth, issues, search, comments, worklogs, attachments, metadata, links, and filters workflows |
 
 ## For AI Agents & LLMs
 
 This documentation is available in machine-readable formats:
 
-- **[llms.txt](https://jira2py.org/llms.txt)** — documentation index with links to Markdown versions of each page
-- **[llms-full.txt](https://jira2py.org/llms-full.txt)** — all documentation pages expanded into a single file
-- **[api-reference.json](api-reference.json)** — full API schema with signatures, types, and docstrings, generated from source with [griffe](https://github.com/mkdocstrings/griffe)
+- **[llms.txt](https://jira2py.org/llms.txt)** — documentation index
+- **[llms-full.txt](https://jira2py.org/llms-full.txt)** — all pages in one file
+- **[api-reference.json](api-reference.json)** — generated API schema
 
-These files are regenerated on every release and always reflect the latest source code.
+## Next Steps
 
-## Quick Start
-
-Install from PyPI:
-
-```bash
-pip install jira2py
-```
-
-Credentials can be provided explicitly or loaded from environment variables (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`). See [Configuration](guide/configuration.md) for details.
-
-```python
-from jira2py import JiraAPI
-
-jira = JiraAPI()  # from environment variables
-# or: jira = JiraAPI(url="...", username="...", api_token="...")
-
-# Search issues
-results = jira.search.enhanced_search(
-    "project = PROJ ORDER BY created DESC"
-)
-for issue in results["issues"]:
-    print(issue["key"], issue["fields"]["summary"])
-
-# Create an issue
-new_issue = jira.issues.create_issue(fields={
-    "project": {"key": "PROJ"},
-    "issuetype": {"name": "Task"},
-    "summary": "New task from jira2py",
-})
-print(f"Created {new_issue['key']}")
-```
-
-Private helper internals such as `jira2py.helpers._adf` and `jira2py.helpers._text` are not part of the supported public API.
-
-See the [Installation](installation.md) guide for detailed setup instructions, the [High-level Helpers](guide/high-level-helpers.md) guide for workflow examples, and the API reference for both layers.
+- [Installation](installation.md)
+- [Configuration](guide/configuration.md)
+- [High-level Helpers](guide/high-level-helpers.md)
+- [API Reference](api/index.md)

@@ -4,10 +4,26 @@ from __future__ import annotations
 
 from jira2py.api import JiraAPI
 
-from ._text import format_field_metadata, format_issue_type_list
+from ._text import (
+    format_field_metadata,
+    format_issue_type_list,
+    format_priority_list,
+    format_project,
+    format_status_list,
+    format_transition_list,
+)
 from ._validation import require_non_empty_string
 from .errors import JiraHelperOperationError, JiraHelperValidationError
-from .models import FieldMeta, IssueType, JiraUser, ProjectSearchResult
+from .models import (
+    FieldMeta,
+    IssueTransition,
+    IssueType,
+    JiraPriority,
+    JiraProject,
+    JiraStatus,
+    JiraUser,
+    ProjectSearchResult,
+)
 from .results import HelperResult
 
 
@@ -91,6 +107,46 @@ class MetadataHelpers:
             edit_data,
         )
 
+    def transitions(self, issue_key: str) -> HelperResult:
+        """List available workflow transitions for an existing Jira issue."""
+        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+
+        try:
+            data = self.api.issues.get_transitions(
+                issue_id=issue_key,
+                expand="transitions.fields",
+            )
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to fetch transitions for {issue_key}: {exc}"
+            ) from exc
+
+        transitions = [
+            IssueTransition.model_validate(transition)
+            for transition in data.get("transitions", [])
+        ]
+        return HelperResult.with_data(
+            format_transition_list(issue_key, transitions),
+            data,
+        )
+
+    def project(self, project_id_or_key: str) -> HelperResult:
+        """Get a single Jira project by explicit key or ID."""
+        project_id_or_key = require_non_empty_string(
+            project_id_or_key,
+            field_name="project_id_or_key",
+        )
+
+        try:
+            data = self.api.projects.get_project(project_id_or_key=project_id_or_key)
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to fetch project {project_id_or_key}: {exc}"
+            ) from exc
+
+        project = JiraProject.model_validate(data)
+        return HelperResult.with_data(format_project(project), data)
+
     def projects(self, query: str | None = None) -> HelperResult:
         """List Jira projects accessible to the current user."""
         normalized_query = query.strip() if query is not None else None
@@ -131,6 +187,28 @@ class MetadataHelpers:
                 lines.append("\n  ... more results available (refine your search)")
 
         return HelperResult.with_data("\n".join(lines), data)
+
+    def statuses(self) -> HelperResult:
+        """List Jira statuses visible to the current user."""
+        try:
+            data = self.api.metadata.get_statuses()
+        except Exception as exc:
+            raise JiraHelperOperationError(f"Failed to fetch statuses: {exc}") from exc
+
+        statuses = [JiraStatus.model_validate(status) for status in data]
+        return HelperResult.with_data(format_status_list(statuses), data)
+
+    def priorities(self) -> HelperResult:
+        """List Jira priorities visible to the current user."""
+        try:
+            data = self.api.metadata.get_priorities()
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to fetch priorities: {exc}"
+            ) from exc
+
+        priorities = [JiraPriority.model_validate(priority) for priority in data]
+        return HelperResult.with_data(format_priority_list(priorities), data)
 
     def users(self, query: str, *, max_results: int = 10) -> HelperResult:
         """Search Jira users by name or email."""

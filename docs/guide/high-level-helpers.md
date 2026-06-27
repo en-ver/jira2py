@@ -1,14 +1,10 @@
 # High-level Helpers
 
-`jira2py.helpers.JiraHelpers` is an optional high-level facade for common Jira workflows.
+`jira2py.helpers.JiraHelpers` is an optional high-level facade for common **Jira Cloud** workflows.
 
-Use it when you want readable helper output and grouped workflows such as `helpers.issues.read(...)` or `helpers.worklogs.report(...)`.
-
-Keep using [`JiraAPI`](../api/jira-api.md) when you want direct access to low-level Jira REST endpoints and raw Jira response shapes.
+Use it when you want grouped operations plus readable `HelperResult` output instead of raw Jira REST payloads.
 
 ## Import path
-
-Import helpers from `jira2py.helpers`, not top-level `jira2py`:
 
 ```python
 from jira2py import JiraAPI
@@ -18,11 +14,10 @@ api = JiraAPI()
 helpers = JiraHelpers(api)
 ```
 
-`JiraAPI` is unchanged. `JiraHelpers` simply composes an existing `JiraAPI` instance.
-
 ## Helper groups
 
 ```python
+helpers.auth
 helpers.issues
 helpers.search
 helpers.comments
@@ -30,132 +25,103 @@ helpers.worklogs
 helpers.attachments
 helpers.metadata
 helpers.links
+helpers.filters
 ```
 
 | Group | Use for |
-|---|---|
-| `helpers.issues` | Readable issue read/create/edit workflows |
-| `helpers.search` | JQL-based issue search workflows |
-| `helpers.comments` | Listing and adding comments |
-| `helpers.worklogs` | Cross-issue worklog reporting |
-| `helpers.attachments` | Attachment validation and download planning |
-| `helpers.metadata` | Issue types, field metadata, projects, and users |
-| `helpers.links` | Link types and issue-link operations |
+| --- | --- |
+| `helpers.auth` | Auth status and current-user checks |
+| `helpers.issues` | Read/create/edit/transition workflows |
+| `helpers.search` | JQL issue search |
+| `helpers.comments` | Comment list/add/update/delete |
+| `helpers.worklogs` | Worklog list/add/update/delete/report |
+| `helpers.attachments` | Attachment list/read/plan/download/upload/delete |
+| `helpers.metadata` | Transitions, projects, statuses, priorities, users, and field metadata |
+| `helpers.links` | Issue-link list/types/create/delete |
+| `helpers.filters` | Saved filter list/search/run |
 
 ## `HelperResult`
 
-Helper methods return `HelperResult` instead of raw Jira REST payloads.
+Helper methods return `HelperResult`.
 
 ```python
-result = helpers.issues.read("PROJ-123")
+result = helpers.filters.run("12345", fields=["summary", "status"])
 
-print(result.text)          # readable summary
-print(result.data)          # optional structured data
-print(result.raw_content)   # optional serialized raw output
+print(result.text)
+print(result.data)
+print(result.raw_content)
 print(result.has_raw_output)
 ```
 
-At a high level:
-
-- `text` is meant for humans
-- `data` is for structured post-processing
-- `raw_content` is optional extra raw output when a helper has it
-
-If you want only raw Jira endpoint responses, call the low-level `JiraAPI` methods directly.
-
 ## Workflow examples
 
-### Issues and search
+### Auth
 
 ```python
-issue = helpers.issues.read("PROJ-123")
-print(issue.text)
+print(helpers.auth.status().text)
+print(helpers.auth.me().text)
+```
 
-search = helpers.search.issues(
-    "project = PROJ AND statusCategory != Done ORDER BY updated DESC"
-)
-print(search.text)
+### Issues and transitions
+
+```python
+print(helpers.issues.read("PROJ-123").text)
+print(helpers.metadata.transitions("PROJ-123").text)
+print(helpers.issues.transition("PROJ-123", "Done").text)
 ```
 
 ### Comments
 
 ```python
-comments = helpers.comments.list("PROJ-123")
-print(comments.text)
-
 helpers.comments.add("PROJ-123", "Followed up with the customer.")
-```
-
-### Worklogs
-
-```python
-report = helpers.worklogs.report(
-    start_date="2026-01-01",
-    end_date="2026-01-31",
-    jql="project = PROJ",
-    account_id="557058:example",
-)
-print(report.text)
+helpers.comments.update("PROJ-123", "10001", "Updated note")
+helpers.comments.delete("PROJ-123", "10001")
 ```
 
 ### Attachments
 
 ```python
-plan = helpers.attachments.plan_download(
-    "10001",
-    output_path="downloads/",
-)
-print(plan.text)
+print(helpers.attachments.list("PROJ-123").text)
+print(helpers.attachments.read("10001").text)
+print(helpers.attachments.plan_download("10001", output_path="downloads/").text)
+print(helpers.attachments.download("10001", output_path="downloads/").text)
+print(helpers.attachments.upload("PROJ-123", "./error.log").text)
 ```
 
-The helper layer currently plans attachment output destinations and validates attachment metadata. Wrapper-specific filesystem safety policies remain outside the public helper API.
-
-### Metadata
+### Worklogs
 
 ```python
-issue_types = helpers.metadata.issue_types("PROJ")
-create_fields = helpers.metadata.create_fields("PROJ", "Task")
-edit_fields = helpers.metadata.edit_fields("PROJ-123")
-projects = helpers.metadata.projects("Platform")
-users = helpers.metadata.users("alex@example.com")
+print(helpers.worklogs.list("PROJ-123").text)
+helpers.worklogs.add("PROJ-123", "1h", comment="Investigation")
+helpers.worklogs.update("PROJ-123", "10010", time_spent="90m")
+helpers.worklogs.delete("PROJ-123", "10010")
 ```
 
-### Links
+### Metadata, links, and filters
 
 ```python
-link_types = helpers.links.types()
-print(link_types.text)
-
-helpers.links.create("Blocks", "PROJ-123", "PROJ-456")
-helpers.links.delete("10000")
+print(helpers.metadata.project("PROJ").text)
+print(helpers.metadata.statuses().text)
+print(helpers.metadata.priorities().text)
+print(helpers.links.list("PROJ-123").text)
+print(helpers.filters.search("Team").text)
+print(helpers.filters.run("12345").text)
 ```
+
+`helpers.filters.run()` resolves the saved filter's JQL and returns the same search-style result shape as `helpers.search.issues()`.
 
 ## Helper errors
 
-Helper validation and operation failures use helper-specific exceptions:
-
-- `JiraHelperValidationError` — invalid helper input before a Jira API call
-- `JiraHelperOperationError` — failure while performing the underlying Jira operation
-- `AttachmentError` / `AttachmentDownloadError` — attachment-specific failures
-
-```python
-from jira2py.helpers import JiraHelperOperationError, JiraHelperValidationError
-
-try:
-    helpers.issues.edit("PROJ-123")
-except JiraHelperValidationError as exc:
-    print(f"Invalid helper input: {exc.message}")
-except JiraHelperOperationError as exc:
-    print(f"Jira operation failed: {exc.message}")
-```
-
-Helpers preserve the original exception as `__cause__` when they wrap lower-level failures.
+- `JiraHelperValidationError`
+- `JiraHelperOperationError`
+- `AttachmentError`
+- `AttachmentDownloadError`
 
 ## Public vs private helper API
 
 Supported public helper API includes:
 
-- `from jira2py.helpers import JiraHelpers`
+- `JiraHelpers`
 - grouped helper classes
 - `HelperResult`
 - documented helper errors and models
@@ -164,12 +130,9 @@ Not supported as public API:
 
 - `jira2py.helpers._adf`
 - `jira2py.helpers._text`
-- other private `_*.py` helper modules
-- internal conversion or formatting details
-
-Those internals may change without compatibility guarantees.
+- other private `_*.py` modules
 
 ## See also
 
 - [API Reference: High-level Helpers](../api/helpers.md)
-- `examples/high_level_helpers.py` in the repository
+- [Low-level JiraAPI](../api/jira-api.md)

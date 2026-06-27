@@ -1,13 +1,13 @@
 """Issues API implementation."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class Issues(ApiBase):
-    """Issues API — create, read, update issues and their metadata."""
+    """Issues API — create, read, update, and transition Jira issues."""
 
     def get_issue(
         self,
@@ -142,6 +142,84 @@ class Issues(ApiBase):
                 extra_params=extra_params,
             )
         )
+
+    def get_transitions(
+        self,
+        issue_id: str,
+        expand: str | None = None,
+        transition_id: str | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Get available workflow transitions for a Jira issue.
+
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-transitions-get
+
+        Args:
+            issue_id: The ID or key of the issue (e.g., "PROJ-123").
+            expand: Optional expand directive such as ``transitions.fields``.
+            transition_id: Optional transition ID to filter transition metadata.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+
+        Returns:
+            Jira transition metadata including a ``transitions`` list.
+        """
+        return self._as_dict(
+            self._client._request_jira(
+                method="GET",
+                context_path=f"issue/{issue_id}/transitions",
+                params={"expand": expand, "transitionId": transition_id},
+                extra_params=extra_params,
+            )
+        )
+
+    def transition_issue(
+        self,
+        issue_id: str,
+        transition_id: str,
+        fields: Mapping[str, Any] | None = None,
+        update: Mapping[str, Any] | None = None,
+        history_metadata: Mapping[str, Any] | None = None,
+        properties: Sequence[Mapping[str, Any]] | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+        extra_data: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Apply a workflow transition to a Jira issue.
+
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-transitions-post
+
+        Args:
+            issue_id: The ID or key of the issue (e.g., "PROJ-123").
+            transition_id: The explicit Jira transition ID to apply.
+            fields: Optional fields to set while transitioning.
+            update: Optional Jira ``update`` operations for the transition request.
+            history_metadata: Optional Jira transition history metadata payload.
+            properties: Optional Jira issue properties to attach during transition.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+            extra_data: Additional request body data. Takes priority over named data parameters.
+
+        Returns:
+            Parsed response dict when Jira returns JSON, otherwise ``None``.
+        """
+        data: dict[str, Any] = {"transition": {"id": transition_id}}
+        if fields is not None:
+            data["fields"] = dict(fields)
+        if update is not None:
+            data["update"] = dict(update)
+        if history_metadata is not None:
+            data["historyMetadata"] = dict(history_metadata)
+        if properties is not None:
+            data["properties"] = list(properties)
+
+        result = self._client._request_jira(
+            method="POST",
+            context_path=f"issue/{issue_id}/transitions",
+            data=data,
+            extra_params=extra_params,
+            extra_data=extra_data,
+        )
+        if result is None:
+            return None
+        return self._as_dict(result)
 
     def get_create_issue_types(
         self,

@@ -7,7 +7,7 @@ from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class IssueComments(ApiBase):
-    """Issue Comments API — read and add comments on issues."""
+    """Issue Comments API — read, add, update, and delete issue comments."""
 
     def get_comments(
         self,
@@ -83,4 +83,65 @@ class IssueComments(ApiBase):
                 extra_params=extra_params,
                 extra_data=extra_data,
             )
+        )
+
+    def update_comment(
+        self,
+        issue_id: str,
+        comment_id: str,
+        body: Mapping[str, Any],
+        visibility: Mapping[str, Any] | None = None,
+        expand: str | None = None,
+        extra_params: Mapping[str, Any] | None = None,
+        extra_data: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Update an existing issue comment.
+
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-id-put
+
+        Args:
+            issue_id: The ID or key of the issue (e.g., "PROJ-123").
+            comment_id: The Jira comment ID.
+            body: Replacement comment body in Atlassian Document Format (ADF).
+            visibility: Optional visibility restriction for the updated comment.
+            expand: Comma-separated fields to expand (e.g., "renderedBody").
+            extra_params: Additional query parameters. Takes priority over named parameters.
+            extra_data: Additional request body data. Takes priority over named data parameters.
+
+        Returns:
+            Updated comment details including id, body, author, and timestamps.
+        """
+        data: dict[str, Any] = {"body": body}
+        if visibility is not None:
+            data["visibility"] = visibility
+        return self._as_dict(
+            self._client._request_jira(
+                method="PUT",
+                context_path=f"issue/{issue_id}/comment/{comment_id}",
+                params={"expand": expand},
+                data=data,
+                extra_params=extra_params,
+                extra_data=extra_data,
+            )
+        )
+
+    def delete_comment(
+        self,
+        issue_id: str,
+        comment_id: str,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Delete an issue comment.
+
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/#api-rest-api-3-issue-issueidorkey-comment-id-delete
+
+        Args:
+            issue_id: The ID or key of the issue (e.g., "PROJ-123").
+            comment_id: The Jira comment ID.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+        """
+        self._client._request_jira(
+            method="DELETE",
+            context_path=f"issue/{issue_id}/comment/{comment_id}",
+            extra_params=extra_params,
         )

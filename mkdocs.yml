@@ -1,5 +1,5 @@
 site_name: jira2py
-site_description: A lightweight, type-safe Python client for the Jira REST API
+site_description: A lightweight, type-safe Python client for the Jira Cloud REST API
 site_author: nEver
 site_url: https://jira2py.org/
 copyright: Copyright &copy; 2025 nEver
@@ -98,6 +98,8 @@ nav:
       - Issue Fields: api/issue-fields.md
       - Issue Links: api/issue-links.md
       - Projects: api/projects.md
+      - Metadata: api/metadata.md
+      - Filters: api/filters.md
       - Attachments: api/attachments.md
       - Users: api/users.md
       - Exceptions: api/exceptions.md

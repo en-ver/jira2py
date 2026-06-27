@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from jira2py.api import JiraAPI
 
-from ._text import format_worklog_report
+from ._adf import markdown_to_adf
+from ._text import format_worklog, format_worklog_list, format_worklog_report
 from ._validation import require_non_empty_string, validate_date_range
 from .errors import JiraHelperOperationError, JiraHelperValidationError
 from .models import (
@@ -26,10 +28,145 @@ _WORKLOG_PAGE_SIZE = 5_000
 
 
 class WorklogHelpers:
-    """High-level grouped helpers for Jira worklog reporting."""
+    """High-level grouped helpers for Jira worklog CRUD and reporting."""
 
     def __init__(self, api: JiraAPI) -> None:
         self.api = api
+
+    def list(
+        self,
+        issue_key: str,
+        *,
+        start_at: int = 0,
+        max_results: int = 50,
+    ) -> HelperResult:
+        """List worklogs on a Jira issue."""
+        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+        if max_results < 1:
+            raise JiraHelperValidationError("max_results must be at least 1.")
+
+        try:
+            data = self.api.worklogs.get_worklogs(
+                issue_id=issue_key,
+                start_at=start_at,
+                max_results=min(max_results, _WORKLOG_PAGE_SIZE),
+            )
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to fetch worklogs for {issue_key}: {exc}"
+            ) from exc
+
+        page = WorklogPage.model_validate(data)
+        next_start = page.startAt + len(page.worklogs)
+        return HelperResult.with_data(
+            format_worklog_list(
+                issue_key,
+                page.worklogs,
+                start_at=page.startAt,
+                total=page.total,
+                next_start=next_start,
+            ),
+            data,
+        )
+
+    def add(
+        self,
+        issue_key: str,
+        time_spent: str,
+        *,
+        started: str | None = None,
+        comment: str | None = None,
+    ) -> HelperResult:
+        """Add a worklog to a Jira issue."""
+        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+        time_spent = require_non_empty_string(time_spent, field_name="time_spent")
+        if started is not None:
+            started = require_non_empty_string(started, field_name="started")
+        if comment is not None:
+            comment = require_non_empty_string(comment, field_name="comment")
+
+        try:
+            data = self.api.worklogs.add_worklog(
+                issue_id=issue_key,
+                time_spent=time_spent,
+                started=started,
+                comment=markdown_to_adf(comment) if comment is not None else None,
+            )
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to add worklog to {issue_key}: {exc}"
+            ) from exc
+
+        worklog = JiraWorklog.model_validate(data)
+        text = f"Added worklog to {issue_key}\n\n{format_worklog(worklog)}"
+        return HelperResult.with_data(text, data)
+
+    def update(
+        self,
+        issue_key: str,
+        worklog_id: str,
+        *,
+        time_spent: str | None = None,
+        started: str | None = None,
+        comment: str | None = None,
+    ) -> HelperResult:
+        """Update an existing Jira worklog."""
+        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+        worklog_id = require_non_empty_string(worklog_id, field_name="worklog_id")
+        if time_spent is not None:
+            time_spent = require_non_empty_string(time_spent, field_name="time_spent")
+        if started is not None:
+            started = require_non_empty_string(started, field_name="started")
+        if comment is not None:
+            comment = require_non_empty_string(comment, field_name="comment")
+        if time_spent is None and started is None and comment is None:
+            raise JiraHelperValidationError(
+                "At least one of time_spent, started, or comment must be provided."
+            )
+
+        try:
+            data = self.api.worklogs.update_worklog(
+                issue_id=issue_key,
+                worklog_id=worklog_id,
+                time_spent=time_spent,
+                started=started,
+                comment=markdown_to_adf(comment) if comment is not None else None,
+            )
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to update worklog {worklog_id} on {issue_key}: {exc}"
+            ) from exc
+
+        worklog = JiraWorklog.model_validate(data)
+        text = (
+            f"Updated worklog {worklog_id} on {issue_key}\n\n{format_worklog(worklog)}"
+        )
+        return HelperResult.with_data(text, data)
+
+    def delete(self, issue_key: str, worklog_id: str) -> HelperResult:
+        """Delete a Jira worklog."""
+        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+        worklog_id = require_non_empty_string(worklog_id, field_name="worklog_id")
+
+        try:
+            self.api.worklogs.delete_worklog(
+                issue_id=issue_key,
+                worklog_id=worklog_id,
+            )
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to delete worklog {worklog_id} from {issue_key}: {exc}"
+            ) from exc
+
+        data = {
+            "status": "deleted",
+            "issue_key": issue_key,
+            "worklog_id": worklog_id,
+        }
+        return HelperResult.with_data(
+            f"Deleted worklog {worklog_id} from {issue_key}",
+            data,
+        )
 
     def report(
         self,
@@ -90,7 +227,7 @@ class WorklogHelpers:
         *,
         jql: str,
         max_issues: int,
-    ) -> tuple[list[JiraIssue], WorklogIssueSelector]:
+    ) -> tuple[Sequence[JiraIssue], WorklogIssueSelector]:
         issues: list[JiraIssue] = []
         next_page_token: str | None = None
         total: int | None = None
@@ -139,7 +276,7 @@ class WorklogHelpers:
         exclusive_end_dt: datetime,
         account_id: str | None,
         include_details: bool,
-    ) -> list[WorklogReportRow]:
+    ) -> Sequence[WorklogReportRow]:
         rows: list[WorklogReportRow] = []
         start_at = 0
         issue_identifier = issue.id or issue.key
