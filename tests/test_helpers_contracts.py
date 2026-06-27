@@ -18,6 +18,7 @@ from jira2py.helpers import (
     FiltersHelpers,
     HelperResult,
     IssueHelpers,
+    IssueTransition,
     JiraFilter,
     JiraHelperConfigError,
     JiraHelperOperationError,
@@ -25,11 +26,13 @@ from jira2py.helpers import (
     JiraHelperValidationError,
     JiraPriority,
     JiraStatus,
+    JiraWorklog,
     LinkHelpers,
     MetadataHelpers,
     SearchHelpers,
     StatusCategory,
     WorklogHelpers,
+    WorklogPage,
 )
 from jira2py.helpers.errors import JiraHelperError
 from jira2py.helpers.models import AttachmentMeta
@@ -119,21 +122,27 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert "HelperResult" in helpers.__all__
     assert "JiraHelpers" in helpers.__all__
     assert "IssueHelpers" in helpers.__all__
+    assert "IssueTransition" in helpers.__all__
     assert "SearchHelpers" in helpers.__all__
     assert "CommentHelpers" in helpers.__all__
     assert "AuthHelpers" in helpers.__all__
     assert "FiltersHelpers" in helpers.__all__
     assert "WorklogHelpers" in helpers.__all__
+    assert "JiraWorklog" in helpers.__all__
+    assert "WorklogPage" in helpers.__all__
     assert "AttachmentHelpers" in helpers.__all__
     assert "LinkHelpers" in helpers.__all__
     assert "MetadataHelpers" in helpers.__all__
     assert helpers.JiraHelpers is JiraHelpers
     assert helpers.IssueHelpers is IssueHelpers
+    assert helpers.IssueTransition is IssueTransition
     assert helpers.SearchHelpers is SearchHelpers
     assert helpers.CommentHelpers is CommentHelpers
     assert helpers.AuthHelpers is AuthHelpers
     assert helpers.FiltersHelpers is FiltersHelpers
     assert helpers.WorklogHelpers is WorklogHelpers
+    assert helpers.JiraWorklog is JiraWorklog
+    assert helpers.WorklogPage is WorklogPage
     assert helpers.AttachmentHelpers is AttachmentHelpers
     assert helpers.LinkHelpers is LinkHelpers
     assert helpers.MetadataHelpers is MetadataHelpers

@@ -153,6 +153,13 @@ class AttachmentHelpers:
                 f"{format_size(len(content))} > {format_size(max_download)}"
             )
 
+        if "size" in plan.meta.model_fields_set and len(content) != plan.meta.size:
+            raise AttachmentDownloadError(
+                f"Downloaded attachment {attachment_id} size mismatch: "
+                f"expected {plan.meta.size} bytes from metadata, "
+                f"got {len(content)} bytes"
+            )
+
         try:
             plan.resolved_output.parent.mkdir(parents=True, exist_ok=True)
             plan.resolved_output.write_bytes(content)

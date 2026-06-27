@@ -192,6 +192,25 @@ def test_download_attachment_rejects_oversized_bytes_after_fetch() -> None:
         AttachmentHelpers(cast(JiraAPI, api)).download("10003", max_download=5)
 
 
+def test_download_attachment_rejects_metadata_size_mismatch(tmp_path: Path) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = {
+        "id": "10003",
+        "filename": "report.csv",
+        "mimeType": "text/csv",
+        "size": 11,
+    }
+    api.attachments.download_attachment_content.return_value = b"hello"
+
+    with pytest.raises(AttachmentDownloadError, match="size mismatch"):
+        AttachmentHelpers(cast(JiraAPI, api)).download(
+            "10003",
+            output_path=str(tmp_path / "downloads") + "/",
+        )
+
+    assert not (tmp_path / "downloads" / "report.csv").exists()
+
+
 def test_plan_download_rejects_invalid_limit_and_large_files() -> None:
     api = _make_api()
     api.attachments.get_attachment_metadata.return_value = {
