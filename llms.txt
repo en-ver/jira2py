@@ -1,0 +1,33 @@
+# jira2py
+
+> A lightweight, type-safe Python client for the Jira Cloud REST API
+
+## Getting Started
+
+- [Installation](https://jira2py.org/installation/index.md)
+
+## User Guide
+
+- [Configuration](https://jira2py.org/guide/configuration/index.md)
+- [Error Handling](https://jira2py.org/guide/error-handling/index.md)
+- [High-level Helpers](https://jira2py.org/guide/high-level-helpers/index.md)
+- [Rate Limiting](https://jira2py.org/guide/rate-limiting/index.md)
+
+## API Reference
+
+- [Overview](https://jira2py.org/api/index.md)
+- [Attachments](https://jira2py.org/api/attachments/index.md)
+- [Exceptions](https://jira2py.org/api/exceptions/index.md)
+- [Filters](https://jira2py.org/api/filters/index.md)
+- [High-level Helpers](https://jira2py.org/api/helpers/index.md)
+- [Issue Comments](https://jira2py.org/api/issue-comments/index.md)
+- [Issue Fields](https://jira2py.org/api/issue-fields/index.md)
+- [Issue Links](https://jira2py.org/api/issue-links/index.md)
+- [Issue Search](https://jira2py.org/api/issue-search/index.md)
+- [Issue Worklogs](https://jira2py.org/api/issue-worklogs/index.md)
+- [Issues](https://jira2py.org/api/issues/index.md)
+- [JiraAPI](https://jira2py.org/api/jira-api/index.md)
+- [Metadata](https://jira2py.org/api/metadata/index.md)
+- [Projects](https://jira2py.org/api/projects/index.md)
+- [Users](https://jira2py.org/api/users/index.md)
+

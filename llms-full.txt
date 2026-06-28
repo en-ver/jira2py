@@ -1,0 +1,1762 @@
+# jira2py
+
+> A lightweight, type-safe Python client for the Jira Cloud REST API
+
+# Getting Started
+
+# Installation
+
+## Requirements
+
+- Python 3.11 or later
+- A Jira Cloud instance with API access
+- A Jira API token ([create one here](https://id.atlassian.com/manage-profile/security/api-tokens))
+
+Note
+
+jira2py supports **Jira Cloud only**.
+
+## Installation
+
+```bash
+pip install jira2py
+```
+
+```bash
+uv add jira2py
+```
+
+## Authentication
+
+jira2py uses Jira API tokens with HTTP Basic authentication.
+
+### Default: environment variables
+
+```bash
+export JIRA_URL="https://your-domain.atlassian.net"
+export JIRA_USER="your-email@example.com"
+export JIRA_API_TOKEN="your-api-token"
+```
+
+```python
+from jira2py import JiraAPI
+
+jira = JiraAPI()  # credentials loaded from environment
+```
+
+### Optional: explicit credentials file
+
+If you pass `credentials_file`, jira2py loads that explicit JSON file. There is **no default credentials file path**.
+
+```json
+{
+  "url": "https://your-domain.atlassian.net",
+  "username": "your-email@example.com",
+  "api_token": "your-api-token"
+}
+```
+
+```python
+from jira2py import JiraAPI
+
+jira = JiraAPI(credentials_file="./jira-credentials.json")
+```
+
+Explicit constructor arguments still override values loaded from the file.
+
+See [Configuration](https://jira2py.org/guide/configuration/index.md) for credential resolution and validation details.
+
+## Your First Script
+
+```python
+from jira2py import JiraAPI, JiraNotFoundError
+
+jira = JiraAPI()
+
+issue = jira.issues.get_issue("PROJ-123", fields="summary,status,assignee")
+print(f"{issue['key']}: {issue['fields']['summary']}")
+print(f"  Status: {issue['fields']['status']['name']}")
+
+results = jira.search.enhanced_search(
+    "project = PROJ AND status = 'In Progress' ORDER BY updated DESC",
+    fields=["summary", "status", "assignee"],
+    max_results=10,
+)
+print(f"\nFound {results['total']} issues in progress:")
+for item in results["issues"]:
+    print(f"  {item['key']}: {item['fields']['summary']}")
+
+new_issue = jira.issues.create_issue(fields={
+    "project": {"key": "PROJ"},
+    "issuetype": {"name": "Task"},
+    "summary": "Created with jira2py",
+})
+print(f"\nCreated issue: {new_issue['key']}")
+
+print(jira.users.get_current_user()["displayName"])
+```
+
+Working with Atlassian Document Format (ADF)
+
+The `description`, comment `body`, and worklog `comment` fields use Jira's [Atlassian Document Format](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/). Libraries such as [marklassian](https://pypi.org/project/marklassian/) can help convert Markdown to ADF.
+
+```python
+try:
+    jira.issues.get_issue("NONEXISTENT-999")
+except JiraNotFoundError:
+    print("\nIssue not found (as expected)")
+```
+
+## What's Next
+
+- [Configuration](https://jira2py.org/guide/configuration/index.md)
+- [High-level Helpers](https://jira2py.org/guide/high-level-helpers/index.md)
+- [Error Handling](https://jira2py.org/guide/error-handling/index.md)
+- [Rate Limiting](https://jira2py.org/guide/rate-limiting/index.md)
+- [API Reference](https://jira2py.org/api/index.md)
+# User Guide
+
+# Configuration
+
+## Credentials
+
+`JiraAPI` authenticates to **Jira Cloud** with three values:
+
+| Parameter   | Environment Variable | Description                      |
+| ----------- | -------------------- | -------------------------------- |
+| `url`       | `JIRA_URL`           | Base URL of your Jira Cloud site |
+| `username`  | `JIRA_USER`          | Atlassian account email          |
+| `api_token` | `JIRA_API_TOKEN`     | Jira API token                   |
+
+You can supply them in two supported ways:
+
+1. **Environment variables** — the default when you call `JiraAPI()` with no explicit credentials file.
+1. **An explicit JSON credentials file path** via `credentials_file=...`.
+
+```json
+{
+  "url": "https://your-domain.atlassian.net",
+  "username": "your-email@example.com",
+  "api_token": "your-api-token"
+}
+```
+
+### Resolution order
+
+jira2py resolves credentials in this order:
+
+1. Explicit `url`, `username`, and `api_token` arguments
+1. Values loaded from `credentials_file`, if you passed one
+1. Environment variables (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`)
+
+There is **no default credentials file path**. If you do not pass `credentials_file`, jira2py uses environment variables.
+
+```python
+from jira2py import JiraAPI
+
+jira = JiraAPI()  # environment variables
+jira = JiraAPI(credentials_file="./jira-credentials.json")
+jira = JiraAPI(credentials_file="./jira-credentials.json", api_token="override-token")
+```
+
+### Validation
+
+Credentials are validated at construction time:
+
+- all three values must be non-empty after stripping whitespace
+- the URL must start with `http://` or `https://`
+- a trailing `/` on the URL is removed automatically
+- if `credentials_file` is passed, it must be valid JSON containing `url`, `username`, and `api_token`
+
+```python
+from jira2py import JiraAPI
+
+JiraAPI(url="", username="user@example.com", api_token="token")
+JiraAPI(url="not-a-url", username="user@example.com", api_token="token")
+JiraAPI(credentials_file="./missing.json")
+```
+
+### Immutability
+
+Credentials are immutable. To use different credentials, create a new `JiraAPI` instance.
+
+## Retry Settings
+
+jira2py automatically retries HTTP 429 responses.
+
+| Parameter         | Default | Description                                          |
+| ----------------- | ------- | ---------------------------------------------------- |
+| `max_retries`     | `4`     | Maximum retry attempts on 429 responses              |
+| `max_retry_delay` | `30.0`  | Upper bound on wait time between retries, in seconds |
+
+```python
+jira = JiraAPI(max_retries=2, max_retry_delay=10.0)
+```
+
+See [Rate Limiting](https://jira2py.org/guide/rate-limiting/index.md) for details.
+
+## HTTP Client
+
+The HTTP client defaults are:
+
+| Setting         | Value      |
+| --------------- | ---------- |
+| HTTP/2          | Enabled    |
+| Request timeout | 30 seconds |
+| Connect timeout | 10 seconds |
+
+Connections are reused across requests for better performance.
+
+# Error Handling
+
+All errors raised by jira2py are subclasses of `JiraError`, so you can catch everything with a single `except` clause or handle specific error types individually.
+
+## Exception Hierarchy
+
+```text
+JiraError
+├── JiraConnectionError            → timeouts, DNS failures, network errors
+└── JiraAPIError                   → HTTP 4xx / 5xx
+    ├── JiraAuthenticationError    → 401, 403
+    ├── JiraNotFoundError          → 404
+    ├── JiraRateLimitError         → 429
+    └── JiraValidationError        → 400
+```
+
+## Catching Errors
+
+### Catch everything
+
+```python
+from jira2py import JiraAPI, JiraError
+
+jira = JiraAPI()
+
+try:
+    issue = jira.issues.get_issue("PROJ-123")
+except JiraError as e:
+    print(f"Something went wrong: {e.message}")
+```
+
+### Handle specific error types
+
+```python
+from jira2py import (
+    JiraAPI,
+    JiraAuthenticationError,
+    JiraConnectionError,
+    JiraNotFoundError,
+    JiraRateLimitError,
+    JiraValidationError,
+)
+
+jira = JiraAPI()
+
+try:
+    jira.issues.edit_issue("PROJ-123", fields={"summary": "Updated"})
+except JiraNotFoundError:
+    print("Issue does not exist")
+except JiraValidationError as e:
+    print(f"Invalid input: {e.error_messages}")
+except JiraAuthenticationError:
+    print("Check your credentials or permissions")
+except JiraRateLimitError as e:
+    print(f"Rate limited — retry after {e.retry_after}s")
+except JiraConnectionError:
+    print("Network issue — check your connection")
+```
+
+## Exception Attributes
+
+### `JiraError` (base)
+
+All exceptions carry these attributes:
+
+| Attribute  | Type               | Description                                  |
+| ---------- | ------------------ | -------------------------------------------- |
+| `message`  | `str`              | Human-readable error description             |
+| `response` | `Response \| None` | The raw HTTP response object, when available |
+
+### `JiraAPIError` and subclasses
+
+HTTP error exceptions add:
+
+| Attribute        | Type        | Description                                          |
+| ---------------- | ----------- | ---------------------------------------------------- |
+| `status_code`    | `int`       | HTTP status code                                     |
+| `error_messages` | `list[str]` | Error messages extracted from the Jira response body |
+
+`JiraAuthenticationError` is a subclass of `JiraAPIError`, so 401/403 failures are also caught by `except JiraAPIError` and include the same `status_code`, `response`, and `error_messages` metadata when available. When constructing one directly, `status_code` defaults to `401` and `response` defaults to `None`.
+
+```python
+from jira2py import JiraAPIError
+
+try:
+    jira.issues.create_issue(fields={"project": {"key": "INVALID"}})
+except JiraAPIError as e:
+    print(e.status_code)      # 400
+    print(e.response)         # Response | None
+    print(e.error_messages)   # ["Field 'summary' is required", ...]
+```
+
+### `JiraRateLimitError`
+
+Rate limit exceptions include additional diagnostic attributes:
+
+| Attribute           | Type            | Description                                                               |
+| ------------------- | --------------- | ------------------------------------------------------------------------- |
+| `retry_after`       | `float \| None` | Seconds to wait, from the `Retry-After` header                            |
+| `rate_limit_reason` | `str \| None`   | Which limit was hit (e.g., `jira-burst-based`, `jira-quota-tenant-based`) |
+| `reset_at`          | `str \| None`   | Timestamp when the rate limit window resets                               |
+
+See [Rate Limiting](https://jira2py.org/guide/rate-limiting/index.md) for how automatic retries work before this exception is raised.
+
+## HTTP Status Mapping
+
+| Status Code   | Exception                 |
+| ------------- | ------------------------- |
+| 400           | `JiraValidationError`     |
+| 401           | `JiraAuthenticationError` |
+| 403           | `JiraAuthenticationError` |
+| 404           | `JiraNotFoundError`       |
+| 429           | `JiraRateLimitError`      |
+| Other 4xx     | `JiraAPIError`            |
+| 5xx           | `JiraAPIError`            |
+| Timeout       | `JiraConnectionError`     |
+| Network error | `JiraConnectionError`     |
+
+## Error Message Extraction
+
+jira2py automatically parses error details from Jira's response body. It looks for messages in these fields (in order):
+
+1. `errorMessages` — a list of error strings
+1. `errors` — a dictionary of field-level errors (values are extracted)
+1. `message` — a single error string
+
+The extracted messages are available via the `error_messages` attribute on `JiraAPIError` and its subclasses.
+
+## Exception Chaining
+
+All exceptions preserve the original cause via Python's exception chaining. You can access the underlying error through `__cause__`:
+
+```python
+from jira2py import JiraConnectionError
+
+try:
+    jira.issues.get_issue("PROJ-123")
+except JiraConnectionError as e:
+    print(f"jira2py error: {e.message}")
+    print(f"Original cause: {e.__cause__}")
+```
+
+For the full exception class reference, see [Exceptions](https://jira2py.org/api/exceptions/index.md).
+
+# High-level Helpers
+
+`jira2py.helpers.JiraHelpers` is an optional high-level facade for common **Jira Cloud** workflows.
+
+Use it when you want grouped operations plus readable `HelperResult` output instead of raw Jira REST payloads.
+
+## Import path
+
+```python
+from jira2py import JiraAPI
+from jira2py.helpers import JiraHelpers
+
+api = JiraAPI()
+helpers = JiraHelpers(api)
+```
+
+## Helper groups
+
+```python
+helpers.auth
+helpers.issues
+helpers.search
+helpers.comments
+helpers.worklogs
+helpers.attachments
+helpers.metadata
+helpers.links
+helpers.filters
+```
+
+| Group                 | Use for                                                                |
+| --------------------- | ---------------------------------------------------------------------- |
+| `helpers.auth`        | Auth status and current-user checks                                    |
+| `helpers.issues`      | Read/create/edit/transition workflows                                  |
+| `helpers.search`      | JQL issue search                                                       |
+| `helpers.comments`    | Comment list/add/update/delete                                         |
+| `helpers.worklogs`    | Worklog list/add/update/delete/report                                  |
+| `helpers.attachments` | Attachment list/read/plan/download/upload/delete                       |
+| `helpers.metadata`    | Transitions, projects, statuses, priorities, users, and field metadata |
+| `helpers.links`       | Issue-link list/types/create/delete                                    |
+| `helpers.filters`     | Saved filter list/search/run                                           |
+
+## `HelperResult`
+
+Helper methods return `HelperResult`.
+
+```python
+result = helpers.filters.run("12345", fields=["summary", "status"])
+
+print(result.text)
+print(result.data)
+print(result.raw_content)
+print(result.has_raw_output)
+```
+
+## Workflow examples
+
+### Auth
+
+```python
+print(helpers.auth.status().text)
+print(helpers.auth.me().text)
+```
+
+### Issues and transitions
+
+```python
+print(helpers.issues.read("PROJ-123").text)
+print(helpers.metadata.transitions("PROJ-123").text)
+print(helpers.issues.transition("PROJ-123", "Done").text)
+```
+
+### Comments
+
+```python
+helpers.comments.add("PROJ-123", "Followed up with the customer.")
+helpers.comments.update("PROJ-123", "10001", "Updated note")
+helpers.comments.delete("PROJ-123", "10001")
+```
+
+### Attachments
+
+```python
+print(helpers.attachments.list("PROJ-123").text)
+print(helpers.attachments.read("10001").text)
+print(helpers.attachments.plan_download("10001", output_path="downloads/").text)
+print(helpers.attachments.download("10001", output_path="downloads/").text)
+print(helpers.attachments.upload("PROJ-123", "./error.log").text)
+```
+
+### Worklogs
+
+```python
+print(helpers.worklogs.list("PROJ-123").text)
+helpers.worklogs.add("PROJ-123", "1h", comment="Investigation")
+helpers.worklogs.update("PROJ-123", "10010", time_spent="90m")
+helpers.worklogs.delete("PROJ-123", "10010")
+```
+
+### Metadata, links, and filters
+
+```python
+print(helpers.metadata.project("PROJ").text)
+print(helpers.metadata.statuses().text)
+print(helpers.metadata.priorities().text)
+print(helpers.links.list("PROJ-123").text)
+print(helpers.filters.search("Team").text)
+print(helpers.filters.run("12345").text)
+```
+
+`helpers.filters.run()` resolves the saved filter's JQL and returns the same search-style result shape as `helpers.search.issues()`.
+
+## Helper errors
+
+- `JiraHelperValidationError`
+- `JiraHelperOperationError`
+- `AttachmentError`
+- `AttachmentDownloadError`
+
+## Public vs private helper API
+
+Supported public helper API includes:
+
+- `JiraHelpers`
+- grouped helper classes
+- `HelperResult`
+- documented helper errors and models
+
+Not supported as public API:
+
+- `jira2py.helpers._adf`
+- `jira2py.helpers._text`
+- other private `_*.py` modules
+
+## See also
+
+- [API Reference: High-level Helpers](https://jira2py.org/api/helpers/index.md)
+- [Low-level JiraAPI](https://jira2py.org/api/jira-api/index.md)
+
+# Rate Limiting
+
+Jira Cloud enforces [rate limits](https://developer.atlassian.com/cloud/jira/platform/rate-limiting/) to protect the platform from excessive API usage. When a rate limit is hit, Jira responds with HTTP 429 (Too Many Requests).
+
+jira2py handles this automatically — no configuration required. Requests that receive a 429 response are retried transparently, and your code only sees an error if all retries are exhausted.
+
+## How It Works
+
+When a request receives a 429 response:
+
+1. The client checks the `Retry-After` header for a server-specified wait time
+1. It calculates the delay using the appropriate backoff strategy (see below)
+1. A warning is logged with the attempt number, `RateLimit-Reason`, and `Retry-After` values
+1. The request is retried after the delay
+1. If all retries are exhausted, a `JiraRateLimitError` is raised
+
+Only HTTP 429 responses are retried. All other errors — including 500, 401, 404, etc. — propagate immediately.
+
+## Backoff Strategy
+
+The delay between retries depends on whether Jira includes a `Retry-After` header in the 429 response.
+
+### With `Retry-After` header
+
+The server-specified wait time is used as the minimum delay. Additive jitter of 0–30% is applied above that minimum to avoid thundering herd problems when multiple clients are rate-limited simultaneously:
+
+```text
+delay = retry_after + random(0, retry_after × 0.3)
+```
+
+### Without `Retry-After` header
+
+Exponential backoff is used with a base delay of 5 seconds. Multiplicative jitter (0.7×–1.3×) is applied to spread out retries:
+
+```text
+delay = 5 × 2^(attempt - 1) × random(0.7, 1.3)
+```
+
+This produces approximate delays of 5s, 10s, 20s, 40s for attempts 1 through 4.
+
+### Delay cap
+
+Regardless of the strategy, the computed delay is capped at `max_retry_delay` (default: 30 seconds).
+
+## Configuration
+
+Retry behavior is configured through `JiraAPI` constructor parameters. See [Configuration](https://jira2py.org/guide/configuration/index.md) for the parameter reference.
+
+```python
+from jira2py import JiraAPI
+
+# Custom: fewer retries, shorter max wait
+jira = JiraAPI(max_retries=2, max_retry_delay=10.0)
+
+# Disable retries entirely
+jira = JiraAPI(max_retries=0)
+```
+
+## Logging
+
+Retry attempts are logged at `WARNING` level via the `jira2py` logger. Each log message includes:
+
+- Attempt number
+- `RateLimit-Reason` header value (e.g., `jira-burst-based`, `jira-quota-tenant-based`)
+- `Retry-After` header value
+
+To see retry logs:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.WARNING)
+```
+
+## When Retries Are Exhausted
+
+If all retry attempts fail, a `JiraRateLimitError` is raised. See [Error Handling](https://jira2py.org/guide/error-handling/index.md) for how to catch it and inspect its diagnostic attributes (`retry_after`, `rate_limit_reason`, `reset_at`).
+# API Reference
+
+# API Reference
+
+jira2py exposes two complementary **Jira Cloud** layers:
+
+- `from jira2py import JiraAPI` — the low-level Jira REST facade
+- `from jira2py.helpers import JiraHelpers` — the high-level workflow facade
+
+## High-level facade
+
+```python
+from jira2py import JiraAPI
+from jira2py.helpers import JiraHelpers
+
+api = JiraAPI()
+helpers = JiraHelpers(api)
+
+helpers.auth
+helpers.issues
+helpers.search
+helpers.comments
+helpers.worklogs
+helpers.attachments
+helpers.metadata
+helpers.links
+helpers.filters
+```
+
+Helper methods return `HelperResult` objects with human-readable `text` plus optional structured `data` and `raw_content`.
+
+## Low-level facade
+
+```python
+from jira2py import JiraAPI
+
+jira = JiraAPI()
+
+jira.issues
+jira.search
+jira.comments
+jira.worklogs
+jira.fields
+jira.issue_links
+jira.projects
+jira.metadata
+jira.filters
+jira.attachments
+jira.users
+```
+
+## Modules
+
+| Module                                                            | Property           | Description                                              |
+| ----------------------------------------------------------------- | ------------------ | -------------------------------------------------------- |
+| [High-level Helpers](https://jira2py.org/api/helpers/index.md)    | `helpers.<group>`  | Grouped helper facade returning `HelperResult`           |
+| [JiraAPI](https://jira2py.org/api/jira-api/index.md)              | —                  | Entry point and low-level facade                         |
+| [Issues](https://jira2py.org/api/issues/index.md)                 | `jira.issues`      | Create, read, edit, and transition issues                |
+| [Issue Search](https://jira2py.org/api/issue-search/index.md)     | `jira.search`      | Search issues with JQL                                   |
+| [Issue Comments](https://jira2py.org/api/issue-comments/index.md) | `jira.comments`    | List, add, update, and delete comments                   |
+| [Issue Worklogs](https://jira2py.org/api/issue-worklogs/index.md) | `jira.worklogs`    | List, add, update, and delete issue worklogs             |
+| [Issue Fields](https://jira2py.org/api/issue-fields/index.md)     | `jira.fields`      | List system and custom fields                            |
+| [Issue Links](https://jira2py.org/api/issue-links/index.md)       | `jira.issue_links` | List issue links and link types; create and delete links |
+| [Projects](https://jira2py.org/api/projects/index.md)             | `jira.projects`    | Get, search, and list projects                           |
+| [Metadata](https://jira2py.org/api/metadata/index.md)             | `jira.metadata`    | Statuses and priorities                                  |
+| [Filters](https://jira2py.org/api/filters/index.md)               | `jira.filters`     | Search saved filters and fetch saved filter JQL          |
+| [Attachments](https://jira2py.org/api/attachments/index.md)       | `jira.attachments` | List, read, download, upload, and delete attachments     |
+| [Users](https://jira2py.org/api/users/index.md)                   | `jira.users`       | Search users and get the current user                    |
+| [Exceptions](https://jira2py.org/api/exceptions/index.md)         | —                  | Exception hierarchy                                      |
+
+## Conventions
+
+### `extra_params` and `extra_data`
+
+Most methods accept:
+
+- **`extra_params`** — extra query parameters merged into the request URL
+- **`extra_data`** — extra request-body fields merged into the payload
+
+### Return types
+
+- Low-level `JiraAPI` methods return parsed Jira REST response bodies (`dict`, `list`, or `None`)
+- High-level helpers return [`HelperResult`](https://jira2py.org/api/helpers/#helperresult)
+
+# Attachments
+
+Accessed via `jira.attachments`. List issue attachments, read metadata, download content, upload files, and delete attachments.
+
+## `get_issue_attachments`
+
+```python
+attachments = jira.attachments.get_issue_attachments("PROJ-123")
+for attachment in attachments:
+    print(attachment["id"], attachment["filename"])
+```
+
+| Parameter      | Type                        | Default  | Description                 |
+| -------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key             |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `list[dict[str, Any]]`
+
+______________________________________________________________________
+
+## `get_attachment_metadata`
+
+```python
+metadata = jira.attachments.get_attachment_metadata("10001")
+```
+
+| Parameter       | Type                        | Default  | Description                 |
+| --------------- | --------------------------- | -------- | --------------------------- |
+| `attachment_id` | `str`                       | required | Attachment ID               |
+| `extra_params`  | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `download_attachment_content`
+
+```python
+content = jira.attachments.download_attachment_content("10001")
+with open("download.bin", "wb") as fh:
+    fh.write(content)
+```
+
+| Parameter       | Type                        | Default  | Description                          |
+| --------------- | --------------------------- | -------- | ------------------------------------ |
+| `attachment_id` | `str`                       | required | Attachment ID                        |
+| `redirect`      | `bool \| None`              | `None`   | Optional explicit redirect parameter |
+| `extra_params`  | `Mapping[str, Any] \| None` | `None`   | Additional query parameters          |
+
+**Returns:** `bytes`
+
+______________________________________________________________________
+
+## `add_attachment`
+
+```python
+created = jira.attachments.add_attachment(
+    "PROJ-123",
+    filename="error.log",
+    content=b"example",
+    content_type="text/plain",
+)
+```
+
+| Parameter      | Type                        | Default  | Description                 |
+| -------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key             |
+| `filename`     | `str`                       | required | Filename to send to Jira    |
+| `content`      | `bytes`                     | required | Raw file bytes              |
+| `content_type` | `str \| None`               | `None`   | Optional MIME type          |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `list[dict[str, Any]]`
+
+______________________________________________________________________
+
+## `delete_attachment`
+
+```python
+jira.attachments.delete_attachment("10001")
+```
+
+| Parameter       | Type                        | Default  | Description                 |
+| --------------- | --------------------------- | -------- | --------------------------- |
+| `attachment_id` | `str`                       | required | Attachment ID               |
+| `extra_params`  | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `None`
+
+Tip
+
+For download planning and local file writes, see the helper-layer attachment methods in [High-level Helpers](https://jira2py.org/api/helpers/index.md).
+
+[Jira REST API — Attachments](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-attachments/)
+
+# Exceptions
+
+All exceptions are importable from the top-level package:
+
+```python
+from jira2py import (
+    JiraError,
+    JiraAuthenticationError,
+    JiraConnectionError,
+    JiraAPIError,
+    JiraNotFoundError,
+    JiraRateLimitError,
+    JiraValidationError,
+)
+```
+
+For usage patterns and examples, see [Error Handling](https://jira2py.org/guide/error-handling/index.md).
+
+## Hierarchy
+
+```text
+JiraError
+├── JiraConnectionError
+└── JiraAPIError
+    ├── JiraAuthenticationError
+    ├── JiraNotFoundError
+    ├── JiraRateLimitError
+    └── JiraValidationError
+```
+
+## `JiraError`
+
+Base exception for all jira2py errors.
+
+| Attribute  | Type               | Description                           |
+| ---------- | ------------------ | ------------------------------------- |
+| `message`  | `str`              | Human-readable error description      |
+| `response` | `Response \| None` | The raw HTTP response, when available |
+
+## `JiraAuthenticationError`
+
+Raised when authentication or authorization fails (HTTP 401, 403).
+
+Inherits from [`JiraAPIError`](#jiraapierror), so it is also caught by `except JiraAPIError` and carries the same `status_code`, `response`, and `error_messages` metadata when available. For direct construction, `status_code` defaults to `401` and `response` defaults to `None`.
+
+## `JiraConnectionError`
+
+Raised on network-level failures: timeouts, DNS resolution errors, connection refused.
+
+Inherits all attributes from [`JiraError`](#jiraerror).
+
+## `JiraAPIError`
+
+Raised for HTTP 4xx and 5xx responses not covered by a more specific exception.
+
+| Attribute        | Type        | Description                                          |
+| ---------------- | ----------- | ---------------------------------------------------- |
+| `status_code`    | `int`       | HTTP status code                                     |
+| `error_messages` | `list[str]` | Error messages extracted from the Jira response body |
+
+Includes `JiraAuthenticationError` and all other HTTP-error subclasses.
+
+Also inherits `message` and `response` from [`JiraError`](#jiraerror). `response` may be `None` when no HTTP response object is available.
+
+## `JiraNotFoundError`
+
+Raised when a requested resource is not found (HTTP 404).
+
+Inherits all attributes from [`JiraAPIError`](#jiraapierror).
+
+## `JiraRateLimitError`
+
+Raised when the API rate limit is exceeded (HTTP 429) and all retries have been exhausted.
+
+| Attribute           | Type            | Description                                                               |
+| ------------------- | --------------- | ------------------------------------------------------------------------- |
+| `retry_after`       | `float \| None` | Seconds the server asked to wait                                          |
+| `rate_limit_reason` | `str \| None`   | Which limit was hit (e.g., `jira-burst-based`, `jira-quota-tenant-based`) |
+| `reset_at`          | `str \| None`   | Timestamp when the rate limit window resets                               |
+
+Also inherits all attributes from [`JiraAPIError`](#jiraapierror).
+
+See [Rate Limiting](https://jira2py.org/guide/rate-limiting/index.md) for how automatic retries work before this exception is raised.
+
+## `JiraValidationError`
+
+Raised when request validation fails (HTTP 400). Typically indicates malformed input or missing required fields.
+
+Inherits all attributes from [`JiraAPIError`](#jiraapierror).
+
+# Filters
+
+Accessed via `jira.filters`. Search saved Jira filters and fetch individual filter definitions.
+
+## `search_filters`
+
+```python
+filters = jira.filters.search_filters(max_results=10)
+filters = jira.filters.search_filters(filter_name="Team", expand="owner,jql")
+```
+
+| Parameter                    | Type                        | Default | Description                                |
+| ---------------------------- | --------------------------- | ------- | ------------------------------------------ |
+| `start_at`                   | `int`                       | `0`     | First item index                           |
+| `max_results`                | `int`                       | `50`    | Maximum items                              |
+| `filter_name`                | `str \| None`               | `None`  | Optional filter-name search                |
+| `filter_ids`                 | `list[int] \| None`         | `None`  | Optional saved filter IDs                  |
+| `account_id`                 | `str \| None`               | `None`  | Optional owner account ID                  |
+| `order_by`                   | `str \| None`               | `None`  | Optional sort field                        |
+| `expand`                     | `str \| None`               | `None`  | Optional expand fields such as `owner,jql` |
+| `override_share_permissions` | `bool \| None`              | `None`  | Optional Jira permission override flag     |
+| `extra_params`               | `Mapping[str, Any] \| None` | `None`  | Additional query parameters                |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `get_filter`
+
+```python
+saved_filter = jira.filters.get_filter("12345", expand="jql")
+print(saved_filter["name"], saved_filter.get("jql"))
+```
+
+| Parameter                    | Type                        | Default  | Description                            |
+| ---------------------------- | --------------------------- | -------- | -------------------------------------- |
+| `filter_id`                  | `str`                       | required | Saved filter ID                        |
+| `expand`                     | `str \| None`               | `None`   | Optional expand fields such as `jql`   |
+| `override_share_permissions` | `bool \| None`              | `None`   | Optional Jira permission override flag |
+| `extra_params`               | `Mapping[str, Any] \| None` | `None`   | Additional query parameters            |
+
+**Returns:** `dict[str, Any]`
+
+## Running a saved filter
+
+The low-level API does not add a separate `run_filter()` endpoint wrapper. Instead:
+
+1. fetch the saved filter with `expand="jql"`
+1. read its JQL
+1. run that JQL with [`jira.search.enhanced_search`](https://jira2py.org/api/issue-search/index.md)
+
+The helper-layer shortcut for this is `helpers.filters.run()`; see [High-level Helpers](https://jira2py.org/api/helpers/index.md).
+
+[Jira REST API — Filters](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-filters/)
+
+# High-level Helpers
+
+`jira2py.helpers.JiraHelpers` is the public high-level helper facade for **Jira Cloud** workflows.
+
+```python
+from jira2py import JiraAPI
+from jira2py.helpers import JiraHelpers
+
+api = JiraAPI()
+helpers = JiraHelpers(api)
+```
+
+## Facade groups
+
+| Property              | Helper class        | Common methods                                                                                                                           |
+| --------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `helpers.auth`        | `AuthHelpers`       | `status()`, `me()`                                                                                                                       |
+| `helpers.issues`      | `IssueHelpers`      | `read()`, `create()`, `edit()`, `transition()`, `validate_create()`, `validate_edit()`                                                   |
+| `helpers.search`      | `SearchHelpers`     | `issues()`                                                                                                                               |
+| `helpers.comments`    | `CommentHelpers`    | `list()`, `add()`, `update()`, `delete()`                                                                                                |
+| `helpers.worklogs`    | `WorklogHelpers`    | `list()`, `add()`, `update()`, `delete()`, `report()`                                                                                    |
+| `helpers.attachments` | `AttachmentHelpers` | `list()`, `read()`, `plan_download()`, `download()`, `upload()`, `delete()`                                                              |
+| `helpers.metadata`    | `MetadataHelpers`   | `issue_types()`, `create_fields()`, `edit_fields()`, `transitions()`, `project()`, `projects()`, `statuses()`, `priorities()`, `users()` |
+| `helpers.links`       | `LinkHelpers`       | `list()`, `types()`, `create()`, `delete()`                                                                                              |
+| `helpers.filters`     | `FiltersHelpers`    | `list()`, `search()`, `run()`                                                                                                            |
+
+## Grouped usage
+
+```python
+helpers.auth.status()
+helpers.issues.transition("PROJ-123", "Done")
+helpers.comments.update("PROJ-123", "10001", "Updated note")
+helpers.worklogs.add("PROJ-123", "1h")
+helpers.attachments.download("10001", output_path="downloads/")
+helpers.metadata.statuses()
+helpers.links.list("PROJ-123")
+helpers.filters.run("12345")
+```
+
+## `HelperResult`
+
+Most helper methods return `HelperResult`.
+
+| Attribute        | Type          | Meaning                                    |
+| ---------------- | ------------- | ------------------------------------------ |
+| `text`           | `str`         | Human-readable helper output               |
+| `data`           | `Any \| None` | Optional structured payload                |
+| `raw_content`    | `str \| None` | Optional serialized raw output             |
+| `has_raw_output` | `bool`        | Whether `data` or `raw_content` is present |
+
+## Helper errors
+
+Public helper errors include:
+
+- `JiraHelperError`
+- `JiraHelperValidationError`
+- `JiraHelperConfigError`
+- `JiraHelperOperationError`
+- `AttachmentError`
+- `AttachmentDownloadError`
+
+## Public models
+
+Common public helper models include:
+
+- `AttachmentDownloadPlan`
+- `AttachmentMeta`
+- `FilterSearchResult`
+- `IssueTransition`
+- `IssueType`
+- `JiraComment`
+- `JiraIssue`
+- `JiraPriority`
+- `JiraProject`
+- `JiraStatus`
+- `JiraUser`
+- `JiraWorklog`
+- `ProjectSearchResult`
+- `SearchResult`
+- `WorklogPage`
+- `WorklogReport`
+- `WorklogReportRow`
+
+## Group reference
+
+### `helpers.auth`
+
+- `status()`
+- `me()`
+
+### `helpers.issues`
+
+- `read(issue_key, *, extra_fields=None)`
+- `create(project_key, issue_type, summary, *, description=None, fields=None)`
+- `edit(issue_key, *, summary=None, description=None, fields=None, raw=False)`
+- `transition(issue_key, transition)`
+- `validate_create(...)`
+- `validate_edit(...)`
+
+### `helpers.search`
+
+- `issues(jql, *, max_results=20, fields=None)`
+
+### `helpers.comments`
+
+- `list(issue_key, *, start_at=0, max_results=50, order_by="created")`
+- `add(issue_key, body)`
+- `update(issue_key, comment_id, body)`
+- `delete(issue_key, comment_id)`
+
+### `helpers.worklogs`
+
+- `list(issue_key, *, start_at=0, max_results=50)`
+- `add(issue_key, time_spent, *, started=None, comment=None)`
+- `update(issue_key, worklog_id, *, time_spent=None, started=None, comment=None)`
+- `delete(issue_key, worklog_id)`
+- `report(*, start_date, end_date, jql, account_id=None, max_issues=100, include_details=False)`
+
+### `helpers.attachments`
+
+- `list(issue_key)`
+- `read(attachment_id)`
+- `plan_download(attachment_id, *, output_path=None, max_download=...)`
+- `download(attachment_id, *, output_path=None, max_download=...)`
+- `upload(issue_key, file_path)`
+- `delete(attachment_id)`
+
+### `helpers.metadata`
+
+- `issue_types(project_key)`
+- `create_fields(project_key, issue_type)`
+- `edit_fields(issue_key)`
+- `transitions(issue_key)`
+- `project(project_id_or_key)`
+- `projects(query=None)`
+- `statuses()`
+- `priorities()`
+- `users(query, *, max_results=10)`
+
+### `helpers.links`
+
+- `list(issue_key)`
+- `types()`
+- `create(link_type, outward_issue_key, inward_issue_key)`
+- `delete(link_id)`
+
+### `helpers.filters`
+
+- `list(*, start_at=0, max_results=50)`
+- `search(query, *, start_at=0, max_results=50)`
+- `run(filter_id, *, max_results=20, fields=None)`
+
+`helpers.filters.run()` resolves the saved filter's JQL and delegates to the normal search pathway, so its structured output matches `helpers.search.issues()`.
+
+## Public/private boundary
+
+The following are intentionally **not** public helper API:
+
+- `jira2py.helpers._adf`
+- `jira2py.helpers._text`
+- other private `_*.py` modules
+- internal formatting and conversion behavior
+
+## See also
+
+- [Guide: High-level Helpers](https://jira2py.org/guide/high-level-helpers/index.md)
+- [Low-level JiraAPI](https://jira2py.org/api/jira-api/index.md)
+
+# Issue Comments
+
+Accessed via `jira.comments`. List, add, update, and delete comments on Jira issues.
+
+## `get_comments`
+
+```python
+comments = jira.comments.get_comments("PROJ-123")
+comments = jira.comments.get_comments("PROJ-123", order_by="-created")
+```
+
+| Parameter      | Type                        | Default  | Description                                     |
+| -------------- | --------------------------- | -------- | ----------------------------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key                                 |
+| `start_at`     | `int`                       | `0`      | First comment index                             |
+| `max_results`  | `int`                       | `50`     | Maximum comments                                |
+| `order_by`     | `str \| None`               | `None`   | `created`, `-created`, `updated`, or `-updated` |
+| `expand`       | `str \| None`               | `None`   | Comma-separated expand fields                   |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters                     |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `add_comment`
+
+The `body` must be Jira ADF.
+
+```python
+comment = jira.comments.add_comment("PROJ-123", body={
+    "type": "doc",
+    "version": 1,
+    "content": [{
+        "type": "paragraph",
+        "content": [{"type": "text", "text": "This is a comment from jira2py."}],
+    }],
+})
+```
+
+| Parameter      | Type                        | Default  | Description                     |
+| -------------- | --------------------------- | -------- | ------------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key                 |
+| `body`         | `Mapping[str, Any]`         | required | Comment body in ADF format      |
+| `visibility`   | `Mapping[str, Any] \| None` | `None`   | Optional visibility restriction |
+| `expand`       | `str \| None`               | `None`   | Comma-separated expand fields   |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters     |
+| `extra_data`   | `Mapping[str, Any] \| None` | `None`   | Additional request body data    |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `update_comment`
+
+```python
+updated = jira.comments.update_comment("PROJ-123", "10001", body={
+    "type": "doc",
+    "version": 1,
+    "content": [{
+        "type": "paragraph",
+        "content": [{"type": "text", "text": "Updated comment body."}],
+    }],
+})
+```
+
+| Parameter      | Type                        | Default  | Description                     |
+| -------------- | --------------------------- | -------- | ------------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key                 |
+| `comment_id`   | `str`                       | required | Jira comment ID                 |
+| `body`         | `Mapping[str, Any]`         | required | Replacement comment body in ADF |
+| `visibility`   | `Mapping[str, Any] \| None` | `None`   | Optional visibility restriction |
+| `expand`       | `str \| None`               | `None`   | Comma-separated expand fields   |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters     |
+| `extra_data`   | `Mapping[str, Any] \| None` | `None`   | Additional request body data    |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `delete_comment`
+
+```python
+jira.comments.delete_comment("PROJ-123", "10001")
+```
+
+| Parameter      | Type                        | Default  | Description                 |
+| -------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key             |
+| `comment_id`   | `str`                       | required | Jira comment ID             |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `None`
+
+Tip
+
+High-level helpers convert Markdown strings to ADF for you. See [High-level Helpers](https://jira2py.org/api/helpers/index.md).
+
+[Jira REST API — Issue comments](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/)
+
+# Issue Fields
+
+Accessed via `jira.fields`. List system and custom fields configured in your Jira instance.
+
+## `get_fields`
+
+Get all system and custom issue fields.
+
+```python
+fields = jira.fields.get_fields()
+
+for field in fields:
+    kind = "custom" if field["custom"] else "system"
+    print(f"{field['id']}: {field['name']} ({kind})")
+```
+
+```python
+# Find a specific custom field by name
+target = "Story Points"
+match = next((f for f in jira.fields.get_fields() if f["name"] == target), None)
+if match:
+    print(f"Use field ID '{match['id']}' for {target}")
+```
+
+This method takes no parameters.
+
+**Returns:** `list[dict[str, Any]]` — list of field objects with `id`, `name`, `custom`, `schema`, and other properties.
+
+[Jira REST API — Get fields](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-fields/#api-rest-api-3-field-get)
+
+# Issue Links
+
+Accessed via `jira.issue_links`. List issue links, list link types, create links, and delete links.
+
+## `get_issue_links`
+
+```python
+links = jira.issue_links.get_issue_links("PROJ-123")
+for link in links:
+    print(link["id"], link["type"]["name"])
+```
+
+| Parameter      | Type                        | Default  | Description                 |
+| -------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key             |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `list[dict[str, Any]]`
+
+______________________________________________________________________
+
+## `get_link_types`
+
+```python
+result = jira.issue_links.get_link_types()
+```
+
+This method takes no parameters.
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `create_link`
+
+```python
+jira.issue_links.create_link("Blocks", "PROJ-1", "PROJ-2")
+```
+
+| Parameter           | Type  | Default  | Description              |
+| ------------------- | ----- | -------- | ------------------------ |
+| `link_type_name`    | `str` | required | Link type name           |
+| `inward_issue_key`  | `str` | required | Key of the inward issue  |
+| `outward_issue_key` | `str` | required | Key of the outward issue |
+
+**Returns:** `None`
+
+______________________________________________________________________
+
+## `delete_link`
+
+```python
+jira.issue_links.delete_link("10001")
+```
+
+| Parameter | Type  | Default  | Description   |
+| --------- | ----- | -------- | ------------- |
+| `link_id` | `str` | required | Issue-link ID |
+
+**Returns:** `None`
+
+[Jira REST API — Issue links](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-links/)
+
+# Issue Search
+
+Accessed via `jira.search`. Search for issues using JQL (Jira Query Language).
+
+## `enhanced_search`
+
+Search for issues using a JQL query. Returns paginated results.
+
+```python
+# Basic search
+results = jira.search.enhanced_search("project = PROJ ORDER BY created DESC")
+print(f"Total results: {results['total']}")
+
+for issue in results["issues"]:
+    print(f"{issue['key']}: {issue['fields']['summary']}")
+```
+
+```python
+# Request specific fields
+results = jira.search.enhanced_search(
+    "project = PROJ AND status = 'In Progress'",
+    fields=["summary", "status", "assignee"],
+    max_results=25,
+)
+```
+
+```python
+# Paginate through all results
+results = jira.search.enhanced_search("project = PROJ", max_results=100)
+
+while results.get("nextPageToken"):
+    results = jira.search.enhanced_search(
+        "project = PROJ",
+        max_results=100,
+        next_page_token=results["nextPageToken"],
+    )
+```
+
+| Parameter         | Type                        | Default  | Description                                                                                                          |
+| ----------------- | --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `jql`             | `str`                       | required | JQL query string                                                                                                     |
+| `next_page_token` | `str \| None`               | `None`   | Token for fetching the next page of results. Omitted from the request body when `None`.                              |
+| `max_results`     | `int`                       | `50`     | Maximum items per page                                                                                               |
+| `fields`          | `list[str] \| None`         | `None`   | Fields to return (e.g., `["summary", "status"]`). Use `["*all"]` for all. Omitted from the request body when `None`. |
+| `expand`          | `str \| None`               | `None`   | Comma-separated properties to expand. Omitted from the request body when `None`.                                     |
+| `extra_params`    | `Mapping[str, Any] \| None` | `None`   | Additional query parameters                                                                                          |
+| `extra_data`      | `Mapping[str, Any] \| None` | `None`   | Additional request body data                                                                                         |
+
+**Returns:** `dict[str, Any]` — search results with `issues`, `total`, and `nextPageToken`.
+
+[Jira REST API — Search for issues using JQL enhanced search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post)
+
+# Issue Worklogs
+
+Accessed via `jira.worklogs`. List, add, update, and delete raw Jira issue worklogs.
+
+Note
+
+`jira.worklogs` is the low-level endpoint wrapper. For cross-issue reporting, use the helper layer's `helpers.worklogs.report()`.
+
+## `get_worklogs`
+
+```python
+worklogs = jira.worklogs.get_worklogs("PROJ-123")
+```
+
+| Parameter      | Type                        | Default  | Description                                                                       |
+| -------------- | --------------------------- | -------- | --------------------------------------------------------------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key                                                                   |
+| `start_at`     | `int`                       | `0`      | First worklog index                                                               |
+| `max_results`  | `int`                       | `50`     | Maximum worklogs                                                                  |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters such as `startedAfter`, `startedBefore`, and `expand` |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `add_worklog`
+
+```python
+worklog = jira.worklogs.add_worklog("PROJ-123", "1h 30m")
+```
+
+| Parameter      | Type                        | Default  | Description                  |
+| -------------- | --------------------------- | -------- | ---------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key              |
+| `time_spent`   | `str`                       | required | Jira time-tracking duration  |
+| `started`      | `str \| None`               | `None`   | Optional started timestamp   |
+| `comment`      | `Mapping[str, Any] \| None` | `None`   | Optional ADF comment         |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters  |
+| `extra_data`   | `Mapping[str, Any] \| None` | `None`   | Additional request body data |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `update_worklog`
+
+```python
+updated = jira.worklogs.update_worklog("PROJ-123", "10010", time_spent="2h")
+```
+
+| Parameter      | Type                        | Default  | Description                            |
+| -------------- | --------------------------- | -------- | -------------------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key                        |
+| `worklog_id`   | `str`                       | required | Jira worklog ID                        |
+| `time_spent`   | `str \| None`               | `None`   | Optional replacement duration          |
+| `started`      | `str \| None`               | `None`   | Optional replacement started timestamp |
+| `comment`      | `Mapping[str, Any] \| None` | `None`   | Optional replacement ADF comment       |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters            |
+| `extra_data`   | `Mapping[str, Any] \| None` | `None`   | Additional request body data           |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `delete_worklog`
+
+```python
+jira.worklogs.delete_worklog("PROJ-123", "10010")
+```
+
+| Parameter      | Type                        | Default  | Description                 |
+| -------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key             |
+| `worklog_id`   | `str`                       | required | Jira worklog ID             |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `None`
+
+[Jira REST API — Issue worklogs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/)
+
+# Issues
+
+Accessed via `jira.issues`. Create, read, edit, and transition Jira Cloud issues, plus related metadata.
+
+## `get_issue`
+
+```python
+issue = jira.issues.get_issue("PROJ-123")
+issue = jira.issues.get_issue("PROJ-123", fields="summary,status,assignee")
+issue = jira.issues.get_issue("PROJ-123", expand="renderedFields,changelog")
+```
+
+| Parameter      | Type                        | Default  | Description                          |
+| -------------- | --------------------------- | -------- | ------------------------------------ |
+| `issue_id`     | `str`                       | required | Issue ID or key                      |
+| `fields`       | `str \| None`               | `None`   | Comma-separated field names          |
+| `expand`       | `str \| None`               | `None`   | Comma-separated properties to expand |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters          |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `create_issue`
+
+```python
+new_issue = jira.issues.create_issue(fields={
+    "project": {"key": "PROJ"},
+    "issuetype": {"name": "Task"},
+    "summary": "New task",
+})
+```
+
+Use [`get_create_issue_types`](#get_create_issue_types) and [`get_create_fields`](#get_create_fields) to discover valid create metadata.
+
+| Parameter        | Type                        | Default  | Description                                  |
+| ---------------- | --------------------------- | -------- | -------------------------------------------- |
+| `fields`         | `Mapping[str, Any]`         | required | Issue fields                                 |
+| `update_history` | `bool`                      | `False`  | Whether to add the project to browse history |
+| `extra_params`   | `Mapping[str, Any] \| None` | `None`   | Additional query parameters                  |
+| `extra_data`     | `Mapping[str, Any] \| None` | `None`   | Additional request body data                 |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `edit_issue`
+
+```python
+jira.issues.edit_issue("PROJ-123", fields={"summary": "Updated summary"})
+updated = jira.issues.edit_issue(
+    "PROJ-123",
+    fields={"priority": {"name": "High"}},
+    return_issue=True,
+)
+```
+
+Use this generic field-edit pathway if you need to set assignee fields supported by your Jira screens. jira2py does **not** add a dedicated assign API.
+
+| Parameter      | Type                        | Default  | Description                         |
+| -------------- | --------------------------- | -------- | ----------------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key                     |
+| `fields`       | `Mapping[str, Any]`         | required | Fields to update                    |
+| `notify_users` | `bool`                      | `True`   | Whether to send email notifications |
+| `return_issue` | `bool`                      | `False`  | Whether to return the updated issue |
+| `expand`       | `str \| None`               | `None`   | Properties to expand                |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters         |
+| `extra_data`   | `Mapping[str, Any] \| None` | `None`   | Additional request body data        |
+
+**Returns:** `dict[str, Any] \| None`
+
+______________________________________________________________________
+
+## `get_transitions`
+
+```python
+transitions = jira.issues.get_transitions("PROJ-123")
+transitions = jira.issues.get_transitions("PROJ-123", expand="transitions.fields")
+```
+
+| Parameter       | Type                        | Default  | Description                                        |
+| --------------- | --------------------------- | -------- | -------------------------------------------------- |
+| `issue_id`      | `str`                       | required | Issue ID or key                                    |
+| `expand`        | `str \| None`               | `None`   | Optional expand value such as `transitions.fields` |
+| `transition_id` | `str \| None`               | `None`   | Optional transition ID filter                      |
+| `extra_params`  | `Mapping[str, Any] \| None` | `None`   | Additional query parameters                        |
+
+**Returns:** `dict[str, Any]` with a `transitions` list.
+
+______________________________________________________________________
+
+## `transition_issue`
+
+```python
+jira.issues.transition_issue("PROJ-123", transition_id="31")
+```
+
+| Parameter          | Type                                  | Default  | Description                                |
+| ------------------ | ------------------------------------- | -------- | ------------------------------------------ |
+| `issue_id`         | `str`                                 | required | Issue ID or key                            |
+| `transition_id`    | `str`                                 | required | Explicit Jira transition ID                |
+| `fields`           | `Mapping[str, Any] \| None`           | `None`   | Optional fields to set while transitioning |
+| `update`           | `Mapping[str, Any] \| None`           | `None`   | Optional Jira update operations            |
+| `history_metadata` | `Mapping[str, Any] \| None`           | `None`   | Optional transition history metadata       |
+| `properties`       | `Sequence[Mapping[str, Any]] \| None` | `None`   | Optional issue properties                  |
+| `extra_params`     | `Mapping[str, Any] \| None`           | `None`   | Additional query parameters                |
+| `extra_data`       | `Mapping[str, Any] \| None`           | `None`   | Additional request body data               |
+
+**Returns:** `dict[str, Any] \| None`
+
+______________________________________________________________________
+
+## `get_changelogs`
+
+```python
+changelogs = jira.issues.get_changelogs("PROJ-123")
+```
+
+| Parameter      | Type                        | Default  | Description                 |
+| -------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key             |
+| `start_at`     | `int`                       | `0`      | First item index            |
+| `max_results`  | `int`                       | `50`     | Maximum results             |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `get_edit_metadata`
+
+```python
+meta = jira.issues.get_edit_metadata("PROJ-123")
+```
+
+| Parameter                  | Type                        | Default  | Description                 |
+| -------------------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`                 | `str`                       | required | Issue ID or key             |
+| `override_screen_security` | `bool`                      | `False`  | Override screen security    |
+| `override_editable_flag`   | `bool`                      | `False`  | Override editable flag      |
+| `extra_params`             | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `get_create_issue_types`
+
+```python
+types = jira.issues.get_create_issue_types("PROJ")
+```
+
+| Parameter           | Type                        | Default  | Description                 |
+| ------------------- | --------------------------- | -------- | --------------------------- |
+| `project_id_or_key` | `str`                       | required | Project ID or key           |
+| `start_at`          | `int`                       | `0`      | First item index            |
+| `max_results`       | `int`                       | `50`     | Maximum items               |
+| `extra_params`      | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `get_create_fields`
+
+```python
+fields = jira.issues.get_create_fields("PROJ", "10001")
+```
+
+| Parameter           | Type                        | Default  | Description                 |
+| ------------------- | --------------------------- | -------- | --------------------------- |
+| `project_id_or_key` | `str`                       | required | Project ID or key           |
+| `issue_type_id`     | `str`                       | required | Issue type ID               |
+| `start_at`          | `int`                       | `0`      | First item index            |
+| `max_results`       | `int`                       | `50`     | Maximum items               |
+| `extra_params`      | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+[Jira REST API — Issues group](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/)
+
+# JiraAPI
+
+`JiraAPI` is the low-level entry point for Jira Cloud operations.
+
+## Constructor
+
+```python
+from jira2py import JiraAPI
+
+jira = JiraAPI(
+    url=None,
+    username=None,
+    api_token=None,
+    max_retries=4,
+    max_retry_delay=30.0,
+    credentials_file=None,
+)
+```
+
+| Parameter          | Default | Description                                                                                    |
+| ------------------ | ------- | ---------------------------------------------------------------------------------------------- |
+| `url`              | `None`  | Jira site URL. Overrides file/env values when provided.                                        |
+| `username`         | `None`  | Atlassian account email. Overrides file/env values when provided.                              |
+| `api_token`        | `None`  | Jira API token. Overrides file/env values when provided.                                       |
+| `max_retries`      | `4`     | Max retry attempts on HTTP 429.                                                                |
+| `max_retry_delay`  | `30.0`  | Max delay between retries in seconds.                                                          |
+| `credentials_file` | `None`  | Explicit path to a JSON file with `url`, `username`, and `api_token`. No default path is used. |
+
+If `credentials_file` is omitted, jira2py falls back to `JIRA_URL`, `JIRA_USER`, and `JIRA_API_TOKEN`.
+
+## Properties
+
+| Property      | Type                                                               | Description                       |
+| ------------- | ------------------------------------------------------------------ | --------------------------------- |
+| `issues`      | [`Issues`](https://jira2py.org/api/issues/index.md)                | Issue operations                  |
+| `search`      | [`IssueSearch`](https://jira2py.org/api/issue-search/index.md)     | JQL search                        |
+| `comments`    | [`IssueComments`](https://jira2py.org/api/issue-comments/index.md) | Issue comments                    |
+| `worklogs`    | [`IssueWorklogs`](https://jira2py.org/api/issue-worklogs/index.md) | Issue worklogs                    |
+| `fields`      | [`IssueFields`](https://jira2py.org/api/issue-fields/index.md)     | System and custom fields          |
+| `issue_links` | [`IssueLinks`](https://jira2py.org/api/issue-links/index.md)       | Issue-link operations             |
+| `projects`    | [`Projects`](https://jira2py.org/api/projects/index.md)            | Project lookup and search         |
+| `metadata`    | [`Metadata`](https://jira2py.org/api/metadata/index.md)            | Statuses and priorities           |
+| `filters`     | [`Filters`](https://jira2py.org/api/filters/index.md)              | Saved filter discovery and lookup |
+| `attachments` | [`Attachments`](https://jira2py.org/api/attachments/index.md)      | Attachment operations             |
+| `users`       | [`Users`](https://jira2py.org/api/users/index.md)                  | User search and current user      |
+
+## Usage
+
+```python
+from jira2py import JiraAPI
+
+jira = JiraAPI()
+
+issue = jira.issues.get_issue("PROJ-123")
+me = jira.users.get_current_user()
+transitions = jira.issues.get_transitions("PROJ-123")
+project = jira.projects.get_project("PROJ")
+statuses = jira.metadata.get_statuses()
+filters = jira.filters.search_filters(max_results=10)
+```
+
+See [Configuration](https://jira2py.org/guide/configuration/index.md) for credential resolution and [Rate Limiting](https://jira2py.org/guide/rate-limiting/index.md) for retry behavior.
+
+# Metadata
+
+Accessed via `jira.metadata`. Retrieve shared Jira Cloud metadata such as statuses and priorities.
+
+## `get_statuses`
+
+```python
+statuses = jira.metadata.get_statuses()
+for status in statuses:
+    print(status["id"], status["name"])
+```
+
+| Parameter      | Type                        | Default | Description                 |
+| -------------- | --------------------------- | ------- | --------------------------- |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`  | Additional query parameters |
+
+**Returns:** `list[dict[str, Any]]`
+
+______________________________________________________________________
+
+## `get_priorities`
+
+```python
+priorities = jira.metadata.get_priorities()
+for priority in priorities:
+    print(priority["id"], priority["name"])
+```
+
+| Parameter      | Type                        | Default | Description                 |
+| -------------- | --------------------------- | ------- | --------------------------- |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`  | Additional query parameters |
+
+**Returns:** `list[dict[str, Any]]`
+
+[Jira REST API — Workflow statuses](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-workflow-statuses/)
+
+[Jira REST API — Issue priorities](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-priorities/)
+
+# Projects
+
+Accessed via `jira.projects`. Get, search, and list Jira projects.
+
+## `get_project`
+
+```python
+project = jira.projects.get_project("PROJ")
+project = jira.projects.get_project("10000", expand="description,lead,issueTypes")
+```
+
+| Parameter           | Type                        | Default  | Description                          |
+| ------------------- | --------------------------- | -------- | ------------------------------------ |
+| `project_id_or_key` | `str`                       | required | Project key or numeric project ID    |
+| `expand`            | `str \| None`               | `None`   | Comma-separated properties to expand |
+| `extra_params`      | `Mapping[str, Any] \| None` | `None`   | Additional query parameters          |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `search_projects`
+
+```python
+projects = jira.projects.search_projects()
+projects = jira.projects.search_projects(query="backend")
+projects = jira.projects.search_projects(keys=["PROJ", "INFRA", "OPS"])
+```
+
+| Parameter      | Type                        | Default | Description                    |
+| -------------- | --------------------------- | ------- | ------------------------------ |
+| `start_at`     | `int`                       | `0`     | First item index               |
+| `max_results`  | `int`                       | `50`    | Maximum items per page         |
+| `project_ids`  | `list[int] \| None`         | `None`  | Filter by project IDs          |
+| `keys`         | `list[str] \| None`         | `None`  | Filter by project keys         |
+| `query`        | `str \| None`               | `None`  | Filter by matching key or name |
+| `expand`       | `str \| None`               | `None`  | Optional expand properties     |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`  | Additional query parameters    |
+
+**Returns:** `dict[str, Any]`
+
+[Jira REST API — Projects](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/)
+
+# Users
+
+Accessed via `jira.users`. Search Jira users or inspect the current authenticated Jira user.
+
+## `search_users`
+
+```python
+users = jira.users.search_users("john")
+for user in users:
+    print(user["displayName"], user["accountId"])
+```
+
+If you need to set assignee fields, use the returned account IDs with the generic issue edit pathway:
+
+```python
+users = jira.users.search_users("jane@example.com")
+if users:
+    jira.issues.edit_issue("PROJ-123", fields={
+        "assignee": {"accountId": users[0]["accountId"]},
+    })
+```
+
+| Parameter      | Type                        | Default  | Description                             |
+| -------------- | --------------------------- | -------- | --------------------------------------- |
+| `query`        | `str`                       | required | Search string for display name or email |
+| `start_at`     | `int`                       | `0`      | First item index                        |
+| `max_results`  | `int`                       | `50`     | Maximum results                         |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters             |
+
+**Returns:** `list[dict[str, Any]]`
+
+______________________________________________________________________
+
+## `get_current_user`
+
+```python
+me = jira.users.get_current_user()
+print(me["displayName"], me["accountId"])
+```
+
+This is the low-level current-user endpoint used by helper auth/status flows.
+
+| Parameter      | Type                        | Default | Description                 |
+| -------------- | --------------------------- | ------- | --------------------------- |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`  | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+[Jira REST API — Find users](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-user-search/#api-rest-api-3-user-search-get)
+
+[Jira REST API — Get current user](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-myself/#api-rest-api-3-myself-get)
