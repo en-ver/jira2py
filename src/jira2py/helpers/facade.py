@@ -5,7 +5,9 @@ from __future__ import annotations
 from jira2py.api import JiraAPI
 
 from .attachments import AttachmentHelpers
+from .auth import AuthHelpers
 from .comments import CommentHelpers
+from .filters import FiltersHelpers
 from .issues import IssueHelpers
 from .links import LinkHelpers
 from .metadata import MetadataHelpers
@@ -18,6 +20,7 @@ class JiraHelpers:
 
     def __init__(self, api: JiraAPI) -> None:
         self.api = api
+        self.auth = AuthHelpers(api)
         self.issues = IssueHelpers(api)
         self.search = SearchHelpers(api)
         self.comments = CommentHelpers(api)
@@ -25,6 +28,7 @@ class JiraHelpers:
         self.attachments = AttachmentHelpers(api)
         self.links = LinkHelpers(api)
         self.metadata = MetadataHelpers(api)
+        self.filters = FiltersHelpers(api)
 
 
 __all__ = ["JiraHelpers"]

@@ -188,6 +188,58 @@ def test_edit_raw_response_handles_empty_response_body() -> None:
     )
 
 
+def test_transition_resolves_name_and_returns_structured_result() -> None:
+    api = _make_api()
+    api.issues.get_transitions.return_value = {
+        "transitions": [
+            {
+                "id": "11",
+                "name": "Start Progress",
+                "to": {"name": "In Progress"},
+            }
+        ]
+    }
+
+    result = IssueHelpers(cast(JiraAPI, api)).transition(
+        "PROJ-123",
+        "start progress",
+    )
+
+    api.issues.get_transitions.assert_called_once_with(issue_id="PROJ-123")
+    api.issues.transition_issue.assert_called_once_with(
+        issue_id="PROJ-123",
+        transition_id="11",
+    )
+    assert result.data == {
+        "issue_key": "PROJ-123",
+        "transition_id": "11",
+        "transition_name": "Start Progress",
+        "to_status": "In Progress",
+        "status": "transitioned",
+    }
+    assert 'Applied transition "Start Progress" (id: 11) to PROJ-123' in result.text
+    assert "Target Status: In Progress" in result.text
+
+
+def test_transition_rejects_unknown_transition_with_available_options() -> None:
+    api = _make_api()
+    api.issues.get_transitions.return_value = {
+        "transitions": [
+            {"id": "11", "name": "Start Progress"},
+            {"id": "21", "name": "Close Issue"},
+        ]
+    }
+
+    with pytest.raises(
+        JiraHelperValidationError,
+        match='Transition "Done" is not available for PROJ-123',
+    ) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).transition("PROJ-123", "Done")
+
+    assert "Start Progress (id: 11), Close Issue (id: 21)" in str(exc_info.value)
+    api.issues.transition_issue.assert_not_called()
+
+
 def test_validate_methods_reject_invalid_issue_input() -> None:
     helper = IssueHelpers(cast(JiraAPI, _make_api()))
 

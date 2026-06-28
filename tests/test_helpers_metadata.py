@@ -14,6 +14,7 @@ from jira2py.helpers.metadata import MetadataHelpers
 def _make_api() -> SimpleNamespace:
     return SimpleNamespace(
         issues=Mock(),
+        metadata=Mock(),
         projects=Mock(),
         users=Mock(),
     )
@@ -91,6 +92,66 @@ def test_edit_fields_formats_edit_metadata() -> None:
     assert 'summary "Summary" — string' in result.text
 
 
+def test_transitions_formats_ids_names_and_required_fields() -> None:
+    api = _make_api()
+    api.issues.get_transitions.return_value = {
+        "transitions": [
+            {
+                "id": "11",
+                "name": "Start Progress",
+                "to": {"name": "In Progress"},
+            },
+            {
+                "id": "21",
+                "name": "Resolve Issue",
+                "to": {"name": "Done"},
+                "fields": {
+                    "resolution": {"required": True},
+                    "comment": {"required": False},
+                },
+            },
+        ]
+    }
+
+    result = MetadataHelpers(cast(JiraAPI, api)).transitions("PROJ-1")
+
+    api.issues.get_transitions.assert_called_once_with(
+        issue_id="PROJ-1",
+        expand="transitions.fields",
+    )
+    assert result.data == api.issues.get_transitions.return_value
+    assert "Available transitions for PROJ-1:" in result.text
+    assert "Start Progress (id: 11) → In Progress" in result.text
+    assert "Resolve Issue (id: 21) → Done [required fields: resolution]" in result.text
+
+
+def test_project_formats_single_project_details() -> None:
+    api = _make_api()
+    api.projects.get_project.return_value = {
+        "id": "10000",
+        "key": "PROJ",
+        "name": "Project One",
+        "projectTypeKey": "software",
+        "style": "classic",
+        "lead": {"displayName": "Alice", "accountId": "a1", "active": True},
+        "description": "First project",
+    }
+
+    result = MetadataHelpers(cast(JiraAPI, api)).project("PROJ")
+
+    api.projects.get_project.assert_called_once_with(project_id_or_key="PROJ")
+    assert result.data == api.projects.get_project.return_value
+    assert result.text == (
+        "Project PROJ — Project One\n"
+        "ID: 10000\n"
+        "Type: software\n"
+        "Style: classic\n"
+        "Lead: Alice (a1)\n"
+        "Description:\n"
+        "First project"
+    )
+
+
 def test_projects_formats_results_and_more_hint() -> None:
     api = _make_api()
     api.projects.search_projects.return_value = {
@@ -110,6 +171,60 @@ def test_projects_formats_results_and_more_hint() -> None:
         'Projects matching "proj":\n\n'
         "  PROJ — Project One\n\n"
         "  ... and 1 more (refine your search)"
+    )
+
+
+def test_statuses_formats_structured_status_list() -> None:
+    api = _make_api()
+    api.metadata.get_statuses.return_value = [
+        {
+            "id": "1",
+            "name": "To Do",
+            "description": "Initial status",
+            "statusCategory": {"id": 2, "key": "new", "name": "To Do"},
+        },
+        {
+            "id": "3",
+            "name": "Done",
+            "statusCategory": {"id": 3, "key": "done", "name": "Done"},
+        },
+    ]
+
+    result = MetadataHelpers(cast(JiraAPI, api)).statuses()
+
+    api.metadata.get_statuses.assert_called_once_with()
+    assert result.data == api.metadata.get_statuses.return_value
+    assert result.text == (
+        "Jira statuses: 2 total\n\n"
+        "- To Do (id: 1) [category: To Do] — Initial status\n"
+        "- Done (id: 3) [category: Done]"
+    )
+
+
+def test_priorities_formats_structured_priority_list() -> None:
+    api = _make_api()
+    api.metadata.get_priorities.return_value = [
+        {
+            "id": "1",
+            "name": "Highest",
+            "description": "Top urgency",
+            "isDefault": False,
+        },
+        {
+            "id": "5",
+            "name": "Medium",
+            "isDefault": True,
+        },
+    ]
+
+    result = MetadataHelpers(cast(JiraAPI, api)).priorities()
+
+    api.metadata.get_priorities.assert_called_once_with()
+    assert result.data == api.metadata.get_priorities.return_value
+    assert result.text == (
+        "Jira priorities: 2 total\n\n"
+        "- Highest (id: 1) — Top urgency\n"
+        "- Medium (id: 5) [default]"
     )
 
 

@@ -7,7 +7,7 @@ from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
 class Users(ApiBase):
-    """Users API — search Jira users."""
+    """Users API — search Jira users and inspect the current user."""
 
     def search_users(
         self,
@@ -38,6 +38,29 @@ class Users(ApiBase):
                     "startAt": start_at,
                     "maxResults": max_results,
                 },
+                extra_params=extra_params,
+            )
+        )
+
+    def get_current_user(
+        self,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Get the currently authenticated Jira user.
+
+        Jira Cloud endpoint:
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-myself/#api-rest-api-3-myself-get
+
+        Args:
+            extra_params: Additional query parameters.
+
+        Returns:
+            The authenticated user object.
+        """
+        return self._as_dict(
+            self._client._request_jira(
+                method="GET",
+                context_path="myself",
                 extra_params=extra_params,
             )
         )

@@ -1,11 +1,13 @@
 """Tests for JIRA client layer."""
 
 import dataclasses
+import json
 from unittest.mock import patch
 
 import httpx
 import pytest
 
+from jira2py import JiraAPI
 from jira2py.client import JiraClientSync, JiraCredentials
 from jira2py.exceptions import (
     JiraAPIError,
@@ -74,6 +76,116 @@ class TestJiraCredentials:
         )
         assert credentials.url == "https://test.com"
         assert not credentials.url.endswith("/")
+
+    def test_credentials_file_is_used_when_provided(self, tmp_path):
+        """Test that a credentials file supplies credentials when requested."""
+        credentials_path = tmp_path / "jira-credentials.json"
+        credentials_path.write_text(
+            json.dumps(
+                {
+                    "url": "https://file.atlassian.net/",
+                    "username": "file@example.com",
+                    "api_token": "file-token",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        credentials = JiraCredentials.create(credentials_file=credentials_path)
+
+        assert credentials.url == "https://file.atlassian.net"
+        assert credentials.username == "file@example.com"
+        assert credentials.api_token == "file-token"
+
+    def test_credentials_file_requires_valid_json_object(self, tmp_path):
+        """Test that malformed credentials files raise ValueError."""
+        missing_path = tmp_path / "missing-credentials.json"
+        with pytest.raises(ValueError, match="Failed to read JIRA credentials file"):
+            JiraCredentials.create(credentials_file=missing_path)
+
+        not_json_path = tmp_path / "jira-credentials.json"
+        not_json_path.write_text("not json", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="not valid JSON"):
+            JiraCredentials.create(credentials_file=not_json_path)
+
+        wrong_shape_path = tmp_path / "jira-credentials-list.json"
+        wrong_shape_path.write_text('["bad"]', encoding="utf-8")
+
+        with pytest.raises(ValueError, match="must contain a JSON object"):
+            JiraCredentials.create(credentials_file=wrong_shape_path)
+
+    def test_credentials_file_requires_all_fields(self, tmp_path):
+        """Test that credentials files must contain all required fields."""
+        credentials_path = tmp_path / "jira-credentials.json"
+        credentials_path.write_text(
+            json.dumps(
+                {
+                    "url": "https://file.atlassian.net",
+                    "username": "file@example.com",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="non-empty string fields"):
+            JiraCredentials.create(credentials_file=credentials_path)
+
+    def test_credentials_precedence_is_explicit_then_file_then_env(
+        self, monkeypatch, tmp_path
+    ):
+        """Test explicit args override file values, which override environment vars."""
+        monkeypatch.setenv("JIRA_URL", "https://env.atlassian.net")
+        monkeypatch.setenv("JIRA_USER", "env@example.com")
+        monkeypatch.setenv("JIRA_API_TOKEN", "env-token")
+
+        credentials_path = tmp_path / "jira-credentials.json"
+        credentials_path.write_text(
+            json.dumps(
+                {
+                    "url": "https://file.atlassian.net",
+                    "username": "file@example.com",
+                    "api_token": "file-token",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        credentials = JiraCredentials.create(
+            url="https://explicit.atlassian.net",
+            username="explicit@example.com",
+            api_token="explicit-token",
+            credentials_file=credentials_path,
+        )
+
+        assert credentials.url == "https://explicit.atlassian.net"
+        assert credentials.username == "explicit@example.com"
+        assert credentials.api_token == "explicit-token"
+
+        file_backed = JiraCredentials.create(credentials_file=credentials_path)
+        assert file_backed.url == "https://file.atlassian.net"
+        assert file_backed.username == "file@example.com"
+        assert file_backed.api_token == "file-token"
+
+    def test_jira_api_accepts_credentials_file(self, tmp_path):
+        """Test JiraAPI forwards credentials_file to JiraCredentials.create."""
+        credentials_path = tmp_path / "jira-credentials.json"
+        credentials_path.write_text(
+            json.dumps(
+                {
+                    "url": "https://file.atlassian.net",
+                    "username": "file@example.com",
+                    "api_token": "file-token",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        jira = JiraAPI(credentials_file=credentials_path)
+
+        assert jira.credentials.url == "https://file.atlassian.net"
+        assert jira.credentials.username == "file@example.com"
+        assert jira.credentials.api_token == "file-token"
 
     def test_credentials_frozen(self):
         """Test that credentials dataclass is frozen."""

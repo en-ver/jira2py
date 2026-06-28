@@ -11,7 +11,7 @@ from ._adf import convert_markdown_fields, detect_adf_field_ids, markdown_to_adf
 from ._text import DEFAULT_FIELDS, format_issue_full
 from ._validation import require_non_empty_string, validate_field_conflicts
 from .errors import JiraHelperOperationError, JiraHelperValidationError
-from .models import JiraIssue
+from .models import IssueTransition, JiraIssue
 from .results import HelperResult
 
 _CREATE_FIELD_CONFLICTS = frozenset({"project", "issuetype", "summary"})
@@ -145,6 +145,37 @@ class IssueHelpers:
             return HelperResult(text=text, raw_content="null")
         return HelperResult.with_data(text, data)
 
+    def transition(self, issue_key: str, transition: str) -> HelperResult:
+        """Transition an issue using an explicit transition ID or name."""
+        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+        transition = require_non_empty_string(transition, field_name="transition")
+        resolved = self._resolve_transition(issue_key, transition)
+
+        try:
+            self.api.issues.transition_issue(
+                issue_id=issue_key,
+                transition_id=resolved.id,
+            )
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to transition issue {issue_key}: {exc}"
+            ) from exc
+
+        data = {
+            "issue_key": issue_key,
+            "transition_id": resolved.id,
+            "transition_name": resolved.name,
+            "to_status": resolved.to.name if resolved.to else None,
+            "status": "transitioned",
+        }
+        text_lines = [
+            f'Applied transition "{resolved.name}" (id: {resolved.id}) to {issue_key}'
+        ]
+        if resolved.to:
+            text_lines.append(f"Target Status: {resolved.to.name}")
+        text_lines.append(f"URL: {self.api.credentials.url}/browse/{issue_key}")
+        return HelperResult.with_data("\n".join(text_lines), data)
+
     def validate_create(
         self,
         project_key: str,
@@ -178,6 +209,55 @@ class IssueHelpers:
                 "description, or fields."
             )
         validate_field_conflicts(fields, reserved_fields=_EDIT_FIELD_CONFLICTS)
+
+    def _resolve_transition(
+        self,
+        issue_key: str,
+        transition: str,
+    ) -> IssueTransition:
+        try:
+            data = self.api.issues.get_transitions(issue_id=issue_key)
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to fetch transitions for {issue_key}: {exc}"
+            ) from exc
+
+        transitions = [
+            IssueTransition.model_validate(item) for item in data.get("transitions", [])
+        ]
+        if not transitions:
+            raise JiraHelperValidationError(
+                f"No transitions are available for {issue_key}."
+            )
+
+        by_id = [item for item in transitions if item.id == transition]
+        if len(by_id) == 1:
+            return by_id[0]
+
+        by_exact_name = [item for item in transitions if item.name == transition]
+        if len(by_exact_name) == 1:
+            return by_exact_name[0]
+        if len(by_exact_name) > 1:
+            raise JiraHelperValidationError(
+                f'Ambiguous transition name "{transition}" for {issue_key}. '
+                f"Matching IDs: {', '.join(item.id for item in by_exact_name)}"
+            )
+
+        normalized = transition.casefold()
+        by_name = [item for item in transitions if item.name.casefold() == normalized]
+        if len(by_name) == 1:
+            return by_name[0]
+        if len(by_name) > 1:
+            raise JiraHelperValidationError(
+                f'Ambiguous transition name "{transition}" for {issue_key}. '
+                f"Matching IDs: {', '.join(item.id for item in by_name)}"
+            )
+
+        available = ", ".join(f"{item.name} (id: {item.id})" for item in transitions)
+        raise JiraHelperValidationError(
+            f'Transition "{transition}" is not available for {issue_key}. '
+            f"Available transitions: {available}"
+        )
 
     def _prepare_markdown_fields(
         self,

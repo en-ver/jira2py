@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from jira2py.api import JiraAPI
 
+from ._text import format_issue_link_list
 from ._validation import require_non_empty_string
 from .errors import JiraHelperOperationError
+from .models import IssueLink
 from .results import HelperResult
 
 
@@ -14,6 +16,21 @@ class LinkHelpers:
 
     def __init__(self, api: JiraAPI) -> None:
         self.api = api
+
+    def list(self, issue_key: str) -> HelperResult:
+        """List issue links on a Jira issue."""
+        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+
+        try:
+            links_raw = self.api.issue_links.get_issue_links(issue_id=issue_key)
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                f"Failed to fetch issue links for {issue_key}: {exc}"
+            ) from exc
+
+        links = [IssueLink.model_validate(link) for link in links_raw]
+        data = {"issue_key": issue_key, "links": links_raw}
+        return HelperResult.with_data(format_issue_link_list(issue_key, links), data)
 
     def types(self) -> HelperResult:
         """List available Jira issue link types."""
