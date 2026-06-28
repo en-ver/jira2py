@@ -38,15 +38,15 @@ type-check:
 
 # Run pytest test suite
 test:
-	uv run pytest tests/ -v
+	uv run python -m pytest tests/ -v
 
 # Run pytest with coverage report
 test-cov:
-	uv run pytest tests/ --cov=src/jira2py --cov-report=html --cov-report=term
+	uv run python -m pytest tests/ --cov=src/jira2py --cov-report=html --cov-report=term
 
 # Run pytest with verbose output
 test-verbose:
-	uv run pytest tests/ -vv
+	uv run python -m pytest tests/ -vv
 
 # Run all checks
 check: lint format type-check test
@@ -56,7 +56,7 @@ check-ci:
 	uv run --frozen ruff check src tests examples scripts
 	uv run --frozen ruff format --check src tests examples scripts
 	uv run --frozen ty check src/ tests/ examples/ scripts/
-	uv run --frozen pytest tests/ -v
+	uv run --frozen python -m pytest tests/ -v
 
 # Build sdist and wheel
 build: clean
