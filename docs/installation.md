@@ -79,7 +79,7 @@ results = jira.search.enhanced_search(
     fields=["summary", "status", "assignee"],
     max_results=10,
 )
-print(f"\nFound {results['total']} issues in progress:")
+print(f"\nReturned {len(results['issues'])} issues in progress:")
 for item in results["issues"]:
     print(f"  {item['key']}: {item['fields']['summary']}")
 

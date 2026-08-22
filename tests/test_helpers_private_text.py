@@ -410,7 +410,16 @@ def test_format_search_results_includes_paging_hint() -> None:
         PROJ-1 — One [Open] (Alice)
         PROJ-2 — Two [Done] (Unassigned)
 
-        (more results available — refine JQL or increase max_results)
+        (more results available — use next_page_token to fetch the next page)
         """
         ).strip()
+    )
+
+
+def test_format_search_results_includes_paging_hint_for_empty_page() -> None:
+    result = SearchResult.model_validate({"issues": [], "nextPageToken": "tok"})
+
+    assert format_search_results(result, jql="project = PROJ") == (
+        "No issues found for JQL: project = PROJ\n\n"
+        "(more results available — use next_page_token to fetch the next page)"
     )

@@ -35,8 +35,9 @@ class SearchHelpers:
         *,
         max_results: int = 20,
         fields: Sequence[str] | None = None,
+        next_page_token: str | None = None,
     ) -> HelperResult:
-        """Search Jira issues using JQL."""
+        """Search one Jira issue page using JQL and an optional continuation token."""
         jql = require_non_empty_string(jql, field_name="jql")
         limit = min(max_results, 50)
         request_fields = list(fields) if fields is not None else list(_SEARCH_FIELDS)
@@ -46,6 +47,7 @@ class SearchHelpers:
                 jql=jql,
                 max_results=limit,
                 fields=request_fields,
+                next_page_token=next_page_token,
             )
         except Exception as exc:
             raise JiraHelperOperationError(f"Failed to search issues: {exc}") from exc

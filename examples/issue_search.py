@@ -9,7 +9,7 @@ def basic_search() -> None:
     """Basic JQL search."""
     jira = JiraAPI()
     result = jira.search.enhanced_search("project = PROJECT AND status = 'Open'")
-    print(f"Found {result['total']} issues")
+    print(f"Returned {len(result['issues'])} issues")
     for issue in result["issues"]:
         print(f"  {issue['key']}: {issue['fields']['summary']}")
 
@@ -33,7 +33,7 @@ def search_with_extra_params() -> None:
         jql="project = PROJECT",
         extra_data={"expand": ["renderedFields"]},
     )
-    print(f"Found {result['total']} issues")
+    print(f"Returned {len(result['issues'])} issues")
 
 
 if __name__ == "__main__":

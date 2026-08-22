@@ -113,9 +113,32 @@ def test_run_resolves_filter_jql_and_returns_normal_search_shape() -> None:
         jql="project = PROJ ORDER BY updated DESC",
         max_results=10,
         fields=["summary", "status", "assignee"],
+        next_page_token=None,
     )
     assert result.data == api.search.enhanced_search.return_value
     assert result.text == "Found 1 issue(s)\n\nPROJ-1 — One [Open] (Alice)"
+
+
+def test_run_forwards_continuation_token() -> None:
+    api = _make_api()
+    api.filters.get_filter.return_value = {
+        "id": "10100",
+        "jql": "project = PROJ ORDER BY updated DESC",
+    }
+    api.search.enhanced_search.return_value = {"issues": []}
+
+    FiltersHelpers(cast(JiraAPI, api)).run(
+        "10100",
+        fields=["summary"],
+        next_page_token="opaque-current-token",
+    )
+
+    api.search.enhanced_search.assert_called_once_with(
+        jql="project = PROJ ORDER BY updated DESC",
+        max_results=20,
+        fields=["summary"],
+        next_page_token="opaque-current-token",
+    )
 
 
 def test_run_rejects_filters_without_saved_jql() -> None:

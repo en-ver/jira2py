@@ -38,6 +38,22 @@ class TestIssueSearch:
 
         assert result["total"] == 1
 
+    def test_enhanced_search_includes_next_page_token(self, make_client):
+        """A provided continuation token is included unchanged in the request body."""
+        captured: list[bytes] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request.content)
+            return httpx.Response(200, json=SAMPLE_SEARCH)
+
+        api = IssueSearch(make_client(handler))
+        api.enhanced_search("project = TEST", next_page_token="opaque-token")
+
+        import json
+
+        body = json.loads(captured[0])
+        assert body["nextPageToken"] == "opaque-token"
+
     def test_enhanced_search_omits_none_fields(self, make_client):
         """Optional fields absent from the request body when not supplied."""
         captured: list[bytes] = []
