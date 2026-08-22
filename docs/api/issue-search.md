@@ -7,9 +7,9 @@ Accessed via `jira.search`. Search for issues using JQL (Jira Query Language).
 Search for issues using a JQL query. Returns paginated results.
 
 ```python
-# Basic search
+# One page
 results = jira.search.enhanced_search("project = PROJ ORDER BY created DESC")
-print(f"Total results: {results['total']}")
+print(f"Returned {len(results['issues'])} issues")
 
 for issue in results["issues"]:
     print(f"{issue['key']}: {issue['fields']['summary']}")
@@ -25,15 +25,23 @@ results = jira.search.enhanced_search(
 ```
 
 ```python
-# Paginate through all results
-results = jira.search.enhanced_search("project = PROJ", max_results=100)
+# Accumulate pages. Keep the JQL and fields unchanged, and treat each token as opaque.
+jql = "project = PROJ ORDER BY created DESC"
+fields = ["summary", "status", "assignee"]
+issues = []
+next_page_token = None
 
-while results.get("nextPageToken"):
-    results = jira.search.enhanced_search(
-        "project = PROJ",
+while True:
+    page = jira.search.enhanced_search(
+        jql,
+        next_page_token=next_page_token,
         max_results=100,
-        next_page_token=results["nextPageToken"],
+        fields=fields,
     )
+    issues.extend(page["issues"])
+    next_page_token = page.get("nextPageToken")
+    if not next_page_token:
+        break
 ```
 
 | Parameter | Type | Default | Description |
@@ -46,6 +54,6 @@ while results.get("nextPageToken"):
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
 | `extra_data` | `Mapping[str, Any] \| None` | `None` | Additional request body data |
 
-**Returns:** `dict[str, Any]` — search results with `issues`, `total`, and `nextPageToken`.
+**Returns:** `dict[str, Any]` — one raw search-response page. It includes `issues` and may include `total` and `nextPageToken`. To continue, pass `nextPageToken` unchanged with the same JQL and fields. Stop when no token is returned rather than relying on `total`.
 
 :link: [Jira REST API — Search for issues using JQL enhanced search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post)

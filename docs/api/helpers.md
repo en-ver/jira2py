@@ -48,6 +48,47 @@ Most helper methods return `HelperResult`.
 | `raw_content` | `str \| None` | Optional serialized raw output |
 | `has_raw_output` | `bool` | Whether `data` or `raw_content` is present |
 
+## Search continuation
+
+`helpers.search.issues()` and `helpers.filters.run()` each make one enhanced-search request and return one raw Jira search page in `HelperResult.data`. When a page supplies `nextPageToken`, pass that opaque value unchanged to fetch the next page. Stop when no token is returned; do not use `total` as the completion condition.
+
+Keep the same JQL and fields for every `helpers.search.issues()` call:
+
+```python
+jql = "project = PROJ ORDER BY created DESC"
+fields = ["summary", "status", "assignee"]
+issues = []
+page = helpers.search.issues(jql, fields=fields)
+
+while True:
+    issues.extend(page.data["issues"])
+    next_page_token = page.data.get("nextPageToken")
+    if not next_page_token:
+        break
+    page = helpers.search.issues(
+        jql,
+        fields=fields,
+        next_page_token=next_page_token,
+    )
+```
+
+For a saved filter, repeat `helpers.filters.run()` with the same filter ID and fields:
+
+```python
+issues = []
+page = helpers.filters.run("12345", fields=fields)
+while True:
+    issues.extend(page.data["issues"])
+    next_page_token = page.data.get("nextPageToken")
+    if not next_page_token:
+        break
+    page = helpers.filters.run(
+        "12345",
+        fields=fields,
+        next_page_token=next_page_token,
+    )
+```
+
 ## Helper errors
 
 Public helper errors include:
@@ -99,7 +140,7 @@ Common public helper models include:
 
 ### `helpers.search`
 
-- `issues(jql, *, max_results=20, fields=None)`
+- `issues(jql, *, max_results=20, fields=None, next_page_token=None)`
 
 ### `helpers.comments`
 
@@ -148,7 +189,7 @@ Common public helper models include:
 
 - `list(*, start_at=0, max_results=50)`
 - `search(query, *, start_at=0, max_results=50)`
-- `run(filter_id, *, max_results=20, fields=None)`
+- `run(filter_id, *, max_results=20, fields=None, next_page_token=None)`
 
 `helpers.filters.run()` resolves the saved filter's JQL and delegates to the normal search pathway, so its structured output matches `helpers.search.issues()`.
 

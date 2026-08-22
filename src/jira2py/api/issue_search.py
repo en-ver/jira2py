@@ -19,7 +19,11 @@ class IssueSearch(ApiBase):
         extra_params: Mapping[str, Any] | None = None,
         extra_data: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Search for issues using JQL.
+        """Search one page of issues using JQL.
+
+        To continue, pass the response ``nextPageToken`` unchanged with the same JQL
+        and fields. Stop when the response does not provide a token; do not rely on
+        ``total`` being present.
 
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-jql-post
 
@@ -36,7 +40,8 @@ class IssueSearch(ApiBase):
             extra_data: Additional request body data. Takes priority over named data parameters.
 
         Returns:
-            Search results with issues, total, and nextPageToken.
+            One raw search-response page, which may include issues, total, and
+            nextPageToken.
         """
         body: dict[str, Any] = {
             "jql": jql,

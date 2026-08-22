@@ -61,8 +61,9 @@ class FiltersHelpers:
         *,
         max_results: int = 20,
         fields: Sequence[str] | None = None,
+        next_page_token: str | None = None,
     ) -> HelperResult:
-        """Resolve a saved filter's JQL and run the normal issue search flow."""
+        """Resolve a saved filter's JQL and search one page of matching issues."""
         filter_id = require_non_empty_string(filter_id, field_name="filter_id")
 
         try:
@@ -78,7 +79,12 @@ class FiltersHelpers:
                 f"Filter {filter_id} does not contain a saved JQL query."
             )
 
-        return self._search.issues(jql.strip(), max_results=max_results, fields=fields)
+        return self._search.issues(
+            jql.strip(),
+            max_results=max_results,
+            fields=fields,
+            next_page_token=next_page_token,
+        )
 
     def _search_filters(
         self,

@@ -45,11 +45,34 @@ def test_search_issues_clamps_limit_and_formats_results() -> None:
             "created",
             "updated",
         ],
+        next_page_token=None,
     )
     assert result.data == api.search.enhanced_search.return_value
     assert "Found 1 issue(s)" in result.text
     assert "PROJ-1 — One [Open] (Alice)" in result.text
     assert "more results available" in result.text
+
+
+def test_search_issues_forwards_continuation_token_and_preserves_response() -> None:
+    api = _make_api()
+    api.search.enhanced_search.return_value = {
+        "issues": [],
+        "nextPageToken": "opaque-next-token",
+    }
+
+    result = SearchHelpers(cast(JiraAPI, api)).issues(
+        "project = PROJ",
+        fields=["summary"],
+        next_page_token="opaque-current-token",
+    )
+
+    api.search.enhanced_search.assert_called_once_with(
+        jql="project = PROJ",
+        max_results=20,
+        fields=["summary"],
+        next_page_token="opaque-current-token",
+    )
+    assert result.data == api.search.enhanced_search.return_value
 
 
 def test_search_issues_validates_and_wraps_failures() -> None:

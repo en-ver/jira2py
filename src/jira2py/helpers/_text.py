@@ -228,19 +228,22 @@ def format_issue_link_list(issue_key: str, links: list[IssueLink]) -> str:
 def format_search_results(result: SearchResult, jql: str = "") -> str:
     """Format search results as a compact list."""
     if not result.issues:
-        return f"No issues found for JQL: {jql}" if jql else "No issues found."
+        output = f"No issues found for JQL: {jql}" if jql else "No issues found."
+    else:
+        lines = []
+        for issue in result.issues:
+            fields = issue.fields
+            status = _named(fields.status)
+            lines.append(
+                f"{issue.key} — {fields.summary} [{status}] ({user_display(fields.assignee)})"
+            )
 
-    lines = []
-    for issue in result.issues:
-        fields = issue.fields
-        status = _named(fields.status)
-        lines.append(
-            f"{issue.key} — {fields.summary} [{status}] ({user_display(fields.assignee)})"
-        )
+        output = f"Found {len(result.issues)} issue(s)\n\n" + "\n".join(lines)
 
-    output = f"Found {len(result.issues)} issue(s)\n\n" + "\n".join(lines)
     if result.nextPageToken:
-        output += "\n\n(more results available — refine JQL or increase max_results)"
+        output += (
+            "\n\n(more results available — use next_page_token to fetch the next page)"
+        )
     return output
 
 
