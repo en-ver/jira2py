@@ -2,7 +2,36 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `Issues.get_issue()` now accepts `Sequence[str] | None` for `fields`. A supplied sequence is validated and serialized only at the Get Issue endpoint; comma-delimited scalar strings are no longer accepted.
+- Removed `IssueHelpers.read()` and its fixed retrieval profile. Retrieve issues directly with `JiraAPI`, which now remains the sole full-issue retrieval authority.
+- `fields=None` omits the parameter for Jira's default behavior unless raw `extra_params["fields"]` overrides it. Selectors are forwarded exactly, without implicit fields or `expand`; wildcard and negative selectors may be broad.
+
+```python
+# Before (removed)
+from jira2py.helpers import JiraHelpers
+
+helpers = JiraHelpers(api)
+api.issues.get_issue("PROJ-123", fields="summary,status")
+helpers.issues.read("PROJ-123", extra_fields=["customfield_10001"])
+
+# After
+from jira2py.helpers import format_issue
+
+issue = api.issues.get_issue(
+    "PROJ-123",
+    fields=["summary", "status", "customfield_10001"],
+)
+text = format_issue(
+    issue,
+    browse_url=f"{api.credentials.url}/browse/{issue['key']}",
+)
+```
+
 ### Added
+
+- Added public pure `jira2py.helpers.format_issue(data, *, browse_url=None)` for optional presence-aware issue text presentation without I/O, mutation, or retrieval policy.
 
 - Added `jira2py.helpers.JiraHelpers`, a grouped high-level workflow facade around the unchanged low-level `JiraAPI`.
 - Added grouped helper entry points for `issues`, `search`, `comments`, `worklogs`, `attachments`, `metadata`, and `links`.

@@ -5,17 +5,24 @@ Accessed via `jira.issues`. Create, read, edit, and transition Jira Cloud issues
 ## `get_issue`
 
 ```python
-issue = jira.issues.get_issue("PROJ-123")
-issue = jira.issues.get_issue("PROJ-123", fields="summary,status,assignee")
+issue = jira.issues.get_issue("PROJ-123", fields=["summary", "status", "assignee"])
+issue = jira.issues.get_issue("PROJ-123", fields=["*navigable", "-description"])
 issue = jira.issues.get_issue("PROJ-123", expand="renderedFields,changelog")
 ```
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `issue_id` | `str` | required | Issue ID or key |
-| `fields` | `str \| None` | `None` | Comma-separated field names |
+| `fields` | `Sequence[str] \| None` | `None` | Exact Jira field selectors, one selector per item |
 | `expand` | `str \| None` | `None` | Comma-separated properties to expand |
-| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
+| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional raw query parameters that take priority over named parameters |
+
+A supplied `fields` sequence must be non-empty. Each item must be a non-blank, unpadded string with no comma; scalar strings and bytes are rejected. jira2py serializes the sequence for this endpoint immediately before the request, preserving selector order and duplicates without adding fields or an `expand` value.
+
+`fields=None` omits the query parameter so Jira chooses its default. As with every low-level API method, `extra_params` has precedence: `extra_params["fields"]` is a raw override and is not interpreted or validated as the named sequence.
+
+!!! warning "Selectors can be broad"
+    `"*all"`, `"*navigable"`, and negative selectors such as `"-description"` are forwarded exactly as supplied. They can still produce broad responses, including when a negative selector is used alone. Choose selectors deliberately and let Jira validate which ones it supports.
 
 **Returns:** `dict[str, Any]`
 

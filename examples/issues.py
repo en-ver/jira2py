@@ -6,14 +6,17 @@ from jira2py import JiraAPI
 
 
 def get_issue() -> None:
-    """Get an issue with default fields."""
+    """Get an issue with an explicit field projection."""
     jira = JiraAPI()
-    issue = jira.issues.get_issue("PROJECT-123")
+    issue = jira.issues.get_issue(
+        "PROJECT-123",
+        fields=["summary", "status"],
+    )
     print(f"Issue: {issue['key']} - {issue['fields']['summary']}")
 
 
 def get_issue_with_extra_params() -> None:
-    """Get an issue with extra query parameters."""
+    """Use raw extra query parameters, which override named parameters."""
     jira = JiraAPI()
     issue = jira.issues.get_issue(
         "PROJECT-123",

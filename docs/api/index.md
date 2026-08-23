@@ -25,7 +25,7 @@ helpers.links
 helpers.filters
 ```
 
-Helper methods return `HelperResult` objects with human-readable `text` plus optional structured `data` and `raw_content`.
+Helper methods return `HelperResult` objects with human-readable `text` plus optional structured `data` and `raw_content`. Full issue reads are not a helper workflow: call `jira.issues.get_issue()` directly, then optionally use public `jira2py.helpers.format_issue()` to render the returned mapping without changing it.
 
 ## Low-level facade
 

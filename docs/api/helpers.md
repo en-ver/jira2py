@@ -15,7 +15,7 @@ helpers = JiraHelpers(api)
 | Property | Helper class | Common methods |
 | --- | --- | --- |
 | `helpers.auth` | `AuthHelpers` | `status()`, `me()` |
-| `helpers.issues` | `IssueHelpers` | `read()`, `create()`, `edit()`, `transition()`, `validate_create()`, `validate_edit()` |
+| `helpers.issues` | `IssueHelpers` | `create()`, `edit()`, `transition()`, `validate_create()`, `validate_edit()` |
 | `helpers.search` | `SearchHelpers` | `issues()` |
 | `helpers.comments` | `CommentHelpers` | `list()`, `add()`, `update()`, `delete()` |
 | `helpers.worklogs` | `WorklogHelpers` | `list()`, `add()`, `update()`, `delete()`, `report()` |
@@ -36,6 +36,25 @@ helpers.metadata.statuses()
 helpers.links.list("PROJ-123")
 helpers.filters.run("12345")
 ```
+
+## Structured issue reads and presentation
+
+`IssueHelpers` does not retrieve full issues. Use the low-level endpoint as the sole retrieval authority, then optionally pass the returned mapping to public `format_issue`:
+
+```python
+from jira2py.helpers import format_issue
+
+issue = api.issues.get_issue(
+    "PROJ-123",
+    fields=["summary", "status", "description"],
+)
+text = format_issue(
+    issue,
+    browse_url=f"{api.credentials.url}/browse/{issue['key']}",
+)
+```
+
+`format_issue(data, *, browse_url=None)` is pure: it performs no I/O, does not change `data`, and does not choose or retrieve fields. It renders a known field only when that raw key exists in `data["fields"]`; a present empty value is shown truthfully, while an absent field is omitted. Existing `data["names"]` labels custom fields when supplied, but the formatter never requests names. ADF values are converted only for this text presentation.
 
 ## `HelperResult`
 
@@ -131,7 +150,6 @@ Common public helper models include:
 
 ### `helpers.issues`
 
-- `read(issue_key, *, extra_fields=None)`
 - `create(project_key, issue_type, summary, *, description=None, fields=None)`
 - `edit(issue_key, *, summary=None, description=None, fields=None, raw=False)`
 - `transition(issue_key, transition)`
@@ -200,7 +218,7 @@ The following are intentionally **not** public helper API:
 - `jira2py.helpers._adf`
 - `jira2py.helpers._text`
 - other private `_*.py` modules
-- internal formatting and conversion behavior
+- internal formatting and conversion behavior, except public `format_issue`
 
 ## See also
 

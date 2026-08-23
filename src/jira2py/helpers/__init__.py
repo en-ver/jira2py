@@ -1,5 +1,6 @@
 """High-level grouped helper API for jira2py."""
 
+from ._text import format_issue
 from .attachments import AttachmentHelpers
 from .auth import AuthHelpers
 from .comments import CommentHelpers
@@ -56,6 +57,7 @@ __all__ = [
     "FieldMeta",
     "FieldSchema",
     "FilterSearchResult",
+    "format_issue",
     "HelperResult",
     "IssueHelpers",
     "IssueTransition",

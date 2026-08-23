@@ -25,7 +25,6 @@ def adf_to_markdown(adf: Any) -> str:
         markdown = document.to_markdown()
         return markdown.strip() if markdown else "(none)"
     except Exception:
-        logger.exception("ADF to Markdown conversion failed, using plain text fallback")
         return _extract_text_fallback(adf)
 
 

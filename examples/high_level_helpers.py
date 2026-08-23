@@ -3,7 +3,7 @@
 import os
 
 from jira2py import JiraAPI
-from jira2py.helpers import JiraHelpers
+from jira2py.helpers import JiraHelpers, format_issue
 
 
 def build_helpers() -> JiraHelpers:
@@ -11,11 +11,16 @@ def build_helpers() -> JiraHelpers:
     return JiraHelpers(JiraAPI())
 
 
-def read_issue(issue_key: str) -> None:
-    """Read an issue with formatted helper output."""
-    helpers = build_helpers()
-    result = helpers.issues.read(issue_key)
-    print(result.text)
+def read_and_format_issue(issue_key: str) -> None:
+    """Retrieve a selected issue projection and format it without another read."""
+    api = JiraAPI()
+    issue = api.issues.get_issue(
+        issue_key,
+        fields=["summary", "status", "description"],
+    )
+    print(
+        format_issue(issue, browse_url=f"{api.credentials.url}/browse/{issue['key']}")
+    )
 
 
 def search_issues(jql: str) -> None:
@@ -78,7 +83,7 @@ if __name__ == "__main__":
     assert os.environ.get("JIRA_URL"), "Set JIRA_URL environment variable"
 
     issue_key = "PROJECT-123"
-    read_issue(issue_key)
+    read_and_format_issue(issue_key)
     search_issues("project = PROJECT ORDER BY updated DESC")
     list_comments(issue_key)
     report_worklogs("project = PROJECT", "2026-01-01", "2026-01-31")

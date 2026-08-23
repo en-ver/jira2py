@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ._adf import adf_to_markdown, is_adf_value
@@ -15,7 +16,6 @@ from .models import (
     IssueType,
     JiraComment,
     JiraFilter,
-    JiraIssue,
     JiraPriority,
     JiraProject,
     JiraStatus,
@@ -27,145 +27,244 @@ from .models import (
     user_display,
 )
 
-DEFAULT_FIELDS = [
-    "summary",
-    "status",
-    "issuetype",
-    "priority",
-    "assignee",
-    "reporter",
-    "created",
-    "updated",
-    "labels",
-    "components",
-    "fixVersions",
-    "description",
-    "comment",
-    "attachment",
-    "subtasks",
-    "issuelinks",
-]
-
-_FORMATTED_FIELDS = set(DEFAULT_FIELDS)
+_KNOWN_ISSUE_FIELDS = frozenset(
+    {
+        "summary",
+        "status",
+        "issuetype",
+        "priority",
+        "assignee",
+        "reporter",
+        "created",
+        "updated",
+        "labels",
+        "components",
+        "fixVersions",
+        "description",
+        "comment",
+        "attachment",
+        "subtasks",
+        "issuelinks",
+    }
+)
 
 
 def _section(title: str) -> str:
     return f"--- [{title.upper()}] ---"
 
 
-def _field_label(field_id: str, names_map: dict[str, str]) -> str:
+def _field_label(field_id: str, names_map: Mapping[Any, Any]) -> str:
     display = names_map.get(field_id)
-    if display and display != field_id:
+    if isinstance(display, str) and display and display != field_id:
         return f"{display} ({field_id})"
     return field_id
 
 
-def format_issue_full(
-    issue: JiraIssue,
-    *,
-    url: str = "",
-    requested_fields: list[str] | None = None,
-    field_names: dict[str, str] | None = None,
-) -> str:
-    """Format a Jira issue for readable helper output."""
-    fields = issue.fields
-    lines: list[str] = [
-        f"Key: {issue.key}",
-        f"Summary: {fields.summary}",
-        f"Status: {_named(fields.status)}",
-        f"Type: {_named(fields.issuetype)}",
-        f"Priority: {_named(fields.priority)}",
-        f"Assignee: {user_display(fields.assignee)}",
-        f"Reporter: {user_display(fields.reporter)}",
-        f"Created: {format_date(fields.created)}",
-        f"Updated: {format_date(fields.updated)}",
-    ]
+def format_issue(data: Mapping[str, Any], *, browse_url: str | None = None) -> str:
+    """Format an already-retrieved Jira issue without changing its raw data.
 
-    if fields.labels:
-        lines.append(f"Labels: {', '.join(fields.labels)}")
+    Only raw field keys present in ``data["fields"]`` are rendered. Arbitrary ADF
+    values are converted here for presentation; the supplied response is otherwise
+    left untouched.
+    """
+    if not isinstance(data, Mapping):
+        raise TypeError("data must be a mapping")
 
-    if fields.components:
-        lines.append(
-            f"Components: {', '.join(component.name for component in fields.components)}"
-        )
+    key = data.get("key")
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError("data must contain a non-empty issue key")
 
-    if fields.fixVersions:
-        lines.append(
-            f"Fix Versions: {', '.join(version.name for version in fields.fixVersions)}"
-        )
+    fields = data.get("fields")
+    if not isinstance(fields, Mapping):
+        raise ValueError("data must contain a mapping-valued fields entry")
 
-    if url:
-        lines.append(f"URL: {url}")
+    names = data.get("names")
+    names_map: Mapping[Any, Any] = names if isinstance(names, Mapping) else {}
+    lines = [f"Key: {key}"]
 
-    comment_page = fields.comment
-    comment_total = comment_page.total if comment_page else 0
-    lines.append(f"Comments: {comment_total}" if comment_total else "Comments: none")
+    if "summary" in fields:
+        lines.append(f"Summary: {_raw_text(fields['summary'])}")
+    if "status" in fields:
+        lines.append(f"Status: {_raw_named(fields['status'])}")
+    if "issuetype" in fields:
+        lines.append(f"Type: {_raw_named(fields['issuetype'])}")
+    if "priority" in fields:
+        lines.append(f"Priority: {_raw_named(fields['priority'])}")
+    if "assignee" in fields:
+        lines.append(f"Assignee: {_raw_user(fields['assignee'])}")
+    if "reporter" in fields:
+        lines.append(f"Reporter: {_raw_user(fields['reporter'])}")
+    if "created" in fields:
+        lines.append(f"Created: {_raw_date(fields['created'])}")
+    if "updated" in fields:
+        lines.append(f"Updated: {_raw_date(fields['updated'])}")
+    if "labels" in fields:
+        lines.append(f"Labels: {_raw_text_collection(fields['labels'])}")
+    if "components" in fields:
+        lines.append(f"Components: {_raw_named_collection(fields['components'])}")
+    if "fixVersions" in fields:
+        lines.append(f"Fix Versions: {_raw_named_collection(fields['fixVersions'])}")
 
-    if fields.attachment:
+    if browse_url is not None:
+        lines.append(f"URL: {browse_url}")
+
+    if "comment" in fields:
+        lines.append(f"Comments: {_raw_comment_total(fields['comment'])}")
+
+    if "attachment" in fields:
+        attachments = _raw_sequence(fields["attachment"])
+        if not attachments:
+            lines.append("Attachments: none")
+        else:
+            lines.append("")
+            lines.append(_section(f"Attachments ({len(attachments)})"))
+            lines.extend(_format_raw_attachment(item) for item in attachments)
+
+    if "subtasks" in fields:
+        subtasks = _raw_sequence(fields["subtasks"])
+        if not subtasks:
+            lines.append("Subtasks: none")
+        else:
+            lines.append("")
+            lines.append(_section(f"Subtasks ({len(subtasks)})"))
+            lines.extend(_format_raw_subtask(item) for item in subtasks)
+
+    if "issuelinks" in fields:
+        links = _raw_sequence(fields["issuelinks"])
+        if not links:
+            lines.append("Issue Links: none")
+        else:
+            lines.append("")
+            lines.append(_section(f"Issue Links ({len(links)})"))
+            lines.extend(_format_raw_issue_link_line(item) for item in links)
+
+    if "description" in fields:
         lines.append("")
-        lines.append(_section(f"Attachments ({len(fields.attachment)})"))
-        for attachment in fields.attachment:
-            lines.append(
-                f"- {attachment.filename or '?'} (id: {attachment.id}, {attachment.mimeType}, {format_size(attachment.size)})"
-            )
+        lines.append(_section("Description"))
+        lines.append(adf_to_markdown(fields["description"]))
 
-    if fields.subtasks:
+    adf_fields: list[tuple[str, Any]] = []
+    plain_fields: dict[str, Any] = {}
+    for raw_field_id, value in fields.items():
+        field_id = str(raw_field_id)
+        if field_id in _KNOWN_ISSUE_FIELDS:
+            continue
+        if is_adf_value(value):
+            adf_fields.append((field_id, value))
+        else:
+            plain_fields[_field_label(field_id, names_map)] = value
+
+    if adf_fields or plain_fields:
         lines.append("")
-        lines.append(_section(f"Subtasks ({len(fields.subtasks)})"))
-        for subtask in fields.subtasks:
-            status = _named(subtask.fields.status)
-            lines.append(f"- {subtask.key}: {subtask.fields.summary} [{status}]")
+        lines.append(_section("Additional Fields"))
+        for field_id, value in adf_fields:
+            lines.append(_section(_field_label(field_id, names_map)))
+            lines.append(adf_to_markdown(value))
+            lines.append("")
+        if plain_fields:
+            lines.append("```json")
+            lines.append(json.dumps(plain_fields, indent=2, default=str))
+            lines.append("```")
 
-    if fields.issuelinks:
-        lines.append("")
-        lines.append(_section(f"Issue Links ({len(fields.issuelinks)})"))
-        for link in fields.issuelinks:
-            lines.append(_format_issue_link_line(link))
+    return "\n".join(lines).rstrip()
 
-    lines.append("")
-    lines.append(_section("Description"))
-    lines.append(adf_to_markdown(fields.description))
 
-    if requested_fields:
-        extra_names = [
-            name for name in requested_fields if name not in _FORMATTED_FIELDS
-        ]
-        if extra_names:
-            extra_data: dict[str, Any] = {}
-            raw_fields = issue.fields.model_extra or {}
-            for name in extra_names:
-                if name in raw_fields:
-                    extra_data[name] = raw_fields[name]
-                elif hasattr(issue.fields, name):
-                    value = getattr(issue.fields, name)
-                    if value is not None:
-                        extra_data[name] = value
-            if extra_data:
-                names_map = field_names or {}
-                lines.append("")
-                lines.append(_section("Additional Fields"))
-                adf_extra: dict[str, Any] = {}
-                plain_fields: dict[str, Any] = {}
-                for key, value in extra_data.items():
-                    if is_adf_value(value):
-                        adf_extra[key] = value
-                    else:
-                        plain_fields[key] = value
-                for key, value in adf_extra.items():
-                    label = _field_label(key, names_map)
-                    lines.append(_section(label))
-                    lines.append(adf_to_markdown(value))
-                    lines.append("")
-                if plain_fields:
-                    labeled = {
-                        _field_label(key, names_map): value
-                        for key, value in plain_fields.items()
-                    }
-                    lines.append("```json")
-                    lines.append(json.dumps(labeled, indent=2, default=str))
-                    lines.append("```")
+def _raw_text(value: Any, fallback: str = "—") -> str:
+    if value is None:
+        return fallback
+    if isinstance(value, str):
+        return value or fallback
+    return str(value)
 
-    return "\n".join(lines)
+
+def _raw_mapping(value: Any) -> Mapping[Any, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _raw_named(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return "—"
+    return _raw_text(value.get("name"))
+
+
+def _raw_user(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return "Unassigned"
+    return _raw_text(value.get("displayName"), fallback="Unassigned")
+
+
+def _raw_date(value: Any) -> str:
+    return format_date(value if isinstance(value, str) else None)
+
+
+def _raw_sequence(value: Any) -> Sequence[Any]:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return value
+    return ()
+
+
+def _raw_text_collection(value: Any) -> str:
+    values = _raw_sequence(value)
+    if not values:
+        return "none"
+    return ", ".join(_raw_text(item) for item in values)
+
+
+def _raw_named_collection(value: Any) -> str:
+    values = _raw_sequence(value)
+    if not values:
+        return "none"
+    return ", ".join(_raw_named(item) for item in values)
+
+
+def _raw_comment_total(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return "none"
+    total = value.get("total")
+    return _raw_text(total, fallback="none") if total else "none"
+
+
+def _format_raw_attachment(attachment: Any) -> str:
+    data = _raw_mapping(attachment)
+    size = data.get("size")
+    return (
+        f"- {_raw_text(data.get('filename'), fallback='?')} "
+        f"(id: {_raw_text(data.get('id'), fallback='?')}, "
+        f"{_raw_text(data.get('mimeType'), fallback='?')}, "
+        f"{format_size(size if isinstance(size, (int, float)) else -1)})"
+    )
+
+
+def _format_raw_subtask(subtask: Any) -> str:
+    data = _raw_mapping(subtask)
+    fields = _raw_mapping(data.get("fields"))
+    return (
+        f"- {_raw_text(data.get('key'), fallback='?')}: "
+        f"{_raw_text(fields.get('summary'))} [{_raw_named(fields.get('status'))}]"
+    )
+
+
+def _format_raw_issue_link_line(link: Any) -> str:
+    data = _raw_mapping(link)
+    link_id = _raw_text(data.get("id"), fallback="?")
+    outward = data.get("outwardIssue")
+    inward = data.get("inwardIssue")
+    link_type = _raw_mapping(data.get("type"))
+    if isinstance(outward, Mapping):
+        target = outward
+        direction = _raw_text(link_type.get("outward"), fallback="?")
+    elif isinstance(inward, Mapping):
+        target = inward
+        direction = _raw_text(link_type.get("inward"), fallback="?")
+    else:
+        return f"- unresolved link (id: {link_id})"
+
+    target_fields = _raw_mapping(target.get("fields"))
+    return (
+        f"- {direction} {_raw_text(target.get('key'), fallback='?')}: "
+        f"{_raw_text(target_fields.get('summary'))} "
+        f"[{_raw_named(target_fields.get('status'))}] (link id: {link_id})"
+    )
 
 
 def format_comment(comment: JiraComment) -> str:

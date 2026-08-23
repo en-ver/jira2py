@@ -6,13 +6,37 @@ from typing import Any
 from .api_base import _DEFAULT_PAGE_SIZE, ApiBase
 
 
+def _serialize_issue_fields(fields: Sequence[str] | None) -> str | None:
+    """Validate and serialize Get Issue field selectors at the endpoint boundary."""
+    if fields is None:
+        return None
+    if isinstance(fields, (str, bytes)):
+        raise TypeError("fields must be a sequence of strings, not a scalar string")
+    if not isinstance(fields, Sequence):
+        raise TypeError("fields must be a sequence of strings")
+    if not fields:
+        raise ValueError("fields must not be empty when supplied")
+
+    for field in fields:
+        if not isinstance(field, str):
+            raise TypeError("fields must contain only strings")
+        if not field or not field.strip():
+            raise ValueError("field selectors must not be blank")
+        if field != field.strip():
+            raise ValueError("field selectors must not have surrounding whitespace")
+        if "," in field:
+            raise ValueError("field selectors must not contain commas")
+
+    return ",".join(fields)
+
+
 class Issues(ApiBase):
     """Issues API — create, read, update, and transition Jira issues."""
 
     def get_issue(
         self,
         issue_id: str,
-        fields: str | None = None,
+        fields: Sequence[str] | None = None,
         expand: str | None = None,
         extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -22,18 +46,26 @@ class Issues(ApiBase):
 
         Args:
             issue_id: The ID or key of the issue (e.g., "PROJ-123").
-            fields: Comma-separated list of fields to retrieve. Use "*all" for all fields.
+            fields: Exact Jira field selectors to retrieve. Selectors are serialized
+                for this endpoint without additions or deduplication. ``None`` omits
+                ``fields`` so Jira uses its default unless ``extra_params["fields"]``
+                overrides it. Wildcard and negative selectors (such as ``"*all"``
+                and ``"-description"``) can still produce broad responses.
             expand: Comma-separated list of properties to expand (e.g., "renderedFields").
-            extra_params: Additional query parameters. Takes priority over named parameters.
+            extra_params: Additional raw query parameters. Takes priority over named
+                parameters, including ``fields``.
 
         Returns:
-            Issue details including key, summary, status, and other requested fields.
+            Issue details including the fields returned by Jira.
         """
         return self._as_dict(
             self._client._request_jira(
                 method="GET",
                 context_path=f"issue/{issue_id}",
-                params={"fields": fields, "expand": expand},
+                params={
+                    "fields": _serialize_issue_fields(fields),
+                    "expand": expand,
+                },
                 extra_params=extra_params,
             )
         )

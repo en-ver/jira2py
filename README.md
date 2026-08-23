@@ -50,28 +50,60 @@ jira = JiraAPI(credentials_file="./jira-credentials.json")
 
 - **`JiraAPI`** is the low-level, endpoint-oriented interface. Operations return parsed Jira JSON-like data when available; downloads return bytes and operations without a response body return `None`.
 - **`JiraHelpers`** provides grouped workflows and readable `HelperResult` values, with optional structured data, for common tasks.
+- **`format_issue`** is an optional pure presentation function for an issue response you already retrieved.
 
-Use `JiraAPI` when you want direct REST payloads and endpoint control:
+Use `JiraAPI` when you want direct REST payloads and endpoint control. Full issue retrieval is performed only by `jira.issues.get_issue()`:
 
 ```python
 from jira2py import JiraAPI
 
 jira = JiraAPI()
-issue = jira.issues.get_issue("PROJECT-123")
+issue = jira.issues.get_issue("PROJECT-123", fields=["summary", "status"])
 results = jira.search.enhanced_search("project = PROJECT AND status = 'In Progress'")
 ```
 
-Use `JiraHelpers` when grouped, human-readable results better fit your application or automation:
+Use `format_issue` only when you want readable text in addition to that structured response. It does not fetch data or change the response:
 
 ```python
 from jira2py import JiraAPI
-from jira2py.helpers import JiraHelpers
+from jira2py.helpers import JiraHelpers, format_issue
 
-helpers = JiraHelpers(JiraAPI())
-print(helpers.issues.read("PROJECT-123").text)
+api = JiraAPI()
+issue = api.issues.get_issue(
+    "PROJECT-123",
+    fields=["summary", "status", "description"],
+)
+print(format_issue(issue, browse_url=f"{api.credentials.url}/browse/{issue['key']}"))
+
+helpers = JiraHelpers(api)
 print(helpers.metadata.transitions("PROJECT-123").text)
 print(helpers.attachments.list("PROJECT-123").text)
 ```
+
+## Structured issue-read migration
+
+Issue reads no longer use a helper or a comma-delimited `fields` string. Pass one exact selector per sequence item, then optionally format the returned data:
+
+```python
+# Before (removed)
+from jira2py.helpers import JiraHelpers
+
+helpers = JiraHelpers(api)
+api.issues.get_issue("PROJECT-123", fields="summary,status")
+helpers.issues.read("PROJECT-123", extra_fields=["customfield_10001"])
+
+# After
+issue = api.issues.get_issue(
+    "PROJECT-123",
+    fields=["summary", "status", "customfield_10001"],
+)
+text = format_issue(
+    issue,
+    browse_url=f"{api.credentials.url}/browse/{issue['key']}",
+)
+```
+
+The supplied selector sequence is forwarded unchanged: jira2py does not add fields, deduplicate selectors, or request an expansion. `None` omits `fields` and lets Jira choose its default unless raw `extra_params["fields"]` overrides it. Wildcards and negative selectors such as `"*all"` and `"-description"` can still return broad responses; choose projections deliberately.
 
 ## Documentation
 

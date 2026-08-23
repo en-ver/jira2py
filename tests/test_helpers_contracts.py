@@ -33,6 +33,7 @@ from jira2py.helpers import (
     StatusCategory,
     WorklogHelpers,
     WorklogPage,
+    format_issue,
 )
 from jira2py.helpers.errors import JiraHelperError
 from jira2py.helpers.models import AttachmentMeta
@@ -120,6 +121,7 @@ def test_attachment_download_plan_is_available_as_foundational_model() -> None:
 
 def test_public_helpers_exports_grouped_helper_api_without_private_internals() -> None:
     assert "HelperResult" in helpers.__all__
+    assert "format_issue" in helpers.__all__
     assert "JiraHelpers" in helpers.__all__
     assert "IssueHelpers" in helpers.__all__
     assert "IssueTransition" in helpers.__all__
@@ -133,6 +135,7 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert "AttachmentHelpers" in helpers.__all__
     assert "LinkHelpers" in helpers.__all__
     assert "MetadataHelpers" in helpers.__all__
+    assert helpers.format_issue is format_issue
     assert helpers.JiraHelpers is JiraHelpers
     assert helpers.IssueHelpers is IssueHelpers
     assert helpers.IssueTransition is IssueTransition

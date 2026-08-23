@@ -70,7 +70,10 @@ from jira2py import JiraAPI, JiraNotFoundError
 
 jira = JiraAPI()
 
-issue = jira.issues.get_issue("PROJ-123", fields="summary,status,assignee")
+issue = jira.issues.get_issue(
+    "PROJ-123",
+    fields=["summary", "status", "assignee"],
+)
 print(f"{issue['key']}: {issue['fields']['summary']}")
 print(f"  Status: {issue['fields']['status']['name']}")
 
