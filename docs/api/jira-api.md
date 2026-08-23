@@ -51,7 +51,7 @@ from jira2py import JiraAPI
 
 jira = JiraAPI()
 
-issue = jira.issues.get_issue("PROJ-123")
+issue = jira.issues.get_issue("PROJ-123", fields=["summary", "status"])
 me = jira.users.get_current_user()
 transitions = jira.issues.get_transitions("PROJ-123")
 project = jira.projects.get_project("PROJ")

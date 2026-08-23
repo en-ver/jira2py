@@ -2,13 +2,13 @@
 
 `jira2py.helpers.JiraHelpers` is an optional high-level facade for common **Jira Cloud** workflows.
 
-Use it when you want grouped operations plus readable `HelperResult` output instead of raw Jira REST payloads.
+Use it when you want grouped operations plus readable `HelperResult` output instead of raw Jira REST payloads. Full issue reads stay structured-first on `JiraAPI`; public `format_issue` can render an already-retrieved response when needed.
 
 ## Import path
 
 ```python
 from jira2py import JiraAPI
-from jira2py.helpers import JiraHelpers
+from jira2py.helpers import JiraHelpers, format_issue
 
 api = JiraAPI()
 helpers = JiraHelpers(api)
@@ -31,7 +31,7 @@ helpers.filters
 | Group | Use for |
 | --- | --- |
 | `helpers.auth` | Auth status and current-user checks |
-| `helpers.issues` | Read/create/edit/transition workflows |
+| `helpers.issues` | Create/edit/transition workflows |
 | `helpers.search` | JQL issue search |
 | `helpers.comments` | Comment list/add/update/delete |
 | `helpers.worklogs` | Worklog list/add/update/delete/report |
@@ -65,10 +65,16 @@ print(helpers.auth.me().text)
 ### Issues and transitions
 
 ```python
-print(helpers.issues.read("PROJ-123").text)
+issue = api.issues.get_issue(
+    "PROJ-123",
+    fields=["summary", "status", "description"],
+)
+print(format_issue(issue, browse_url=f"{api.credentials.url}/browse/{issue['key']}"))
 print(helpers.metadata.transitions("PROJ-123").text)
 print(helpers.issues.transition("PROJ-123", "Done").text)
 ```
+
+`format_issue` is pure: it does not fetch or mutate the issue. It shows only field keys Jira returned, so missing fields are omitted and present empty values remain visible.
 
 ### Comments
 
@@ -124,6 +130,7 @@ Supported public helper API includes:
 - `JiraHelpers`
 - grouped helper classes
 - `HelperResult`
+- `format_issue`
 - documented helper errors and models
 
 Not supported as public API:

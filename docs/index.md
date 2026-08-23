@@ -27,7 +27,7 @@ jira2py provides a clean, minimal interface to Jira Cloud. It offers two complem
 from jira2py import JiraAPI
 
 jira = JiraAPI()
-issue = jira.issues.get_issue("PROJ-123")
+issue = jira.issues.get_issue("PROJ-123", fields=["summary"])
 print(issue["fields"]["summary"])
 ```
 
@@ -47,7 +47,7 @@ print(helpers.worklogs.list("PROJ-123").text)
 print(helpers.filters.run("12345").text)
 ```
 
-High-level helpers return `HelperResult` objects with readable `text` plus optional structured `data` and `raw_content`.
+High-level helpers return `HelperResult` objects with readable `text` plus optional structured `data` and `raw_content`. Full issue reads are structured-first: call `jira.issues.get_issue()` directly and use public `jira2py.helpers.format_issue()` only when you need pure text presentation.
 
 ## Credentials
 
@@ -80,7 +80,7 @@ There is **no default credentials file path**. If you do not pass `credentials_f
 | **Users/Auth** | Search users and get the current authenticated user |
 | **Metadata** | Statuses and priorities |
 | **Filters** | Search/list saved filters and resolve saved JQL for search |
-| **Helpers** | High-level auth, issues, search, comments, worklogs, attachments, metadata, links, and filters workflows |
+| **Helpers** | High-level auth, issue create/edit/transition, search, comments, worklogs, attachments, metadata, links, and filters workflows |
 
 ## For AI Agents & LLMs
 

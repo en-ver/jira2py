@@ -20,61 +20,8 @@ def _make_api() -> SimpleNamespace:
     )
 
 
-def test_read_fetches_issue_with_default_and_extra_fields() -> None:
-    api = _make_api()
-    api.issues.get_issue.return_value = {
-        "key": "PROJ-123",
-        "names": {"customfield_10001": "Acceptance Criteria"},
-        "fields": {
-            "summary": "Fix thing",
-            "status": {"name": "In Progress"},
-            "issuetype": {"name": "Bug"},
-            "priority": {"name": "High"},
-            "assignee": {"displayName": "Alice"},
-            "reporter": {"displayName": "Bob"},
-            "description": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [{"type": "text", "text": "Hello world"}],
-                    }
-                ],
-            },
-            "comment": {"total": 1},
-            "customfield_10001": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [{"type": "text", "text": "Extra details"}],
-                    }
-                ],
-            },
-        },
-    }
-
-    result = IssueHelpers(cast(JiraAPI, api)).read(
-        "PROJ-123",
-        extra_fields=["customfield_10001", "summary"],
-    )
-
-    api.issues.get_issue.assert_called_once()
-    assert api.issues.get_issue.call_args.kwargs == {
-        "issue_id": "PROJ-123",
-        "fields": (
-            "summary,status,issuetype,priority,assignee,reporter,created,updated,"
-            "labels,components,fixVersions,description,comment,attachment,subtasks,"
-            "issuelinks,customfield_10001"
-        ),
-        "expand": "names",
-    }
-    assert result.data == api.issues.get_issue.return_value
-    assert "Key: PROJ-123" in result.text
-    assert "URL: https://example.atlassian.net/browse/PROJ-123" in result.text
-    assert "Acceptance Criteria (customfield_10001)".upper() in result.text.upper()
+def test_issue_helpers_do_not_expose_issue_read() -> None:
+    assert not hasattr(IssueHelpers, "read")
 
 
 def test_create_converts_description_and_markdown_fields(monkeypatch) -> None:
@@ -256,13 +203,3 @@ def test_validate_methods_reject_invalid_issue_input() -> None:
             "Summary",
             fields={"summary": "duplicate"},
         )
-
-
-def test_read_wraps_underlying_jira_errors() -> None:
-    api = _make_api()
-    api.issues.get_issue.side_effect = RuntimeError("boom")
-
-    with pytest.raises(
-        JiraHelperOperationError, match="Failed to fetch issue PROJ-123"
-    ):
-        IssueHelpers(cast(JiraAPI, api)).read("PROJ-123")

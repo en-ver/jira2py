@@ -1,6 +1,10 @@
 """Tests for Issues API."""
 
+from typing import Any, cast
+from unittest.mock import Mock
+
 import httpx
+import pytest
 
 from jira2py.api.issues import Issues
 
@@ -63,8 +67,10 @@ SAMPLE_CREATED_ISSUE = {
 class TestIssues:
     """Tests for Issues API."""
 
-    def test_get_issue(self, make_client):
+    def test_get_issue_omits_unset_fields_and_expand(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:
+            assert "fields" not in request.url.params
+            assert "expand" not in request.url.params
             return httpx.Response(200, json=SAMPLE_ISSUE)
 
         api = Issues(make_client(handler))
@@ -72,6 +78,77 @@ class TestIssues:
 
         assert result["key"] == "TEST-1"
         assert result["fields"]["summary"] == "Test issue"
+
+    def test_get_issue_serializes_exact_field_sequence_without_expand(
+        self, make_client
+    ):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["fields"] == (
+                "summary,*navigable,-description,summary"
+            )
+            assert "expand" not in request.url.params
+            return httpx.Response(200, json=SAMPLE_ISSUE)
+
+        api = Issues(make_client(handler))
+        api.get_issue(
+            "TEST-1",
+            fields=("summary", "*navigable", "-description", "summary"),
+        )
+
+    def test_get_issue_allows_raw_extra_fields_when_fields_is_none(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["fields"] == "*all,-description"
+            assert "expand" not in request.url.params
+            return httpx.Response(200, json=SAMPLE_ISSUE)
+
+        api = Issues(make_client(handler))
+        api.get_issue(
+            "TEST-1",
+            extra_params={"fields": "*all,-description"},
+        )
+
+    def test_get_issue_extra_params_fields_take_precedence(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["fields"] == "*all,-description"
+            assert request.url.params["expand"] == "renderedFields"
+            return httpx.Response(200, json=SAMPLE_ISSUE)
+
+        api = Issues(make_client(handler))
+        api.get_issue(
+            "TEST-1",
+            fields=["summary", "status"],
+            expand="renderedFields",
+            extra_params={"fields": "*all,-description"},
+        )
+
+    @pytest.mark.parametrize(
+        ("fields", "error"),
+        [
+            ("summary,status", TypeError),
+            (b"summary", TypeError),
+            (42, TypeError),
+            ([], ValueError),
+            ((), ValueError),
+            (["summary", 7], TypeError),
+            ([""], ValueError),
+            (["   "], ValueError),
+            ([" summary"], ValueError),
+            (["summary "], ValueError),
+            (["summary,status"], ValueError),
+        ],
+    )
+    def test_get_issue_rejects_invalid_field_sequences(
+        self,
+        fields: object,
+        error: type[Exception],
+    ) -> None:
+        client = Mock()
+        api = Issues(client)
+
+        with pytest.raises(error):
+            api.get_issue("TEST-1", fields=cast(Any, fields))
+
+        client._request_jira.assert_not_called()
 
     def test_get_changelogs(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:

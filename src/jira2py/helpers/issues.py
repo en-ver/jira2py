@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any
 
 from jira2py.api import JiraAPI
 
 from ._adf import convert_markdown_fields, detect_adf_field_ids, markdown_to_adf
-from ._text import DEFAULT_FIELDS, format_issue_full
 from ._validation import require_non_empty_string, validate_field_conflicts
 from .errors import JiraHelperOperationError, JiraHelperValidationError
-from .models import IssueTransition, JiraIssue
+from .models import IssueTransition
 from .results import HelperResult
 
 _CREATE_FIELD_CONFLICTS = frozenset({"project", "issuetype", "summary"})
@@ -23,41 +22,6 @@ class IssueHelpers:
 
     def __init__(self, api: JiraAPI) -> None:
         self.api = api
-
-    def read(
-        self,
-        issue_key: str,
-        *,
-        extra_fields: Sequence[str] | None = None,
-    ) -> HelperResult:
-        """Read a Jira issue and return readable plus structured output."""
-        issue_key = require_non_empty_string(issue_key, field_name="issue_key")
-        request_fields = list(DEFAULT_FIELDS)
-        if extra_fields:
-            request_fields.extend(
-                field for field in extra_fields if field not in request_fields
-            )
-
-        try:
-            data = self.api.issues.get_issue(
-                issue_id=issue_key,
-                fields=",".join(request_fields),
-                expand="names",
-            )
-        except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to fetch issue {issue_key}: {exc}"
-            ) from exc
-
-        issue = JiraIssue.model_validate(data)
-        names = data.get("names") or {}
-        text = format_issue_full(
-            issue,
-            url=f"{self.api.credentials.url}/browse/{issue_key}",
-            requested_fields=request_fields,
-            field_names=names,
-        )
-        return HelperResult.with_data(text, data)
 
     def create(
         self,
