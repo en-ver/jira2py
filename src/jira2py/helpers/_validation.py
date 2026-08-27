@@ -19,6 +19,33 @@ def require_non_empty_string(value: str, *, field_name: str) -> str:
     return value
 
 
+def parse_iso_datetime(value: object) -> datetime | None:
+    """Parse an ISO-like Jira timestamp and normalize it to UTC.
+
+    Jira commonly uses compact numeric offsets (``+0000``), while Python's
+    ISO parser expects a colon. Naive timestamps are interpreted as UTC.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+
+    normalized = value
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    elif (
+        len(normalized) >= 5 and normalized[-5] in {"+", "-"} and normalized[-3] != ":"
+    ):
+        normalized = normalized[:-2] + ":" + normalized[-2:]
+
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 def validate_field_conflicts(
     fields: Mapping[str, Any] | None,
     *,

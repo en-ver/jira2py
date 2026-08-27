@@ -7,6 +7,7 @@ from jira2py import JiraAPI
 from jira2py.helpers import (
     AttachmentHelpers,
     AuthHelpers,
+    ChangelogHelpers,
     CommentHelpers,
     FiltersHelpers,
     IssueHelpers,
@@ -28,6 +29,7 @@ def test_jira_helpers_exposes_grouped_helpers_for_one_api_instance() -> None:
     assert isinstance(helpers.issues, IssueHelpers)
     assert isinstance(helpers.search, SearchHelpers)
     assert isinstance(helpers.comments, CommentHelpers)
+    assert isinstance(helpers.changelogs, ChangelogHelpers)
     assert isinstance(helpers.worklogs, WorklogHelpers)
     assert isinstance(helpers.attachments, AttachmentHelpers)
     assert isinstance(helpers.links, LinkHelpers)
@@ -37,6 +39,7 @@ def test_jira_helpers_exposes_grouped_helpers_for_one_api_instance() -> None:
     assert helpers.issues.api is api
     assert helpers.search.api is api
     assert helpers.comments.api is api
+    assert helpers.changelogs.api is api
     assert helpers.worklogs.api is api
     assert helpers.attachments.api is api
     assert helpers.links.api is api

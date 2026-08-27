@@ -21,6 +21,7 @@ helpers.auth
 helpers.issues
 helpers.search
 helpers.comments
+helpers.changelogs
 helpers.worklogs
 helpers.attachments
 helpers.metadata
@@ -34,6 +35,7 @@ helpers.filters
 | `helpers.issues` | Create/edit/transition workflows |
 | `helpers.search` | JQL issue search |
 | `helpers.comments` | Comment list/add/update/delete |
+| `helpers.changelogs` | Complete issue changelog retrieval and known-ID retrieval |
 | `helpers.worklogs` | Worklog list/add/update/delete/report |
 | `helpers.attachments` | Attachment list/read/plan/download/upload/delete |
 | `helpers.metadata` | Transitions, projects, statuses, priorities, users, and field metadata |
@@ -75,6 +77,25 @@ print(helpers.issues.transition("PROJ-123", "Done").text)
 ```
 
 `format_issue` is pure: it does not fetch or mutate the issue. It shows only field keys Jira returned, so missing fields are omitted and present empty values remain visible.
+
+### Changelogs
+
+```python
+# Retrieves all Jira changelog pages before returning one aggregate.
+result = helpers.changelogs.list(
+    "PROJ-123",
+    created_at_or_after="2026-01-01T00:00:00Z",
+    created_before="2026-02-01T00:00:00Z",
+)
+print(result.text)
+print(result.data["changelogs"])
+
+# Fetch known history IDs with one POST request. Order and duplicates are forwarded.
+known = helpers.changelogs.list_by_ids("PROJ-123", [10001, 10002])
+print(known.data["changelogs"])  # histories from Jira's PageOfChangelogs envelope
+```
+
+Date bounds are compared in UTC with inclusive lower and exclusive upper semantics. Filtering is local and runs only after the complete history has been retrieved. `result.data` remains `{"issue_key": ..., "changelogs": [...]}` with Jira's original history mappings; it never contains synthetic pagination fields. `list_by_ids()` likewise extracts the original mappings from the POST response's `histories` envelope and does not expose its page metadata. Entries without a usable `created` timestamp are retained without bounds and excluded when either bound is supplied.
 
 ### Comments
 

@@ -31,6 +31,10 @@ text = format_issue(
 
 ### Added
 
+- Added `Issues.get_changelogs_by_ids()` for Jira's official issue-scoped changelog-list POST endpoint.
+- Added `JiraHelpers.changelogs` for complete changelog retrieval with optional UTC-normalized half-open creation bounds, plus one-request known-ID retrieval.
+- Added permissive changelog/page models and concise changelog helper text while retaining complete original Jira mappings in structured helper output.
+
 - Added public pure `jira2py.helpers.format_issue(data, *, browse_url=None)` for optional presence-aware issue text presentation without I/O, mutation, or retrieval policy.
 
 - Added `jira2py.helpers.JiraHelpers`, a grouped high-level workflow facade around the unchanged low-level `JiraAPI`.

@@ -6,6 +6,7 @@ from jira2py.api import JiraAPI
 
 from .attachments import AttachmentHelpers
 from .auth import AuthHelpers
+from .changelogs import ChangelogHelpers
 from .comments import CommentHelpers
 from .filters import FiltersHelpers
 from .issues import IssueHelpers
@@ -24,6 +25,7 @@ class JiraHelpers:
         self.issues = IssueHelpers(api)
         self.search = SearchHelpers(api)
         self.comments = CommentHelpers(api)
+        self.changelogs = ChangelogHelpers(api)
         self.worklogs = WorklogHelpers(api)
         self.attachments = AttachmentHelpers(api)
         self.links = LinkHelpers(api)

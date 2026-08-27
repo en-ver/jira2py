@@ -3,6 +3,7 @@
 from ._text import format_issue
 from .attachments import AttachmentHelpers
 from .auth import AuthHelpers
+from .changelogs import ChangelogHelpers
 from .comments import CommentHelpers
 from .errors import (
     AttachmentDownloadError,
@@ -20,11 +21,14 @@ from .metadata import MetadataHelpers
 from .models import (
     AttachmentDownloadPlan,
     AttachmentMeta,
+    ChangelogPage,
     FieldMeta,
     FieldSchema,
     FilterSearchResult,
     IssueTransition,
     IssueType,
+    JiraChangelog,
+    JiraChangelogItem,
     JiraComment,
     JiraFilter,
     JiraIssue,
@@ -51,6 +55,8 @@ __all__ = [
     "AttachmentError",
     "AttachmentHelpers",
     "AuthHelpers",
+    "ChangelogHelpers",
+    "ChangelogPage",
     "CommentHelpers",
     "AttachmentMeta",
     "FiltersHelpers",
@@ -62,6 +68,8 @@ __all__ = [
     "IssueHelpers",
     "IssueTransition",
     "IssueType",
+    "JiraChangelog",
+    "JiraChangelogItem",
     "JiraComment",
     "JiraFilter",
     "JiraHelperConfigError",

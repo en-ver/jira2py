@@ -66,6 +66,42 @@ class JiraComment(JiraModel):
     body: dict[str, Any] | None = None
 
 
+class JiraChangelogItem(JiraModel):
+    """A field change within a Jira changelog history."""
+
+    model_config = ConfigDict(
+        extra="allow", validate_by_name=True, validate_by_alias=True
+    )
+
+    field: str = ""
+    fieldId: str | None = None
+    fieldtype: str | None = None
+    from_: Any = Field(default=None, alias="from")
+    to: Any = None
+    fromString: Any = None
+    toString: Any = None
+
+
+class JiraChangelog(JiraModel):
+    """A Jira changelog history entry."""
+
+    id: str = ""
+    author: JiraUser | None = None
+    created: Any = None
+    items: list[JiraChangelogItem] = Field(default_factory=list)
+    historyMetadata: dict[str, Any] | None = None
+
+
+class ChangelogPage(JiraModel):
+    """A paginated Jira changelog response."""
+
+    values: list[JiraChangelog]
+    startAt: int
+    isLast: bool
+    maxResults: int | None = None
+    total: int | None = None
+
+
 class CommentPage(JiraModel):
     """Paginated list of comments."""
 
@@ -389,6 +425,7 @@ def user_display(user: JiraUser | None) -> str:
 __all__ = [
     "AttachmentDownloadPlan",
     "AttachmentMeta",
+    "ChangelogPage",
     "CommentPage",
     "FieldMeta",
     "FieldSchema",
@@ -399,6 +436,8 @@ __all__ = [
     "IssueRef",
     "IssueTransition",
     "IssueType",
+    "JiraChangelog",
+    "JiraChangelogItem",
     "JiraComment",
     "JiraFilter",
     "JiraIssue",

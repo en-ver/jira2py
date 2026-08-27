@@ -44,6 +44,7 @@ print(helpers.auth.status().text)
 print(helpers.metadata.transitions("PROJ-123").text)
 print(helpers.attachments.list("PROJ-123").text)
 print(helpers.worklogs.list("PROJ-123").text)
+print(helpers.changelogs.list("PROJ-123").text)
 print(helpers.filters.run("12345").text)
 ```
 
@@ -80,7 +81,7 @@ There is **no default credentials file path**. If you do not pass `credentials_f
 | **Users/Auth** | Search users and get the current authenticated user |
 | **Metadata** | Statuses and priorities |
 | **Filters** | Search/list saved filters and resolve saved JQL for search |
-| **Helpers** | High-level auth, issue create/edit/transition, search, comments, worklogs, attachments, metadata, links, and filters workflows |
+| **Helpers** | High-level auth, issue create/edit/transition, search, comments, changelogs, worklogs, attachments, metadata, links, and filters workflows |
 
 ## For AI Agents & LLMs
 

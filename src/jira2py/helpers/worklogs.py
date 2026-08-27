@@ -9,7 +9,11 @@ from jira2py.api import JiraAPI
 
 from ._adf import markdown_to_adf
 from ._text import format_worklog, format_worklog_list, format_worklog_report
-from ._validation import require_non_empty_string, validate_date_range
+from ._validation import (
+    parse_iso_datetime,
+    require_non_empty_string,
+    validate_date_range,
+)
 from .errors import JiraHelperOperationError, JiraHelperValidationError
 from .models import (
     JiraIssue,
@@ -331,7 +335,7 @@ def _build_row(
     account_id: str | None,
     include_details: bool,
 ) -> WorklogReportRow | None:
-    started_dt = _parse_jira_datetime(worklog.started)
+    started_dt = parse_iso_datetime(worklog.started)
     if started_dt is None or not (start_dt <= started_dt < exclusive_end_dt):
         return None
 
@@ -362,30 +366,8 @@ def _build_row(
     )
 
 
-def _parse_jira_datetime(value: str | None) -> datetime | None:
-    if not value:
-        return None
-
-    normalized = value
-    if normalized.endswith("Z"):
-        normalized = normalized[:-1] + "+00:00"
-    elif (
-        len(normalized) >= 5 and normalized[-5] in {"+", "-"} and normalized[-3] != ":"
-    ):
-        normalized = normalized[:-2] + ":" + normalized[-2:]
-
-    try:
-        parsed = datetime.fromisoformat(normalized)
-    except ValueError:
-        return None
-
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
-
-
 def _format_optional_utc(value: str | None) -> str | None:
-    parsed = _parse_jira_datetime(value)
+    parsed = parse_iso_datetime(value)
     return _format_utc(parsed) if parsed else value
 
 

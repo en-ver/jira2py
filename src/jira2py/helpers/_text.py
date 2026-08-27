@@ -14,6 +14,7 @@ from .models import (
     IssueLink,
     IssueTransition,
     IssueType,
+    JiraChangelog,
     JiraComment,
     JiraFilter,
     JiraPriority,
@@ -344,6 +345,35 @@ def format_search_results(result: SearchResult, jql: str = "") -> str:
             "\n\n(more results available — use next_page_token to fetch the next page)"
         )
     return output
+
+
+def format_changelog_list(
+    issue_key: str,
+    changelogs: list[JiraChangelog],
+) -> str:
+    """Format a complete or known-ID changelog collection."""
+    if not changelogs:
+        return f"No changelogs returned for {issue_key}"
+
+    lines = [f"Changelogs on {issue_key}: {len(changelogs)} returned", ""]
+    for changelog in changelogs:
+        lines.append(
+            f"- {_changelog_text(changelog.created)} — "
+            f"{user_display(changelog.author)} — id {changelog.id or '?'}"
+        )
+        for item in changelog.items:
+            field = item.field or item.fieldId or "?"
+            lines.append(
+                f"  - {field}: "
+                f"{_changelog_text(item.fromString, fallback=item.from_)} → "
+                f"{_changelog_text(item.toString, fallback=item.to)}"
+            )
+    return "\n".join(lines)
+
+
+def _changelog_text(value: Any, *, fallback: Any = None) -> str:
+    selected = value if value is not None else fallback
+    return _raw_text(selected)
 
 
 def format_worklog(worklog: JiraWorklog) -> str:
