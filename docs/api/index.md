@@ -18,6 +18,7 @@ helpers.auth
 helpers.issues
 helpers.search
 helpers.comments
+helpers.changelogs
 helpers.worklogs
 helpers.attachments
 helpers.metadata

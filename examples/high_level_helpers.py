@@ -37,6 +37,23 @@ def list_comments(issue_key: str) -> None:
     print(result.text)
 
 
+def list_changelogs(issue_key: str) -> None:
+    """Retrieve the complete changelog history, then locally filter by UTC time."""
+    helpers = build_helpers()
+    result = helpers.changelogs.list(
+        issue_key,
+        created_at_or_after="2026-01-01T00:00:00Z",
+        created_before="2026-02-01T00:00:00Z",
+    )
+    print(result.text)
+
+
+def list_changelogs_by_ids(issue_key: str) -> None:
+    """Retrieve known changelog histories with one POST request."""
+    helpers = build_helpers()
+    print(helpers.changelogs.list_by_ids(issue_key, [10001, 10002]).text)
+
+
 def report_worklogs(jql: str, start_date: str, end_date: str) -> None:
     """Build a worklog report."""
     helpers = build_helpers()
@@ -86,6 +103,8 @@ if __name__ == "__main__":
     read_and_format_issue(issue_key)
     search_issues("project = PROJECT ORDER BY updated DESC")
     list_comments(issue_key)
+    list_changelogs(issue_key)
+    list_changelogs_by_ids(issue_key)
     report_worklogs("project = PROJECT", "2026-01-01", "2026-01-31")
     plan_attachment_download("10001")
     show_metadata("PROJECT", "Task", issue_key)

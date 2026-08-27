@@ -11,6 +11,8 @@ from jira2py.helpers import (
     AttachmentError,
     AttachmentHelpers,
     AuthHelpers,
+    ChangelogHelpers,
+    ChangelogPage,
     CommentHelpers,
     FieldMeta,
     FieldSchema,
@@ -19,6 +21,8 @@ from jira2py.helpers import (
     HelperResult,
     IssueHelpers,
     IssueTransition,
+    JiraChangelog,
+    JiraChangelogItem,
     JiraFilter,
     JiraHelperConfigError,
     JiraHelperOperationError,
@@ -126,10 +130,14 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert "IssueHelpers" in helpers.__all__
     assert "IssueTransition" in helpers.__all__
     assert "SearchHelpers" in helpers.__all__
+    assert "ChangelogHelpers" in helpers.__all__
+    assert "ChangelogPage" in helpers.__all__
     assert "CommentHelpers" in helpers.__all__
     assert "AuthHelpers" in helpers.__all__
     assert "FiltersHelpers" in helpers.__all__
     assert "WorklogHelpers" in helpers.__all__
+    assert "JiraChangelog" in helpers.__all__
+    assert "JiraChangelogItem" in helpers.__all__
     assert "JiraWorklog" in helpers.__all__
     assert "WorklogPage" in helpers.__all__
     assert "AttachmentHelpers" in helpers.__all__
@@ -140,10 +148,13 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert helpers.IssueHelpers is IssueHelpers
     assert helpers.IssueTransition is IssueTransition
     assert helpers.SearchHelpers is SearchHelpers
+    assert helpers.ChangelogHelpers is ChangelogHelpers
     assert helpers.CommentHelpers is CommentHelpers
     assert helpers.AuthHelpers is AuthHelpers
     assert helpers.FiltersHelpers is FiltersHelpers
     assert helpers.WorklogHelpers is WorklogHelpers
+    assert helpers.JiraChangelog is JiraChangelog
+    assert helpers.JiraChangelogItem is JiraChangelogItem
     assert helpers.JiraWorklog is JiraWorklog
     assert helpers.WorklogPage is WorklogPage
     assert helpers.AttachmentHelpers is AttachmentHelpers
@@ -153,6 +164,36 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert "format_issue_full" not in helpers.__all__
     assert not hasattr(helpers, "adf_to_markdown")
     assert not hasattr(helpers, "format_issue_full")
+
+
+def test_changelog_models_allow_unknown_fields_and_permissive_created_values() -> None:
+    page = ChangelogPage.model_validate(
+        {
+            "startAt": 0,
+            "isLast": True,
+            "values": [
+                {
+                    "id": "10001",
+                    "created": "not-an-iso-timestamp",
+                    "items": [
+                        {
+                            "field": "status",
+                            "from": "1",
+                            "to": "3",
+                            "unknownItemField": "retained",
+                        }
+                    ],
+                    "unknownHistoryField": "retained",
+                }
+            ],
+        }
+    )
+
+    changelog = page.values[0]
+    assert changelog.created == "not-an-iso-timestamp"
+    assert changelog.model_dump()["unknownHistoryField"] == "retained"
+    assert changelog.items[0].from_ == "1"
+    assert changelog.items[0].model_dump()["unknownItemField"] == "retained"
 
 
 def test_filter_models_are_available_as_foundational_exports() -> None:

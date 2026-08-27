@@ -1,5 +1,6 @@
 """Tests for Issues API."""
 
+import json
 from typing import Any, cast
 from unittest.mock import Mock
 
@@ -27,6 +28,21 @@ SAMPLE_CHANGELOGS = {
             ],
         },
     ],
+}
+
+SAMPLE_CHANGELOGS_BY_IDS = {
+    "histories": [
+        {
+            "id": "100",
+            "created": "2026-01-02T03:04:05.000+0000",
+            "items": [
+                {"field": "status", "fromString": "Open", "toString": "In Progress"}
+            ],
+        }
+    ],
+    "startAt": 0,
+    "maxResults": 50,
+    "total": 1,
 }
 
 SAMPLE_EDIT_META = {
@@ -152,6 +168,10 @@ class TestIssues:
 
     def test_get_changelogs(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "GET"
+            assert request.url.path == "/rest/api/3/issue/TEST-1/changelog"
+            assert request.url.params["startAt"] == "0"
+            assert request.url.params["maxResults"] == "50"
             return httpx.Response(200, json=SAMPLE_CHANGELOGS)
 
         api = Issues(make_client(handler))
@@ -161,6 +181,32 @@ class TestIssues:
         assert result["isLast"] is True
         assert len(result["values"]) == 1
         assert result["values"][0]["items"][0]["field"] == "status"
+
+    def test_get_changelogs_by_ids_posts_page_response(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "POST"
+            assert request.url.path == "/rest/api/3/issue/TEST-1/changelog/list"
+            assert json.loads(request.content) == {"changelogIds": [100, 101]}
+            return httpx.Response(200, json=SAMPLE_CHANGELOGS_BY_IDS)
+
+        api = Issues(make_client(handler))
+        result = api.get_changelogs_by_ids("TEST-1", [100, 101])
+
+        assert result == SAMPLE_CHANGELOGS_BY_IDS
+
+    def test_get_changelogs_by_ids_forwards_and_allows_raw_overrides(self, make_client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["expand"] == "properties"
+            assert json.loads(request.content) == {"changelogIds": [202]}
+            return httpx.Response(200, json=SAMPLE_CHANGELOGS_BY_IDS)
+
+        api = Issues(make_client(handler))
+        api.get_changelogs_by_ids(
+            "TEST-1",
+            [100],
+            extra_params={"expand": "properties"},
+            extra_data={"changelogIds": [202]},
+        )
 
     def test_edit_issue_returns_none_on_204(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:

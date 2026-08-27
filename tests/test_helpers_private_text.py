@@ -5,6 +5,7 @@ from textwrap import dedent
 from jira2py.helpers._text import (
     format_attachment_list,
     format_attachment_metadata,
+    format_changelog_list,
     format_filter_list,
     format_issue_link_list,
     format_priority_list,
@@ -19,6 +20,7 @@ from jira2py.helpers.models import (
     AttachmentMeta,
     IssueLink,
     IssueTransition,
+    JiraChangelog,
     JiraFilter,
     JiraPriority,
     JiraProject,
@@ -26,6 +28,28 @@ from jira2py.helpers.models import (
     JiraWorklog,
     SearchResult,
 )
+
+
+def test_format_changelog_list_includes_each_history_and_item() -> None:
+    changelog = JiraChangelog.model_validate(
+        {
+            "id": "10001",
+            "created": "2026-01-02T03:04:05Z",
+            "author": {"displayName": "Alice"},
+            "items": [
+                {"field": "status", "fromString": "Open", "toString": "Done"},
+                {"fieldId": "customfield_10001", "from": "A", "to": "B"},
+            ],
+        }
+    )
+
+    assert format_changelog_list("PROJ-1", [changelog]) == (
+        "Changelogs on PROJ-1: 1 returned\n\n"
+        "- 2026-01-02T03:04:05Z — Alice — id 10001\n"
+        "  - status: Open → Done\n"
+        "  - customfield_10001: A → B"
+    )
+    assert format_changelog_list("PROJ-1", []) == "No changelogs returned for PROJ-1"
 
 
 def test_format_attachment_outputs_render_agent_readable_details() -> None:

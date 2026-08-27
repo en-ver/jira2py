@@ -18,6 +18,7 @@ helpers = JiraHelpers(api)
 | `helpers.issues` | `IssueHelpers` | `create()`, `edit()`, `transition()`, `validate_create()`, `validate_edit()` |
 | `helpers.search` | `SearchHelpers` | `issues()` |
 | `helpers.comments` | `CommentHelpers` | `list()`, `add()`, `update()`, `delete()` |
+| `helpers.changelogs` | `ChangelogHelpers` | `list()`, `list_by_ids()` |
 | `helpers.worklogs` | `WorklogHelpers` | `list()`, `add()`, `update()`, `delete()`, `report()` |
 | `helpers.attachments` | `AttachmentHelpers` | `list()`, `read()`, `plan_download()`, `download()`, `upload()`, `delete()` |
 | `helpers.metadata` | `MetadataHelpers` | `issue_types()`, `create_fields()`, `edit_fields()`, `transitions()`, `project()`, `projects()`, `statuses()`, `priorities()`, `users()` |
@@ -30,6 +31,7 @@ helpers = JiraHelpers(api)
 helpers.auth.status()
 helpers.issues.transition("PROJ-123", "Done")
 helpers.comments.update("PROJ-123", "10001", "Updated note")
+helpers.changelogs.list("PROJ-123")
 helpers.worklogs.add("PROJ-123", "1h")
 helpers.attachments.download("10001", output_path="downloads/")
 helpers.metadata.statuses()
@@ -66,6 +68,25 @@ Most helper methods return `HelperResult`.
 | `data` | `Any \| None` | Optional structured payload |
 | `raw_content` | `str \| None` | Optional serialized raw output |
 | `has_raw_output` | `bool` | Whether `data` or `raw_content` is present |
+
+## Complete changelogs
+
+`helpers.changelogs.list(issue_key, *, created_at_or_after=None, created_before=None)` retrieves every Jira changelog page from offset zero before returning. Its `HelperResult.data` is a helper-owned aggregate with no pagination fields:
+
+```python
+result = helpers.changelogs.list(
+    "PROJ-123",
+    created_at_or_after="2026-01-01T00:00:00Z",
+    created_before="2026-02-01T00:00:00Z",
+)
+# {"issue_key": "PROJ-123", "changelogs": [...]}
+```
+
+Optional bounds are local ISO-8601 comparisons normalized to UTC: the lower bound is inclusive and the upper bound is exclusive (`created_at_or_after <= created < created_before`). Naive timestamps are treated as UTC. Filtering happens only after all pages have been retrieved; entries with a missing or unparseable `created` value remain when unfiltered and are excluded when either bound is supplied.
+
+For known IDs, `helpers.changelogs.list_by_ids(issue_key, changelog_ids)` validates one non-empty sequence of integer IDs and performs one POST request. It extracts the original history mappings from Jira's `PageOfChangelogs` `histories` collection; request order and duplicates are retained, while the aggregate retains Jira's response order without exposing page metadata.
+
+Malformed bounds and IDs raise `JiraHelperValidationError`. Request, response-shape, and non-progressing pagination failures raise `JiraHelperOperationError`; no partial aggregate is returned.
 
 ## Search continuation
 
@@ -128,6 +149,9 @@ Common public helper models include:
 - `FilterSearchResult`
 - `IssueTransition`
 - `IssueType`
+- `JiraChangelog`
+- `JiraChangelogItem`
+- `ChangelogPage`
 - `JiraComment`
 - `JiraIssue`
 - `JiraPriority`
@@ -159,6 +183,11 @@ Common public helper models include:
 ### `helpers.search`
 
 - `issues(jql, *, max_results=20, fields=None, next_page_token=None)`
+
+### `helpers.changelogs`
+
+- `list(issue_key, *, created_at_or_after=None, created_before=None)`
+- `list_by_ids(issue_key, changelog_ids)`
 
 ### `helpers.comments`
 

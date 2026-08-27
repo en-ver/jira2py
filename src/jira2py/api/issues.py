@@ -101,6 +101,38 @@ class Issues(ApiBase):
             )
         )
 
+    def get_changelogs_by_ids(
+        self,
+        issue_id: str,
+        changelog_ids: Sequence[int],
+        extra_params: Mapping[str, Any] | None = None,
+        extra_data: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Get a page of specific changelogs for a Jira issue by their IDs.
+
+        https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-changelog-list-post
+
+        Args:
+            issue_id: The ID or key of the issue (e.g., "PROJ-123").
+            changelog_ids: Jira changelog IDs to request.
+            extra_params: Additional query parameters. Takes priority over named parameters.
+            extra_data: Additional request body data. Takes priority over
+                ``changelogIds``.
+
+        Returns:
+            The raw Jira ``PageOfChangelogs`` response, including its ``histories``
+            collection and page metadata.
+        """
+        return self._as_dict(
+            self._client._request_jira(
+                method="POST",
+                context_path=f"issue/{issue_id}/changelog/list",
+                data={"changelogIds": list(changelog_ids)},
+                extra_params=extra_params,
+                extra_data=extra_data,
+            )
+        )
+
     def edit_issue(
         self,
         issue_id: str,

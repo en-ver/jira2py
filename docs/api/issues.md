@@ -130,7 +130,29 @@ changelogs = jira.issues.get_changelogs("PROJ-123")
 | `max_results` | `int` | `50` | Maximum results |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
 
+This low-level method returns exactly one raw Jira page. Use `start_at` to request another page, or use `JiraHelpers.changelogs.list()` when you need the complete history.
+
 **Returns:** `dict[str, Any]`
+
+---
+
+## `get_changelogs_by_ids`
+
+```python
+page = jira.issues.get_changelogs_by_ids("PROJ-123", [10001, 10002])
+histories = page["histories"]
+```
+
+Sends one `POST /rest/api/3/issue/{issueIdOrKey}/changelog/list` request for known changelog IDs. It returns Jira's raw `PageOfChangelogs` envelope unchanged: `histories` is in Jira's response order and the envelope also contains page metadata.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `issue_id` | `str` | required | Issue ID or key |
+| `changelog_ids` | `Sequence[int]` | required | Jira changelog IDs to request |
+| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
+| `extra_data` | `Mapping[str, Any] \| None` | `None` | Additional request-body data; its keys override named body data |
+
+**Returns:** `dict[str, Any]` (`PageOfChangelogs`, including `histories`, `startAt`, `maxResults`, and `total`)
 
 ---
 

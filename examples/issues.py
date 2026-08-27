@@ -37,6 +37,14 @@ def get_changelogs() -> None:
             )
 
 
+def get_changelogs_by_ids() -> None:
+    """Get known changelog histories with the official POST endpoint."""
+    jira = JiraAPI()
+    page = jira.issues.get_changelogs_by_ids("PROJECT-123", [10001, 10002])
+    for history in page["histories"]:
+        print(f"Changelog {history['id']}")
+
+
 def edit_issue() -> None:
     """Edit an issue."""
     jira = JiraAPI()
@@ -83,6 +91,7 @@ if __name__ == "__main__":
     get_issue()
     get_issue_with_extra_params()
     get_changelogs()
+    get_changelogs_by_ids()
     edit_issue()
     edit_issue_with_return()
     edit_issue_with_extra_data()
