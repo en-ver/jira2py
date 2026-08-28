@@ -1,23 +1,126 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
 
 from jira2py import JiraAPI
-from jira2py.helpers.errors import JiraHelperValidationError
+from jira2py.helpers.errors import JiraHelperOperationError, JiraHelperValidationError
 from jira2py.helpers.metadata import MetadataHelpers
 
 
 def _make_api() -> SimpleNamespace:
     return SimpleNamespace(
         issues=Mock(),
+        fields=Mock(),
         metadata=Mock(),
         projects=Mock(),
         users=Mock(),
     )
+
+
+def test_list_fields_returns_one_raw_jira_page_and_canonical_id_text() -> None:
+    api = _make_api()
+    page = {
+        "startAt": 4,
+        "maxResults": 2,
+        "total": 8,
+        "isLast": False,
+        "values": [
+            {"id": "summary", "key": "different-key", "name": "Summary"},
+            {"id": "customfield_10001", "name": "Story Points", "custom": True},
+        ],
+    }
+    api.fields.search_fields.return_value = page
+
+    result = MetadataHelpers(cast(JiraAPI, api)).list_fields(
+        query="  points  ",
+        field_ids=["summary", "customfield_10001"],
+        field_types=["system", "custom"],
+        start_at=4,
+        max_results=2,
+    )
+
+    api.fields.search_fields.assert_called_once_with(
+        start_at=4,
+        max_results=2,
+        query="points",
+        field_ids=["summary", "customfield_10001"],
+        field_types=["system", "custom"],
+        project_ids=None,
+    )
+    api.projects.get_project.assert_not_called()
+    assert result.data is page
+    assert result.text == (
+        "Jira field catalog: 2 returned\n\n"
+        "- Summary (id: summary)\n"
+        "- Story Points (id: customfield_10001)"
+    )
+
+
+def test_list_fields_resolves_project_key_to_numeric_context_id() -> None:
+    api = _make_api()
+    api.projects.get_project.return_value = {"id": "10000", "key": "PROJ"}
+    api.fields.search_fields.return_value = {
+        "startAt": 0,
+        "maxResults": 20,
+        "total": 0,
+        "isLast": True,
+        "values": [],
+    }
+
+    result = MetadataHelpers(cast(JiraAPI, api)).list_fields("PROJ")
+
+    api.projects.get_project.assert_called_once_with(project_id_or_key="PROJ")
+    api.fields.search_fields.assert_called_once_with(
+        start_at=0,
+        max_results=20,
+        query=None,
+        field_ids=None,
+        field_types=None,
+        project_ids=[10000],
+    )
+    assert result.text == "No Jira fields found for project context PROJ"
+
+
+def test_list_fields_rejects_invalid_inputs_before_jira_requests() -> None:
+    api = _make_api()
+    helper = MetadataHelpers(cast(JiraAPI, api))
+
+    with pytest.raises(JiraHelperValidationError, match="project_key"):
+        helper.list_fields("   ")
+    with pytest.raises(JiraHelperValidationError, match="query"):
+        helper.list_fields(query=cast(Any, 42))
+    with pytest.raises(JiraHelperValidationError, match="field_ids"):
+        helper.list_fields(field_ids=cast(Any, "summary"))
+    with pytest.raises(JiraHelperValidationError, match="field_ids"):
+        helper.list_fields(field_ids=[" summary"])
+    with pytest.raises(JiraHelperValidationError, match="field_types"):
+        helper.list_fields(field_types=["SYSTEM"])
+    with pytest.raises(JiraHelperValidationError, match="start_at"):
+        helper.list_fields(start_at=-1)
+    with pytest.raises(JiraHelperValidationError, match="max_results"):
+        helper.list_fields(max_results=0)
+
+    api.projects.get_project.assert_not_called()
+    api.fields.search_fields.assert_not_called()
+
+
+def test_list_fields_rejects_malformed_project_or_field_page() -> None:
+    api = _make_api()
+    api.projects.get_project.return_value = {"id": "not-numeric"}
+    helper = MetadataHelpers(cast(JiraAPI, api))
+
+    with pytest.raises(JiraHelperOperationError, match="numeric ID"):
+        helper.list_fields("PROJ")
+    api.fields.search_fields.assert_not_called()
+
+    api = _make_api()
+    api.fields.search_fields.return_value = {"values": [{"name": "Summary"}]}
+    with pytest.raises(JiraHelperOperationError, match="malformed field page"):
+        MetadataHelpers(cast(JiraAPI, api)).list_fields()
 
 
 def test_issue_types_formats_project_create_types() -> None:

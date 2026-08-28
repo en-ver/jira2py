@@ -58,7 +58,7 @@ jira.users
 | [Issue Search](issue-search.md) | `jira.search` | Search issues with JQL |
 | [Issue Comments](issue-comments.md) | `jira.comments` | List, add, update, and delete comments |
 | [Issue Worklogs](issue-worklogs.md) | `jira.worklogs` | List, add, update, and delete issue worklogs |
-| [Issue Fields](issue-fields.md) | `jira.fields` | List system and custom fields |
+| [Issue Fields](issue-fields.md) | `jira.fields` | List all fields or search one paginated field catalog page |
 | [Issue Links](issue-links.md) | `jira.issue_links` | List issue links and link types; create and delete links |
 | [Projects](projects.md) | `jira.projects` | Get, search, and list projects |
 | [Metadata](metadata.md) | `jira.metadata` | Statuses and priorities |

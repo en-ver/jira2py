@@ -48,6 +48,19 @@ def list_changelogs(issue_key: str) -> None:
     print(result.text)
 
 
+def list_field_catalog(project_key: str) -> None:
+    """Get one Jira field-search page with concise canonical-ID text."""
+    helpers = build_helpers()
+    result = helpers.metadata.list_fields(
+        project_key,
+        query="points",
+        field_types=["custom"],
+    )
+    print(result.text)
+    if result.data is not None:
+        print(result.data["values"])
+
+
 def list_changelogs_by_ids(issue_key: str) -> None:
     """Retrieve known changelog histories with one POST request."""
     helpers = build_helpers()
@@ -105,6 +118,7 @@ if __name__ == "__main__":
     list_comments(issue_key)
     list_changelogs(issue_key)
     list_changelogs_by_ids(issue_key)
+    list_field_catalog("PROJECT")
     report_worklogs("project = PROJECT", "2026-01-01", "2026-01-31")
     plan_attachment_download("10001")
     show_metadata("PROJECT", "Task", issue_key)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
@@ -44,6 +44,38 @@ def parse_iso_datetime(value: object) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def validate_canonical_field_ids(
+    value: Sequence[str] | None,
+    *,
+    field_name: str = "field_ids",
+) -> list[str] | None:
+    """Validate exact canonical Jira field IDs without normalizing them."""
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, Sequence):
+        raise JiraHelperValidationError(
+            f"{field_name} must be a non-empty sequence of strings."
+        )
+    if not value:
+        raise JiraHelperValidationError(f"{field_name} must not be empty.")
+
+    field_ids = list(value)
+    for field_id in field_ids:
+        if not isinstance(field_id, str):
+            raise JiraHelperValidationError(f"{field_name} must contain only strings.")
+        if not field_id or not field_id.strip():
+            raise JiraHelperValidationError(f"{field_name} entries must not be blank.")
+        if field_id != field_id.strip():
+            raise JiraHelperValidationError(
+                f"{field_name} entries must not have surrounding whitespace."
+            )
+        if "," in field_id:
+            raise JiraHelperValidationError(
+                f"{field_name} entries must not contain commas."
+            )
+    return field_ids
 
 
 def validate_field_conflicts(

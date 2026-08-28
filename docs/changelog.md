@@ -31,6 +31,9 @@ text = format_issue(
 
 ### Added
 
+- Added one-page `IssueFields.search_fields()` support for Jira's stable `/field/search` endpoint, including canonical field IDs, system/custom type filters, project IDs, ordering, expansions, and raw query overrides. `IssueFields.get_fields()` is unchanged.
+- Added `MetadataHelpers.list_fields()` for one searchable raw field page with concise canonical-ID text and optional project-key-to-numeric-ID context resolution. Jira documents field search for Classic projects; project context does not determine issue-type or create/edit-screen applicability.
+- Added exact case-sensitive raw `fieldId` filtering to ordinary and known-ID changelog helpers. Ordinary changelog retrieval also supports optional post-filter event pagination with `result_page` metadata after all Jira pages, timestamp filtering, item pruning, and empty-event removal.
 - Added `Issues.get_changelogs_by_ids()` for Jira's official issue-scoped changelog-list POST endpoint.
 - Added `JiraHelpers.changelogs` for complete changelog retrieval with optional UTC-normalized half-open creation bounds, plus one-request known-ID retrieval.
 - Added permissive changelog/page models and concise changelog helper text while retaining complete original Jira mappings in structured helper output.
