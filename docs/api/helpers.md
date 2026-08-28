@@ -21,7 +21,7 @@ helpers = JiraHelpers(api)
 | `helpers.changelogs` | `ChangelogHelpers` | `list()`, `list_by_ids()` |
 | `helpers.worklogs` | `WorklogHelpers` | `list()`, `add()`, `update()`, `delete()`, `report()` |
 | `helpers.attachments` | `AttachmentHelpers` | `list()`, `read()`, `plan_download()`, `download()`, `upload()`, `delete()` |
-| `helpers.metadata` | `MetadataHelpers` | `issue_types()`, `create_fields()`, `edit_fields()`, `transitions()`, `project()`, `projects()`, `statuses()`, `priorities()`, `users()` |
+| `helpers.metadata` | `MetadataHelpers` | `list_fields()`, `issue_types()`, `create_fields()`, `edit_fields()`, `transitions()`, `project()`, `projects()`, `statuses()`, `priorities()`, `users()` |
 | `helpers.links` | `LinkHelpers` | `list()`, `types()`, `create()`, `delete()` |
 | `helpers.filters` | `FiltersHelpers` | `list()`, `search()`, `run()` |
 
@@ -69,9 +69,30 @@ Most helper methods return `HelperResult`.
 | `raw_content` | `str \| None` | Optional serialized raw output |
 | `has_raw_output` | `bool` | Whether `data` or `raw_content` is present |
 
+## Field catalog
+
+`helpers.metadata.list_fields(project_key=None, *, query=None, field_ids=None, field_types=None, start_at=0, max_results=20)` returns one raw Jira `/field/search` page in `HelperResult.data`. The values and Jira page metadata remain unchanged, while `text` is a concise list of display names and canonical `id` values:
+
+```python
+result = helpers.metadata.list_fields(
+    "PROJ",
+    query="points",
+    field_ids=["customfield_10001"],
+    field_types=["custom"],
+    start_at=0,
+    max_results=20,
+)
+# {"startAt": 0, "maxResults": 20, "total": 1, "isLast": True,
+#  "values": [{"id": "customfield_10001", "name": "Story Points", ...}]}
+```
+
+A supplied project key is resolved once to Jira's numeric project ID before the field search. `query` is trimmed, and a blank query is omitted. Canonical field IDs are exact, unpadded strings with no commas; `field_types` accepts only `"system"` and `"custom"`; `start_at` must be non-negative and `max_results` positive. These inputs are validated before Jira requests.
+
+This is Jira's `/field/search` **project-context** filter, documented for Classic Jira projects. It has no issue-type parameter and does not establish create-screen or edit-screen applicability. Continue to use `create_fields()` for a project's create-screen metadata and `edit_fields()` for an existing issue's edit metadata.
+
 ## Complete changelogs
 
-`helpers.changelogs.list(issue_key, *, created_at_or_after=None, created_before=None)` retrieves every Jira changelog page from offset zero before returning. Its `HelperResult.data` is a helper-owned aggregate with no pagination fields:
+`helpers.changelogs.list(issue_key, *, created_at_or_after=None, created_before=None, field_ids=None, result_start_at=0, result_max_results=None)` retrieves every Jira changelog page from offset zero before applying local filters. With result pagination omitted, its `HelperResult.data` is the existing helper-owned aggregate with no pagination fields:
 
 ```python
 result = helpers.changelogs.list(
@@ -84,9 +105,13 @@ result = helpers.changelogs.list(
 
 Optional bounds are local ISO-8601 comparisons normalized to UTC: the lower bound is inclusive and the upper bound is exclusive (`created_at_or_after <= created < created_before`). Naive timestamps are treated as UTC. Filtering happens only after all pages have been retrieved; entries with a missing or unparseable `created` value remain when unfiltered and are excluded when either bound is supplied.
 
-For known IDs, `helpers.changelogs.list_by_ids(issue_key, changelog_ids)` validates one non-empty sequence of integer IDs and performs one POST request. It extracts the original history mappings from Jira's `PageOfChangelogs` `histories` collection; request order and duplicates are retained, while the aggregate retains Jira's response order without exposing page metadata.
+`field_ids` filters each retained event's raw `items` by exact, case-sensitive `item["fieldId"]`. It never falls back to display `field`; absent or null `fieldId` values do not match. Retained events and items keep their raw properties, nulls, and Jira order; events with no matching items are removed. Omit `field_ids` to preserve the existing unfiltered mappings and behavior.
 
-Malformed bounds and IDs raise `JiraHelperValidationError`. Request, response-shape, and non-progressing pagination failures raise `JiraHelperOperationError`; no partial aggregate is returned.
+Supplying `result_max_results` enables local event pagination after timestamps, field-item filtering, and removal of empty events. Jira's complete history is still fetched first. The result then includes `result_page` with `start_at`, `max_results`, filtered-event `total`, `is_last`, and `next_start_at`; this helper-owned metadata is absent when result pagination is omitted. `result_start_at` requires `result_max_results`.
+
+For known IDs, `helpers.changelogs.list_by_ids(issue_key, changelog_ids, *, field_ids=None)` validates one non-empty sequence of integer IDs and performs one POST request. It applies the same field-item filtering, retains request duplicates and Jira response order, and extracts raw histories from Jira's `PageOfChangelogs` collection without adding result pagination.
+
+Malformed bounds, IDs, field IDs, and result pagination inputs raise `JiraHelperValidationError`. Request, response-shape, and non-progressing pagination failures raise `JiraHelperOperationError`; no partial aggregate is returned.
 
 ## Search continuation
 
@@ -186,8 +211,8 @@ Common public helper models include:
 
 ### `helpers.changelogs`
 
-- `list(issue_key, *, created_at_or_after=None, created_before=None)`
-- `list_by_ids(issue_key, changelog_ids)`
+- `list(issue_key, *, created_at_or_after=None, created_before=None, field_ids=None, result_start_at=0, result_max_results=None)`
+- `list_by_ids(issue_key, changelog_ids, *, field_ids=None)`
 
 ### `helpers.comments`
 
@@ -215,6 +240,7 @@ Common public helper models include:
 
 ### `helpers.metadata`
 
+- `list_fields(project_key=None, *, query=None, field_ids=None, field_types=None, start_at=0, max_results=20)`
 - `issue_types(project_key)`
 - `create_fields(project_key, issue_type)`
 - `edit_fields(issue_key)`

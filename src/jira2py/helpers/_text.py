@@ -550,6 +550,27 @@ def format_field_metadata(
     return "\n".join(lines)
 
 
+def format_field_catalog(
+    fields: Sequence[Mapping[str, Any]],
+    *,
+    project_key: str | None = None,
+) -> str:
+    """Format one Jira field-search page with canonical IDs."""
+    if not fields:
+        if project_key is not None:
+            return f"No Jira fields found for project context {project_key}"
+        return "No Jira fields found"
+
+    context = f" (project context: {project_key})" if project_key is not None else ""
+    lines = [f"Jira field catalog{context}: {len(fields)} returned", ""]
+    for field in fields:
+        field_id = field["id"]
+        name = field.get("name")
+        label = name if isinstance(name, str) and name else field_id
+        lines.append(f"- {label} (id: {field_id})")
+    return "\n".join(lines)
+
+
 def format_project(project: JiraProject) -> str:
     """Format a Jira project for display."""
     lines = [f"Project {project.key} — {project.name}"]

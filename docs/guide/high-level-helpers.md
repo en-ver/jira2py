@@ -38,7 +38,7 @@ helpers.filters
 | `helpers.changelogs` | Complete issue changelog retrieval and known-ID retrieval |
 | `helpers.worklogs` | Worklog list/add/update/delete/report |
 | `helpers.attachments` | Attachment list/read/plan/download/upload/delete |
-| `helpers.metadata` | Transitions, projects, statuses, priorities, users, and field metadata |
+| `helpers.metadata` | Field catalog, create/edit metadata, transitions, projects, statuses, priorities, and users |
 | `helpers.links` | Issue-link list/types/create/delete |
 | `helpers.filters` | Saved filter list/search/run |
 
@@ -86,6 +86,8 @@ result = helpers.changelogs.list(
     "PROJ-123",
     created_at_or_after="2026-01-01T00:00:00Z",
     created_before="2026-02-01T00:00:00Z",
+    field_ids=["summary", "customfield_10001"],
+    result_max_results=20,
 )
 print(result.text)
 print(result.data["changelogs"])
@@ -95,7 +97,9 @@ known = helpers.changelogs.list_by_ids("PROJ-123", [10001, 10002])
 print(known.data["changelogs"])  # histories from Jira's PageOfChangelogs envelope
 ```
 
-Date bounds are compared in UTC with inclusive lower and exclusive upper semantics. Filtering is local and runs only after the complete history has been retrieved. `result.data` remains `{"issue_key": ..., "changelogs": [...]}` with Jira's original history mappings; it never contains synthetic pagination fields. `list_by_ids()` likewise extracts the original mappings from the POST response's `histories` envelope and does not expose its page metadata. Entries without a usable `created` timestamp are retained without bounds and excluded when either bound is supplied.
+Date bounds are compared in UTC with inclusive lower and exclusive upper semantics. Filtering is local and runs only after the complete history has been retrieved. `field_ids` matches raw `item["fieldId"]` exactly and case-sensitively, never the display `field`; it prunes unmatched items and events with no remaining items while preserving all other raw properties, nulls, and Jira order. Entries without a usable `created` timestamp are retained without bounds and excluded when either bound is supplied.
+
+`result_max_results` enables post-filter event pagination. All Jira changelog pages are still fetched first, then timestamps and field IDs are applied before the event slice. A paged result adds helper-owned `result_page` metadata (`start_at`, `max_results`, filtered-event `total`, `is_last`, and `next_start_at`); omit result pagination to retain the existing `{"issue_key": ..., "changelogs": [...]}` envelope exactly. `list_by_ids()` accepts the same `field_ids` filter but never adds result pagination; it extracts the original mappings from the POST response's `histories` envelope.
 
 ### Comments
 
@@ -127,6 +131,14 @@ helpers.worklogs.delete("PROJ-123", "10010")
 ### Metadata, links, and filters
 
 ```python
+field_page = helpers.metadata.list_fields(
+    "PROJ",
+    query="points",
+    field_types=["custom"],
+)
+print(field_page.text)  # display names plus canonical field IDs
+print(field_page.data["values"])
+
 print(helpers.metadata.project("PROJ").text)
 print(helpers.metadata.statuses().text)
 print(helpers.metadata.priorities().text)
@@ -134,6 +146,8 @@ print(helpers.links.list("PROJ-123").text)
 print(helpers.filters.search("Team").text)
 print(helpers.filters.run("12345").text)
 ```
+
+`helpers.metadata.list_fields()` returns one raw Jira `/field/search` page. A project key is resolved to Jira's numeric project ID and passed as a project-context filter. Jira documents this endpoint for Classic projects; it has no issue-type or screen-applicability guarantee. Use `create_fields()` and `edit_fields()` when you need create-screen or existing-issue edit metadata.
 
 `helpers.filters.run()` resolves the saved filter's JQL and returns the same search-style result shape as `helpers.search.issues()`.
 

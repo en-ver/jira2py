@@ -120,6 +120,12 @@ def test_list_validates_bounds_before_requesting_jira() -> None:
         )
     with pytest.raises(JiraHelperValidationError, match="created_before"):
         helper.list("PROJ-1", created_before=cast(Any, 42))
+    with pytest.raises(JiraHelperValidationError, match="field_ids"):
+        helper.list("PROJ-1", field_ids=cast(Any, "summary"))
+    with pytest.raises(JiraHelperValidationError, match="result_start_at"):
+        helper.list("PROJ-1", result_start_at=1)
+    with pytest.raises(JiraHelperValidationError, match="result_max_results"):
+        helper.list("PROJ-1", result_max_results=0)
 
     api.issues.get_changelogs.assert_not_called()
 
@@ -174,6 +180,121 @@ def test_list_translates_request_and_response_shape_failures() -> None:
         ChangelogHelpers(cast(JiraAPI, api)).list("PROJ-1")
 
 
+def test_list_filters_raw_items_by_exact_field_id_without_mutating_source() -> None:
+    api = _make_api()
+    first = {
+        "id": "100",
+        "created": "2026-01-02T00:00:00Z",
+        "items": [
+            {
+                "field": "Summary",
+                "fieldId": "summary",
+                "fromString": "Old",
+                "toString": "New",
+                "unknownItemField": None,
+            },
+            {"field": "Status", "fieldId": "status"},
+            {"field": "Summary"},
+            {"field": "Priority", "fieldId": None},
+        ],
+        "unknownHistoryField": {"retained": True},
+    }
+    second = {
+        "id": "101",
+        "created": "2026-01-03T00:00:00Z",
+        "items": [{"fieldId": "customfield_10001", "unknown": None}],
+    }
+    unmatched = {
+        "id": "102",
+        "created": "2026-01-04T00:00:00Z",
+        "items": [{"fieldId": "status"}],
+    }
+    api.issues.get_changelogs.return_value = _page(
+        [first, second, unmatched],
+        start_at=0,
+        is_last=True,
+    )
+
+    result = ChangelogHelpers(cast(JiraAPI, api)).list(
+        "PROJ-1",
+        field_ids=["summary", "customfield_10001"],
+    )
+
+    data = result.data
+    assert isinstance(data, dict)
+    filtered = data["changelogs"]
+    assert [changelog["id"] for changelog in filtered] == ["100", "101"]
+    assert filtered[0] is not first
+    assert list(filtered[0]) == list(first)
+    assert filtered[0]["unknownHistoryField"] is first["unknownHistoryField"]
+    assert filtered[0]["items"] == [first["items"][0]]
+    assert filtered[0]["items"][0] is first["items"][0]
+    assert filtered[1]["items"] == [second["items"][0]]
+    assert first["items"] == [
+        {
+            "field": "Summary",
+            "fieldId": "summary",
+            "fromString": "Old",
+            "toString": "New",
+            "unknownItemField": None,
+        },
+        {"field": "Status", "fieldId": "status"},
+        {"field": "Summary"},
+        {"field": "Priority", "fieldId": None},
+    ]
+    assert "Summary: Old → New" in result.text
+    assert "Status" not in result.text
+
+    no_matches = ChangelogHelpers(cast(JiraAPI, api)).list(
+        "PROJ-1",
+        field_ids=["Summary"],
+    )
+    assert no_matches.data == {"issue_key": "PROJ-1", "changelogs": []}
+
+
+def test_list_fetches_complete_history_before_paging_filtered_events() -> None:
+    api = _make_api()
+    before = {
+        "id": "before",
+        "created": "2026-01-01",
+        "items": [{"fieldId": "summary"}],
+    }
+    first = {"id": "first", "created": "2026-01-02", "items": [{"fieldId": "summary"}]}
+    second = {
+        "id": "second",
+        "created": "2026-01-03",
+        "items": [{"fieldId": "summary"}],
+    }
+    api.issues.get_changelogs.side_effect = [
+        _page([before, first], start_at=0, is_last=False),
+        _page([second], start_at=2, is_last=True),
+    ]
+
+    result = ChangelogHelpers(cast(JiraAPI, api)).list(
+        "PROJ-1",
+        created_at_or_after="2026-01-02",
+        field_ids=["summary"],
+        result_start_at=1,
+        result_max_results=1,
+    )
+
+    assert api.issues.get_changelogs.call_args_list == [
+        call(issue_id="PROJ-1", start_at=0),
+        call(issue_id="PROJ-1", start_at=2),
+    ]
+    assert result.data == {
+        "issue_key": "PROJ-1",
+        "changelogs": [second],
+        "result_page": {
+            "start_at": 1,
+            "max_results": 1,
+            "total": 2,
+            "is_last": True,
+            "next_start_at": None,
+        },
+    }
+
+
 def test_list_by_ids_uses_one_request_and_extracts_server_ordered_histories() -> None:
     api = _make_api()
     server_order = [
@@ -204,6 +325,45 @@ def test_list_by_ids_uses_one_request_and_extracts_server_ordered_histories() ->
     assert result.data == {"issue_key": "PROJ-1", "changelogs": server_order}
 
 
+def test_list_by_ids_filters_items_without_result_pagination() -> None:
+    api = _make_api()
+    history = {
+        "id": "102",
+        "created": "2026-01-02T00:00:00Z",
+        "items": [
+            {"fieldId": "summary", "fromString": "Old", "toString": "New"},
+            {"fieldId": "status"},
+        ],
+        "unknownHistoryField": None,
+    }
+    api.issues.get_changelogs_by_ids.return_value = {"histories": [history]}
+
+    result = ChangelogHelpers(cast(JiraAPI, api)).list_by_ids(
+        "PROJ-1",
+        [102],
+        field_ids=["summary"],
+    )
+
+    assert result.data == {
+        "issue_key": "PROJ-1",
+        "changelogs": [
+            {
+                "id": "102",
+                "created": "2026-01-02T00:00:00Z",
+                "items": [history["items"][0]],
+                "unknownHistoryField": None,
+            }
+        ],
+    }
+    data = result.data
+    assert isinstance(data, dict)
+    assert "result_page" not in data
+    assert history["items"] == [
+        {"fieldId": "summary", "fromString": "Old", "toString": "New"},
+        {"fieldId": "status"},
+    ]
+
+
 def test_list_by_ids_rejects_a_non_page_response() -> None:
     api = _make_api()
     api.issues.get_changelogs_by_ids.return_value = [
@@ -224,6 +384,19 @@ def test_list_by_ids_validates_ids_before_requesting_jira(
         ChangelogHelpers(cast(JiraAPI, api)).list_by_ids(
             "PROJ-1",
             cast(Any, changelog_ids),
+        )
+
+    api.issues.get_changelogs_by_ids.assert_not_called()
+
+
+def test_list_by_ids_validates_field_ids_before_requesting_jira() -> None:
+    api = _make_api()
+
+    with pytest.raises(JiraHelperValidationError, match="field_ids"):
+        ChangelogHelpers(cast(JiraAPI, api)).list_by_ids(
+            "PROJ-1",
+            [100],
+            field_ids=cast(Any, ["summary,status"]),
         )
 
     api.issues.get_changelogs_by_ids.assert_not_called()

@@ -74,7 +74,7 @@ There is **no default credentials file path**. If you do not pass `credentials_f
 | **Issue Search** | JQL search with pagination |
 | **Issue Comments** | List, add, update, delete comments |
 | **Issue Worklogs** | List, add, update, delete issue worklogs |
-| **Issue Fields** | List system and custom fields |
+| **Issue Fields** | List all fields or search one paginated field catalog page |
 | **Issue Links** | List issue links, list link types, create and delete links |
 | **Projects** | Get, search, and list projects |
 | **Attachments** | List issue attachments, read metadata, download, upload, and delete attachments |

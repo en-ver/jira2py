@@ -4,7 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/jira2py.svg)](https://pypi.org/project/jira2py/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A type-safe Python client for the [Jira Cloud REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/). Use it to read and search issues, create and edit issues, transition workflows, retrieve changelogs, and work with comments, attachments, links, worklogs, projects, metadata, users, and saved filters.
+A type-safe Python client for the [Jira Cloud REST API v3](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/). Use it to read and search issues, create and edit issues, transition workflows, retrieve changelogs, discover canonical field IDs, and work with comments, attachments, links, worklogs, projects, metadata, users, and saved filters.
 
 ## Scope
 
@@ -77,6 +77,8 @@ print(format_issue(issue, browse_url=f"{api.credentials.url}/browse/{issue['key'
 
 helpers = JiraHelpers(api)
 print(helpers.metadata.transitions("PROJECT-123").text)
+field_page = helpers.metadata.list_fields("PROJECT", field_types=["custom"])
+print(field_page.text)  # names plus canonical IDs; one Jira page
 print(helpers.attachments.list("PROJECT-123").text)
 print(helpers.changelogs.list("PROJECT-123").text)
 ```
