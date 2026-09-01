@@ -213,6 +213,10 @@ class Issues(ApiBase):
         expand: str | None = None,
         transition_id: str | None = None,
         extra_params: Mapping[str, Any] | None = None,
+        *,
+        include_unavailable_transitions: bool | None = None,
+        skip_remote_only_condition: bool | None = None,
+        sort_by_ops_bar_and_status: bool | None = None,
     ) -> dict[str, Any]:
         """Get available workflow transitions for a Jira issue.
 
@@ -223,6 +227,12 @@ class Issues(ApiBase):
             expand: Optional expand directive such as ``transitions.fields``.
             transition_id: Optional transition ID to filter transition metadata.
             extra_params: Additional query parameters. Takes priority over named parameters.
+            include_unavailable_transitions: Whether to include transitions that are
+                currently unavailable. Such transitions remain informational.
+            skip_remote_only_condition: Jira's ``skipRemoteOnlyCondition`` discovery
+                control; this does not bypass workflow conditions.
+            sort_by_ops_bar_and_status: Whether Jira should apply its operations-bar
+                and status ordering.
 
         Returns:
             Jira transition metadata including a ``transitions`` list.
@@ -231,7 +241,13 @@ class Issues(ApiBase):
             self._client._request_jira(
                 method="GET",
                 context_path=f"issue/{issue_id}/transitions",
-                params={"expand": expand, "transitionId": transition_id},
+                params={
+                    "expand": expand,
+                    "transitionId": transition_id,
+                    "includeUnavailableTransitions": include_unavailable_transitions,
+                    "skipRemoteOnlyCondition": skip_remote_only_condition,
+                    "sortByOpsBarAndStatus": sort_by_ops_bar_and_status,
+                },
                 extra_params=extra_params,
             )
         )

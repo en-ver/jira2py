@@ -166,14 +166,27 @@ class MetadataHelpers:
             edit_data,
         )
 
-    def transitions(self, issue_key: str) -> HelperResult:
-        """List available workflow transitions for an existing Jira issue."""
+    def transitions(
+        self,
+        issue_key: str,
+        *,
+        transition_id: str | None = None,
+        include_unavailable_transitions: bool | None = None,
+    ) -> HelperResult:
+        """Discover an issue's transitions with Jira-native screen metadata."""
         issue_key = require_non_empty_string(issue_key, field_name="issue_key")
+        if transition_id is not None:
+            transition_id = require_non_empty_string(
+                transition_id,
+                field_name="transition_id",
+            )
 
         try:
             data = self.api.issues.get_transitions(
                 issue_id=issue_key,
                 expand="transitions.fields",
+                transition_id=transition_id,
+                include_unavailable_transitions=include_unavailable_transitions,
             )
         except Exception as exc:
             raise JiraHelperOperationError(

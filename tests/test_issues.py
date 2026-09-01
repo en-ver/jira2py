@@ -243,6 +243,9 @@ class TestIssues:
             assert request.url.path == "/rest/api/3/issue/TEST-1/transitions"
             assert request.url.params["expand"] == "transitions.fields"
             assert request.url.params["transitionId"] == "21"
+            assert "includeUnavailableTransitions" not in request.url.params
+            assert "skipRemoteOnlyCondition" not in request.url.params
+            assert "sortByOpsBarAndStatus" not in request.url.params
             return httpx.Response(200, json=SAMPLE_TRANSITIONS)
 
         api = Issues(make_client(handler))
@@ -255,13 +258,37 @@ class TestIssues:
         assert len(result["transitions"]) == 2
         assert result["transitions"][1]["name"] == "Close Issue"
 
+    def test_get_transitions_serializes_named_controls_with_legacy_positions(
+        self, make_client
+    ):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["expand"] == "transitions.fields"
+            assert request.url.params["transitionId"] == "34"
+            assert request.url.params["includeUnavailableTransitions"] == "true"
+            assert request.url.params["skipRemoteOnlyCondition"] == "false"
+            assert request.url.params["sortByOpsBarAndStatus"] == "true"
+            return httpx.Response(200, json=SAMPLE_TRANSITIONS)
+
+        api = Issues(make_client(handler))
+        api.get_transitions(
+            "TEST-1",
+            "transitions.fields",
+            "21",
+            {"transitionId": "34"},
+            include_unavailable_transitions=True,
+            skip_remote_only_condition=False,
+            sort_by_ops_bar_and_status=True,
+        )
+
     def test_transition_issue_returns_none_on_204(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:
             assert request.url.path == "/rest/api/3/issue/TEST-1/transitions"
             assert request.method == "POST"
-            assert request.read() == (
-                b'{"transition":{"id":"21"},"fields":{"resolution":{"name":"Done"}}}'
-            )
+            assert json.loads(request.content) == {
+                "transition": {"id": "21"},
+                "fields": {"resolution": {"name": "Done"}},
+                "update": {"labels": [{"add": "released"}]},
+            }
             return httpx.Response(204)
 
         api = Issues(make_client(handler))
@@ -269,6 +296,7 @@ class TestIssues:
             "TEST-1",
             transition_id="21",
             fields={"resolution": {"name": "Done"}},
+            update={"labels": [{"add": "released"}]},
         )
 
         assert result is None

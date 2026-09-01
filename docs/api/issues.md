@@ -83,6 +83,13 @@ Use this generic field-edit pathway if you need to set assignee fields supported
 ```python
 transitions = jira.issues.get_transitions("PROJ-123")
 transitions = jira.issues.get_transitions("PROJ-123", expand="transitions.fields")
+diagnostics = jira.issues.get_transitions(
+    "PROJ-123",
+    transition_id="31",
+    include_unavailable_transitions=True,
+    skip_remote_only_condition=False,
+    sort_by_ops_bar_and_status=True,
+)
 ```
 
 | Parameter | Type | Default | Description |
@@ -90,7 +97,12 @@ transitions = jira.issues.get_transitions("PROJ-123", expand="transitions.fields
 | `issue_id` | `str` | required | Issue ID or key |
 | `expand` | `str \| None` | `None` | Optional expand value such as `transitions.fields` |
 | `transition_id` | `str \| None` | `None` | Optional transition ID filter |
-| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
+| `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters; takes priority over every named query parameter |
+| `include_unavailable_transitions` | `bool \| None` | `None` | Include unavailable transitions for diagnostics; this does not make them executable |
+| `skip_remote_only_condition` | `bool \| None` | `None` | Jira's remote-only-condition discovery control; it does not bypass workflow conditions |
+| `sort_by_ops_bar_and_status` | `bool \| None` | `None` | Apply Jira's operations-bar and status ordering |
+
+The first four parameters retain their positional order. The three Jira query controls are keyword-only so existing positional calls, including a positional `extra_params`, remain compatible. `extra_params` can still override `expand`, `transitionId`, or any of the named controls.
 
 **Returns:** `dict[str, Any]` with a `transitions` list.
 
@@ -99,8 +111,15 @@ transitions = jira.issues.get_transitions("PROJ-123", expand="transitions.fields
 ## `transition_issue`
 
 ```python
-jira.issues.transition_issue("PROJ-123", transition_id="31")
+jira.issues.transition_issue(
+    "PROJ-123",
+    transition_id="31",
+    fields={"resolution": {"name": "Done"}},
+    update={"labels": [{"add": "released"}]},
+)
 ```
+
+Use `get_transitions(..., expand="transitions.fields")` to discover the transition's current screen metadata. `fields` and `update` are Jira-native payload mappings and must not contain the same field key; Jira validates required values, schemas, allowed values, and operations. `history_metadata` and issue `properties` remain available only through this low-level method.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |

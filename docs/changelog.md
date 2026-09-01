@@ -31,6 +31,10 @@ text = format_issue(
 
 ### Added
 
+- Added named low-level transition-discovery controls for `includeUnavailableTransitions`, `skipRemoteOnlyCondition`, and `sortByOpsBarAndStatus`, while retaining the existing positional arguments and `extra_params` precedence.
+- Added focused transition discovery through `MetadataHelpers.transitions(..., transition_id=..., include_unavailable_transitions=...)`. It always expands `transitions.fields`, keeps Jira's complete raw transition envelope in helper data, and presents destination IDs/names, availability and workflow indicators, plus screen field keys/names/requirements/operations.
+- Added Jira-native `fields` and `update` mappings to `IssueHelpers.transition()`. The helper rejects exact overlap between their field keys, forwards neither submitted body in its result, and leaves Jira as the validator for screen requirements and field values. Successful helper transition results now add `verified: false`: Jira accepted the request, but jira2py did not perform a verification read and reports the destination only as expected.
+
 - Added one-page `IssueFields.search_fields()` support for Jira's stable `/field/search` endpoint, including canonical field IDs, system/custom type filters, project IDs, ordering, expansions, and raw query overrides. `IssueFields.get_fields()` is unchanged.
 - Added `MetadataHelpers.list_fields()` for one searchable raw field page with concise canonical-ID text and optional project-key-to-numeric-ID context resolution. Jira documents field search for Classic projects; project context does not determine issue-type or create/edit-screen applicability.
 - Added exact case-sensitive raw `fieldId` filtering to ordinary and known-ID changelog helpers. Ordinary changelog retrieval also supports optional post-filter event pagination with `result_page` metadata after all Jira pages, timestamp filtering, item pruning, and empty-event removal.

@@ -109,17 +109,36 @@ class IssueHelpers:
             return HelperResult(text=text, raw_content="null")
         return HelperResult.with_data(text, data)
 
-    def transition(self, issue_key: str, transition: str) -> HelperResult:
-        """Transition an issue using an explicit transition ID or name."""
+    def transition(
+        self,
+        issue_key: str,
+        transition: str,
+        *,
+        fields: Mapping[str, Any] | None = None,
+        update: Mapping[str, Any] | None = None,
+    ) -> HelperResult:
+        """Transition an issue by ID or name with Jira-native field operations."""
         issue_key = require_non_empty_string(issue_key, field_name="issue_key")
         transition = require_non_empty_string(transition, field_name="transition")
+        overlapping_fields = set(fields or {}).intersection(update or {})
+        if overlapping_fields:
+            overlap = ", ".join(sorted(map(str, overlapping_fields)))
+            raise JiraHelperValidationError(
+                "A field cannot appear in both fields and update: " + overlap
+            )
         resolved = self._resolve_transition(issue_key, transition)
 
+        transition_kwargs: dict[str, Any] = {
+            "issue_id": issue_key,
+            "transition_id": resolved.id,
+        }
+        if fields is not None:
+            transition_kwargs["fields"] = fields
+        if update is not None:
+            transition_kwargs["update"] = update
+
         try:
-            self.api.issues.transition_issue(
-                issue_id=issue_key,
-                transition_id=resolved.id,
-            )
+            self.api.issues.transition_issue(**transition_kwargs)
         except Exception as exc:
             raise JiraHelperOperationError(
                 f"Failed to transition issue {issue_key}: {exc}"
@@ -131,12 +150,14 @@ class IssueHelpers:
             "transition_name": resolved.name,
             "to_status": resolved.to.name if resolved.to else None,
             "status": "transitioned",
+            "verified": False,
         }
         text_lines = [
-            f'Applied transition "{resolved.name}" (id: {resolved.id}) to {issue_key}'
+            f'Jira accepted transition "{resolved.name}" (id: {resolved.id}) for '
+            f"{issue_key} without a verification read"
         ]
         if resolved.to:
-            text_lines.append(f"Target Status: {resolved.to.name}")
+            text_lines.append(f"Expected destination status: {resolved.to.name}")
         text_lines.append(f"URL: {self.api.credentials.url}/browse/{issue_key}")
         return HelperResult.with_data("\n".join(text_lines), data)
 

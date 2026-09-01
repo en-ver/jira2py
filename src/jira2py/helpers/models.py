@@ -17,8 +17,9 @@ class JiraModel(BaseModel):
 
 
 class NamedResource(JiraModel):
-    """A Jira resource with a name."""
+    """A Jira resource with an ID and name."""
 
+    id: str = ""
     name: str = "—"
 
 
@@ -158,16 +159,18 @@ class IssueLink(JiraModel):
 
 
 class IssueTransition(JiraModel):
-    """A Jira issue transition option."""
+    """A Jira issue transition option with Jira-native field metadata."""
 
     id: str = ""
     name: str = "?"
     to: NamedResource | None = None
-    hasScreen: bool = False
+    hasScreen: bool | None = None
     isAvailable: bool | None = None
+    isConditional: bool | None = None
     isGlobal: bool | None = None
     isInitial: bool | None = None
-    fields: dict[str, Any] = Field(default_factory=dict)
+    looped: bool | None = None
+    fields: dict[str, Any] | None = None
 
 
 class IssueFields(JiraModel):
