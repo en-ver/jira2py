@@ -500,27 +500,65 @@ def format_transition_list(
     issue_key: str,
     transitions: list[IssueTransition],
 ) -> str:
-    """Format available issue transitions for display."""
+    """Format issue transitions and their Jira-native screen metadata."""
     if not transitions:
-        return f"No transitions available for {issue_key}"
+        return f"No transitions returned for {issue_key}"
 
-    lines = [f"Available transitions for {issue_key}:\n"]
+    lines = [f"Transitions for {issue_key}:\n"]
     for transition in transitions:
-        target = f" → {transition.to.name}" if transition.to else ""
-        required_fields = [
-            field_id
-            for field_id, meta in transition.fields.items()
-            if isinstance(meta, dict) and meta.get("required")
-        ]
-        required_suffix = (
-            f" [required fields: {', '.join(required_fields)}]"
-            if required_fields
-            else ""
-        )
+        target = ""
+        if transition.to:
+            target = f" → {transition.to.name} (status id: {transition.to.id or '?'})"
+        lines.append(f"  • {transition.name} (id: {transition.id}){target}")
         lines.append(
-            f"  • {transition.name} (id: {transition.id}){target}{required_suffix}"
+            "    indicators: "
+            f"available: {_transition_indicator(transition.isAvailable)}; "
+            f"screen: {_transition_indicator(transition.hasScreen)}; "
+            f"conditional: {_transition_indicator(transition.isConditional)}; "
+            f"global: {_transition_indicator(transition.isGlobal)}; "
+            f"looped: {_transition_indicator(transition.looped)}"
         )
+        if transition.fields is None:
+            lines.append("    fields: not returned")
+        elif not transition.fields:
+            lines.append("    fields: none")
+        else:
+            lines.append("    fields:")
+            for field_id, metadata in transition.fields.items():
+                lines.append(_format_transition_field(field_id, metadata))
     return "\n".join(lines)
+
+
+def _transition_indicator(value: bool | None) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "unknown"
+
+
+def _format_transition_field(field_id: str, metadata: Any) -> str:
+    field_metadata = metadata if isinstance(metadata, Mapping) else {}
+    field_key = _raw_text(field_metadata.get("key"), fallback=field_id)
+    field_name = _raw_text(field_metadata.get("name"), fallback="?")
+    required = _transition_indicator(
+        field_metadata.get("required")
+        if isinstance(field_metadata.get("required"), bool)
+        else None
+    )
+    operations = field_metadata.get("operations")
+    if isinstance(operations, Sequence) and not isinstance(
+        operations, (str, bytes, bytearray)
+    ):
+        operations_text = ", ".join(_raw_text(operation) for operation in operations)
+        operations_text = operations_text or "none"
+    else:
+        operations_text = "not returned"
+
+    return (
+        f"      - field: {field_id}; key: {field_key}; name: {field_name}; "
+        f"required: {required}; operations: {operations_text}"
+    )
 
 
 def format_field_metadata(

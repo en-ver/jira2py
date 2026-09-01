@@ -108,6 +108,26 @@ text = format_issue(
 
 The supplied selector sequence is forwarded unchanged: jira2py does not add fields, deduplicate selectors, or request an expansion. `None` omits `fields` and lets Jira choose its default unless raw `extra_params["fields"]` overrides it. Wildcards and negative selectors such as `"*all"` and `"-description"` can still return broad responses; choose projections deliberately.
 
+## Workflow transitions
+
+Discover the current issue's transitions and transition-screen metadata before choosing the Jira transition **ID**:
+
+```python
+metadata = helpers.metadata.transitions("PROJ-123")
+print(metadata.text)
+print(metadata.data)  # complete Jira transitions envelope, including fields
+
+accepted = helpers.issues.transition(
+    "PROJ-123",
+    "31",
+    fields={"resolution": {"name": "Done"}},
+    update={"labels": [{"add": "released"}]},
+)
+assert accepted.data["verified"] is False
+```
+
+`fields` and `update` are Jira-native mappings and cannot share an exact field key. The helper's successful result means Jira accepted the request; it does not read the issue afterward. Verify the expected destination status and changed fields with `api.issues.get_issue()`. Transition names remain supported for compatibility, but IDs from fresh discovery avoid ambiguity.
+
 ## Documentation
 
 - [Installation](https://jira2py.org/installation/)

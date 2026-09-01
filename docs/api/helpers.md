@@ -29,7 +29,7 @@ helpers = JiraHelpers(api)
 
 ```python
 helpers.auth.status()
-helpers.issues.transition("PROJ-123", "Done")
+helpers.issues.transition("PROJ-123", "31")
 helpers.comments.update("PROJ-123", "10001", "Updated note")
 helpers.changelogs.list("PROJ-123")
 helpers.worklogs.add("PROJ-123", "1h")
@@ -89,6 +89,16 @@ result = helpers.metadata.list_fields(
 A supplied project key is resolved once to Jira's numeric project ID before the field search. `query` is trimmed, and a blank query is omitted. Canonical field IDs are exact, unpadded strings with no commas; `field_types` accepts only `"system"` and `"custom"`; `start_at` must be non-negative and `max_results` positive. These inputs are validated before Jira requests.
 
 This is Jira's `/field/search` **project-context** filter, documented for Classic Jira projects. It has no issue-type parameter and does not establish create-screen or edit-screen applicability. Continue to use `create_fields()` for a project's create-screen metadata and `edit_fields()` for an existing issue's edit metadata.
+
+## Transition discovery and execution
+
+`helpers.metadata.transitions(issue_key, *, transition_id=None, include_unavailable_transitions=None)` always requests `expand="transitions.fields"`. Its structured `data` is the complete raw Jira transitions envelope; the concise text lists transition IDs, destination status IDs/names, availability, screen/conditional/global/looped indicators, and transition-screen field keys/names/requirements/operations. Schema, allowed/default values, autocomplete URLs, configuration, and unknown members remain Jira-native in `data`.
+
+Use `transition_id` to inspect one selected transition. Set `include_unavailable_transitions=True` only for diagnostics: it includes informational unavailable entries but does not make them executable.
+
+`helpers.issues.transition(issue_key, transition, *, fields=None, update=None)` accepts a transition ID or, for compatibility, a name. Prefer an ID obtained from fresh discovery. `fields` and `update` are passed as Jira-native mappings; the helper rejects exact field-key overlap but does not locally validate required fields, schemas, allowed values, or operations. `historyMetadata` and issue properties intentionally remain low-level `jira.issues.transition_issue()` parameters.
+
+Its successful `HelperResult.data` retains the existing transition result keys and adds `verified: false`. Jira accepted the request, but the expected destination is not an observed result and no verification read is performed. Submitted `fields` and `update` bodies are not included in the result.
 
 ## Complete changelogs
 
@@ -201,7 +211,7 @@ Common public helper models include:
 
 - `create(project_key, issue_type, summary, *, description=None, fields=None)`
 - `edit(issue_key, *, summary=None, description=None, fields=None, raw=False)`
-- `transition(issue_key, transition)`
+- `transition(issue_key, transition, *, fields=None, update=None)`
 - `validate_create(...)`
 - `validate_edit(...)`
 
@@ -244,7 +254,7 @@ Common public helper models include:
 - `issue_types(project_key)`
 - `create_fields(project_key, issue_type)`
 - `edit_fields(issue_key)`
-- `transitions(issue_key)`
+- `transitions(issue_key, *, transition_id=None, include_unavailable_transitions=None)`
 - `project(project_id_or_key)`
 - `projects(query=None)`
 - `statuses()`

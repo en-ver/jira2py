@@ -135,7 +135,7 @@ def test_edit_raw_response_handles_empty_response_body() -> None:
     )
 
 
-def test_transition_resolves_name_and_returns_structured_result() -> None:
+def test_transition_keeps_name_selector_compatibility_and_is_unverified() -> None:
     api = _make_api()
     api.issues.get_transitions.return_value = {
         "transitions": [
@@ -153,6 +153,7 @@ def test_transition_resolves_name_and_returns_structured_result() -> None:
     )
 
     api.issues.get_transitions.assert_called_once_with(issue_id="PROJ-123")
+    api.issues.get_issue.assert_not_called()
     api.issues.transition_issue.assert_called_once_with(
         issue_id="PROJ-123",
         transition_id="11",
@@ -163,9 +164,64 @@ def test_transition_resolves_name_and_returns_structured_result() -> None:
         "transition_name": "Start Progress",
         "to_status": "In Progress",
         "status": "transitioned",
+        "verified": False,
     }
-    assert 'Applied transition "Start Progress" (id: 11) to PROJ-123' in result.text
-    assert "Target Status: In Progress" in result.text
+    assert (
+        'Jira accepted transition "Start Progress" (id: 11) for PROJ-123 '
+        "without a verification read"
+    ) in result.text
+    assert "Expected destination status: In Progress" in result.text
+
+
+def test_transition_forwards_jira_native_fields_and_update_without_echoing_them() -> (
+    None
+):
+    api = _make_api()
+    api.issues.get_transitions.return_value = {
+        "transitions": [{"id": "21", "name": "Resolve Issue"}]
+    }
+    fields = {"resolution": {"name": "Done"}}
+    update = {"labels": [{"add": "released"}]}
+
+    result = IssueHelpers(cast(JiraAPI, api)).transition(
+        "PROJ-123",
+        "21",
+        fields=fields,
+        update=update,
+    )
+
+    api.issues.transition_issue.assert_called_once_with(
+        issue_id="PROJ-123",
+        transition_id="21",
+        fields=fields,
+        update=update,
+    )
+    api.issues.get_issue.assert_not_called()
+    assert result.data is not None
+    assert "fields" not in result.data
+    assert "update" not in result.data
+    assert "resolution" not in result.text
+    assert "released" not in result.text
+
+
+def test_transition_rejects_overlapping_fields_and_update_before_jira_requests() -> (
+    None
+):
+    api = _make_api()
+
+    with pytest.raises(
+        JiraHelperValidationError,
+        match="A field cannot appear in both fields and update: resolution",
+    ):
+        IssueHelpers(cast(JiraAPI, api)).transition(
+            "PROJ-123",
+            "21",
+            fields={"resolution": {"name": "Done"}},
+            update={"resolution": [{"set": {"name": "Done"}}]},
+        )
+
+    api.issues.get_transitions.assert_not_called()
+    api.issues.transition_issue.assert_not_called()
 
 
 def test_transition_rejects_unknown_transition_with_available_options() -> None:

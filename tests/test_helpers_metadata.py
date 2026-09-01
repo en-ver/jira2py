@@ -195,37 +195,64 @@ def test_edit_fields_formats_edit_metadata() -> None:
     assert 'summary "Summary" — string' in result.text
 
 
-def test_transitions_formats_ids_names_and_required_fields() -> None:
+def test_transitions_returns_raw_expanded_metadata_with_agent_focused_text() -> None:
     api = _make_api()
-    api.issues.get_transitions.return_value = {
+    envelope = {
+        "expand": "transitions.fields",
         "transitions": [
-            {
-                "id": "11",
-                "name": "Start Progress",
-                "to": {"name": "In Progress"},
-            },
             {
                 "id": "21",
                 "name": "Resolve Issue",
-                "to": {"name": "Done"},
+                "to": {"id": "10001", "name": "Done"},
+                "hasScreen": True,
+                "isAvailable": False,
+                "isConditional": True,
+                "isGlobal": True,
+                "looped": True,
                 "fields": {
-                    "resolution": {"required": True},
-                    "comment": {"required": False},
+                    "resolution": {
+                        "key": "resolution",
+                        "name": "Resolution",
+                        "required": True,
+                        "operations": ["set"],
+                        "schema": {"type": "resolution"},
+                        "allowedValues": [{"id": "1", "name": "Done"}],
+                        "defaultValue": {"id": "1", "name": "Done"},
+                        "autoCompleteUrl": "https://example.test/complete",
+                        "configuration": {"opaque": "value"},
+                    }
                 },
-            },
-        ]
+            }
+        ],
     }
+    api.issues.get_transitions.return_value = envelope
 
-    result = MetadataHelpers(cast(JiraAPI, api)).transitions("PROJ-1")
+    result = MetadataHelpers(cast(JiraAPI, api)).transitions(
+        "PROJ-1",
+        transition_id="21",
+        include_unavailable_transitions=True,
+    )
 
     api.issues.get_transitions.assert_called_once_with(
         issue_id="PROJ-1",
         expand="transitions.fields",
+        transition_id="21",
+        include_unavailable_transitions=True,
     )
-    assert result.data == api.issues.get_transitions.return_value
-    assert "Available transitions for PROJ-1:" in result.text
-    assert "Start Progress (id: 11) → In Progress" in result.text
-    assert "Resolve Issue (id: 21) → Done [required fields: resolution]" in result.text
+    assert result.data is envelope
+    assert result.data["transitions"][0]["fields"]["resolution"]["configuration"] == {
+        "opaque": "value"
+    }
+    assert "Transitions for PROJ-1:" in result.text
+    assert "Resolve Issue (id: 21) → Done (status id: 10001)" in result.text
+    assert (
+        "available: no; screen: yes; conditional: yes; global: yes; looped: yes"
+        in result.text
+    )
+    assert (
+        "field: resolution; key: resolution; name: Resolution; required: yes; "
+        "operations: set"
+    ) in result.text
 
 
 def test_project_formats_single_project_details() -> None:

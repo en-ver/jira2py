@@ -72,9 +72,29 @@ issue = api.issues.get_issue(
     fields=["summary", "status", "description"],
 )
 print(format_issue(issue, browse_url=f"{api.credentials.url}/browse/{issue['key']}"))
-print(helpers.metadata.transitions("PROJ-123").text)
-print(helpers.issues.transition("PROJ-123", "Done").text)
+
+metadata = helpers.metadata.transitions("PROJ-123")
+print(metadata.text)
+print(metadata.data)  # complete Jira transitions envelope with transitions.fields
+
+accepted = helpers.issues.transition(
+    "PROJ-123",
+    "31",  # use a transition ID from fresh discovery
+    fields={"resolution": {"name": "Done"}},
+    update={"labels": [{"add": "released"}]},
+)
+print(accepted.text)
+assert accepted.data["verified"] is False
+
+# Explicit verification read; transition() does not perform one automatically.
+observed = api.issues.get_issue("PROJ-123", fields=["status", "resolution", "labels"])
 ```
+
+`helpers.metadata.transitions()` always requests `transitions.fields`. Its `data` remains Jira's complete, unchanged transitions envelope, including field schema, allowed/default values, autocomplete URLs, configuration, and unfamiliar members. Its text identifies each transition and destination status IDs/names, availability and workflow indicators, and field keys/names/requirements/operations. Use `transition_id="31"` for focused discovery or `include_unavailable_transitions=True` only for diagnostics; an unavailable transition is not executable.
+
+`helpers.issues.transition()` accepts Jira-native `fields` and `update` mappings unchanged. The same exact field key cannot occur in both mappings; Jira remains responsible for required fields, schemas, allowed values, and field operations. The helper accepts transition names for compatibility, but IDs are preferred because names may be ambiguous. It does not expose history metadata or entity properties; use low-level `api.issues.transition_issue()` for those Jira capabilities.
+
+A successful transition helper result means Jira accepted the request, not that the destination was observed. It explicitly reports `verified: false`, describes the destination as expected, and never includes submitted request bodies. Read the issue explicitly when verification matters.
 
 `format_issue` is pure: it does not fetch or mutate the issue. It shows only field keys Jira returned, so missing fields are omitted and present empty values remain visible.
 

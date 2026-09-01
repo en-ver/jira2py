@@ -99,23 +99,45 @@ def test_format_issue_link_list_matches_issue_read_link_style() -> None:
     )
 
 
-def test_format_transition_list_shows_targets_and_required_fields() -> None:
+def test_format_transition_list_shows_destination_indicators_and_screen_fields() -> (
+    None
+):
     transitions = [
         IssueTransition.model_validate(
             {
                 "id": "11",
                 "name": "Start Progress",
-                "to": {"name": "In Progress"},
+                "to": {"id": "3", "name": "In Progress"},
+                "hasScreen": False,
+                "isAvailable": True,
+                "isConditional": False,
+                "isGlobal": False,
+                "looped": False,
             }
         ),
         IssueTransition.model_validate(
             {
                 "id": "21",
                 "name": "Resolve Issue",
-                "to": {"name": "Done"},
+                "to": {"id": "10001", "name": "Done"},
+                "hasScreen": True,
+                "isAvailable": True,
+                "isConditional": False,
+                "isGlobal": True,
+                "looped": True,
                 "fields": {
-                    "resolution": {"required": True},
-                    "comment": {"required": False},
+                    "resolution": {
+                        "key": "resolution",
+                        "name": "Resolution",
+                        "required": True,
+                        "operations": ["set"],
+                    },
+                    "comment": {
+                        "key": "comment",
+                        "name": "Comment",
+                        "required": False,
+                        "operations": ["add"],
+                    },
                 },
             }
         ),
@@ -125,10 +147,16 @@ def test_format_transition_list_shows_targets_and_required_fields() -> None:
         format_transition_list("PROJ-1", transitions)
         == dedent(
             """\
-        Available transitions for PROJ-1:
+        Transitions for PROJ-1:
 
-          • Start Progress (id: 11) → In Progress
-          • Resolve Issue (id: 21) → Done [required fields: resolution]
+          • Start Progress (id: 11) → In Progress (status id: 3)
+            indicators: available: yes; screen: no; conditional: no; global: no; looped: no
+            fields: not returned
+          • Resolve Issue (id: 21) → Done (status id: 10001)
+            indicators: available: yes; screen: yes; conditional: no; global: yes; looped: yes
+            fields:
+              - field: resolution; key: resolution; name: Resolution; required: yes; operations: set
+              - field: comment; key: comment; name: Comment; required: no; operations: add
         """
         ).strip()
     )
