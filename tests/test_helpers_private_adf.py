@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import jira2py.helpers._adf as adf
 
 
@@ -55,6 +57,108 @@ def test_convert_markdown_fields_only_converts_known_adf_fields() -> None:
             ],
         },
         "summary": "Fix thing",
+    }
+
+
+def test_convert_markdown_fields_leaves_raw_adf_unchanged() -> None:
+    raw_adf = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "mention", "attrs": {"id": "raw:ID"}}],
+            }
+        ],
+    }
+
+    converted = adf.convert_markdown_fields(
+        {"customfield_10001": raw_adf},
+        {"customfield_10001"},
+    )
+
+    assert converted["customfield_10001"] is raw_adf
+
+
+@pytest.mark.parametrize(
+    ("markdown", "content"),
+    [
+        (
+            "[~ACCOUNTID:557057:User:AbC]",
+            [
+                {
+                    "type": "mention",
+                    "attrs": {"id": "557057:User:AbC"},
+                }
+            ],
+        ),
+        (
+            r"\[~accountId:escaped:ID]",
+            [{"type": "text", "text": "[~accountId:escaped:ID]"}],
+        ),
+        (
+            "`[~accountId:code:ID]`",
+            [
+                {
+                    "type": "text",
+                    "text": "[~accountId:code:ID]",
+                    "marks": [{"type": "code"}],
+                }
+            ],
+        ),
+        (
+            "[link [~accountId:link:ID]](https://example.com)",
+            [
+                {
+                    "type": "text",
+                    "text": "link [~accountId:link:ID]",
+                    "marks": [
+                        {"type": "link", "attrs": {"href": "https://example.com"}}
+                    ],
+                }
+            ],
+        ),
+        ("[~accountId:]", [{"type": "text", "text": "[~accountId:]"}]),
+        (
+            "[~account:wrong-label]",
+            [{"type": "text", "text": "[~account:wrong-label]"}],
+        ),
+        ("[~accountId:unclosed", [{"type": "text", "text": "[~accountId:unclosed"}]),
+    ],
+)
+def test_markdown_to_adf_handles_jira_mention_syntax(
+    markdown: str,
+    content: list[dict[str, object]],
+) -> None:
+    assert adf.markdown_to_adf(markdown) == {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": content}],
+    }
+
+
+def test_markdown_to_adf_keeps_mentions_in_image_text_literal() -> None:
+    assert adf.markdown_to_adf(
+        "![image [~accountId:image:ID]](https://example.com/image.png)"
+    ) == {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "mediaSingle",
+                "attrs": {"layout": "center"},
+                "content": [
+                    {
+                        "type": "media",
+                        "attrs": {
+                            "type": "external",
+                            "url": "https://example.com/image.png",
+                            "alt": "image [~accountId:image:ID]",
+                        },
+                    }
+                ],
+            }
+        ],
     }
 
 

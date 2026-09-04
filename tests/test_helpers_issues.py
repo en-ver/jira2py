@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import Mock
@@ -71,6 +72,70 @@ def test_create_converts_description_and_markdown_fields(monkeypatch) -> None:
         "URL: https://example.atlassian.net/browse/PROJ-123"
     )
     assert result.data == {"key": "PROJ-123"}
+
+
+def test_issue_helpers_convert_jira_mentions_on_adf_write_fields() -> None:
+    api = _make_api()
+    api.issues.create_issue.return_value = {"key": "PROJ-123"}
+    api.fields.get_fields.return_value = [
+        {
+            "id": "customfield_10001",
+            "schema": {
+                "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            },
+        }
+    ]
+    helper = IssueHelpers(cast(JiraAPI, api))
+    mention = "[~ACCOUNTID:557057:User:AbC]"
+    mention_adf = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "mention", "attrs": {"id": "557057:User:AbC"}}],
+            }
+        ],
+    }
+
+    helper.create(
+        "PROJ",
+        "Bug",
+        "Fix thing",
+        description=mention,
+        fields={
+            "environment": mention,
+            "customfield_10001": mention,
+            "labels": ["backend"],
+        },
+    )
+    helper.edit(
+        "PROJ-123",
+        description=mention,
+        fields={"environment": mention, "customfield_10001": mention},
+    )
+
+    api.issues.create_issue.assert_called_once_with(
+        fields={
+            "environment": mention_adf,
+            "customfield_10001": mention_adf,
+            "labels": ["backend"],
+            "project": {"key": "PROJ"},
+            "issuetype": {"name": "Bug"},
+            "summary": "Fix thing",
+            "description": mention_adf,
+        }
+    )
+    api.issues.edit_issue.assert_called_once_with(
+        issue_id="PROJ-123",
+        fields={
+            "environment": mention_adf,
+            "customfield_10001": mention_adf,
+            "description": mention_adf,
+        },
+        return_issue=False,
+    )
+    assert api.fields.get_fields.call_count == 2
 
 
 def test_create_rejects_conflicting_description_field() -> None:
@@ -180,7 +245,18 @@ def test_transition_forwards_jira_native_fields_and_update_without_echoing_them(
     api.issues.get_transitions.return_value = {
         "transitions": [{"id": "21", "name": "Resolve Issue"}]
     }
-    fields = {"resolution": {"name": "Done"}}
+    raw_adf = {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "mention", "attrs": {"id": "raw:ID"}}],
+            }
+        ],
+    }
+    fields = {"resolution": {"name": "Done"}, "customfield_10001": raw_adf}
+    fields_before = deepcopy(fields)
     update = {"labels": [{"add": "released"}]}
 
     result = IssueHelpers(cast(JiraAPI, api)).transition(
@@ -197,6 +273,11 @@ def test_transition_forwards_jira_native_fields_and_update_without_echoing_them(
         update=update,
     )
     api.issues.get_issue.assert_not_called()
+    assert fields == fields_before
+    assert (
+        api.issues.transition_issue.call_args.kwargs["fields"]["customfield_10001"]
+        is raw_adf
+    )
     assert result.data is not None
     assert "fields" not in result.data
     assert "update" not in result.data

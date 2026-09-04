@@ -99,7 +99,10 @@ print(jira.users.get_current_user()["displayName"])
 !!! tip "Working with Atlassian Document Format (ADF)"
     The `description`, comment `body`, and worklog `comment` fields use Jira's
     [Atlassian Document Format](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
-    Libraries such as [marklassian](https://pypi.org/project/marklassian/) can help convert Markdown to ADF.
+    Low-level APIs accept ADF directly. High-level helpers convert their Markdown
+    write inputs and recognize Jira mentions as `[~accountId:<account-id>]`; see
+    [High-level Helpers](guide/high-level-helpers.md) for the supported fields and
+    formatted-read identity limitation.
 
 ```python
 try:

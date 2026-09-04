@@ -6,7 +6,6 @@ from unittest.mock import Mock
 
 import pytest
 
-import jira2py.helpers.worklogs as worklogs_module
 from jira2py import JiraAPI
 from jira2py.helpers.errors import JiraHelperOperationError, JiraHelperValidationError
 from jira2py.helpers.worklogs import WorklogHelpers
@@ -67,9 +66,7 @@ def test_list_worklogs_formats_paging_and_next_page_hint() -> None:
     assert "Use start_at=2 to fetch the next page" in result.text
 
 
-def test_add_worklog_converts_markdown_comment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_add_worklog_converts_jira_mention_and_uses_presentation_output() -> None:
     api = _make_api()
     api.worklogs.add_worklog.return_value = {
         "id": "wl-1",
@@ -84,39 +81,52 @@ def test_add_worklog_converts_markdown_comment(
             "content": [
                 {
                     "type": "paragraph",
-                    "content": [{"type": "text", "text": "Did work"}],
+                    "content": [
+                        {"type": "text", "text": "Did work with "},
+                        {
+                            "type": "mention",
+                            "attrs": {
+                                "id": "557057:User:AbC",
+                                "text": "@Alice",
+                            },
+                        },
+                    ],
                 }
             ],
         },
     }
-    monkeypatch.setattr(
-        worklogs_module,
-        "markdown_to_adf",
-        lambda text: {"type": "doc", "markdown": text},
-    )
 
     result = WorklogHelpers(cast(JiraAPI, api)).add(
         "PROJ-1",
         "1h",
         started="2026-01-02T09:30:00+0200",
-        comment="Did **work**",
+        comment="[~accountId:557057:User:AbC]",
     )
 
     api.worklogs.add_worklog.assert_called_once_with(
         issue_id="PROJ-1",
         time_spent="1h",
         started="2026-01-02T09:30:00+0200",
-        comment={"type": "doc", "markdown": "Did **work**"},
+        comment={
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "mention", "attrs": {"id": "557057:User:AbC"}}
+                    ],
+                }
+            ],
+        },
     )
     assert result.data == api.worklogs.add_worklog.return_value
     assert "Added worklog to PROJ-1" in result.text
     assert "Worklog wl-1 — Alice (a1)" in result.text
-    assert "Did work" in result.text
+    assert "Did work with @Alice" in result.text
 
 
-def test_update_worklog_requires_update_fields_and_formats_result(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_update_worklog_requires_update_fields_and_uses_presentation_output() -> None:
     api = _make_api()
     helper = WorklogHelpers(cast(JiraAPI, api))
 
@@ -133,19 +143,33 @@ def test_update_worklog_requires_update_fields_and_formats_result(
         "started": "2026-01-02T10:00:00+0200",
         "timeSpent": "2h",
         "timeSpentSeconds": 7200,
+        "comment": {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Updated note for "},
+                        {
+                            "type": "mention",
+                            "attrs": {
+                                "id": "557057:User:AbC",
+                                "text": "@Alice",
+                            },
+                        },
+                    ],
+                }
+            ],
+        },
     }
-    monkeypatch.setattr(
-        worklogs_module,
-        "markdown_to_adf",
-        lambda text: {"type": "doc", "markdown": text},
-    )
 
     result = helper.update(
         "PROJ-1",
         "wl-1",
         time_spent="2h",
         started="2026-01-02T10:00:00+0200",
-        comment="Updated note",
+        comment="[~accountId:557057:User:AbC]",
     )
 
     api.worklogs.update_worklog.assert_called_once_with(
@@ -153,11 +177,23 @@ def test_update_worklog_requires_update_fields_and_formats_result(
         worklog_id="wl-1",
         time_spent="2h",
         started="2026-01-02T10:00:00+0200",
-        comment={"type": "doc", "markdown": "Updated note"},
+        comment={
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "mention", "attrs": {"id": "557057:User:AbC"}}
+                    ],
+                }
+            ],
+        },
     )
     assert result.data == api.worklogs.update_worklog.return_value
     assert "Updated worklog wl-1 on PROJ-1" in result.text
     assert "Time spent: 2h / 7200s" in result.text
+    assert "Updated note for @Alice" in result.text
 
 
 def test_delete_worklog_returns_explicit_ids_without_confirmation() -> None:

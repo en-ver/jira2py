@@ -58,6 +58,25 @@ text = format_issue(
 
 `format_issue(data, *, browse_url=None)` is pure: it performs no I/O, does not change `data`, and does not choose or retrieve fields. It renders a known field only when that raw key exists in `data["fields"]`; a present empty value is shown truthfully, while an absent field is omitted. Existing `data["names"]` labels custom fields when supplied, but the formatter never requests names. ADF values are converted only for this text presentation.
 
+## Jira account mentions
+
+High-level Markdown write methods recognize `[~accountId:<account-id>]` for issue
+create/edit descriptions, `environment`, compatible custom textarea fields, comment
+add/update bodies, and worklog add/update comments. Use a Jira-discovered opaque
+account ID, not a display name. Input accepts case-insensitive `accountId`, including
+IDs containing `:`. A single leading backslash escapes a token; malformed tokens and
+tokens inside Markdown code, links, or images remain ordinary text rather than creating
+mentions. Jira may notify mentioned accounts where supported; notification delivery is
+not guaranteed.
+
+Formatted issue, comment, and worklog ADF output is presentation-only: pyadf renders
+mention display text rather than the account ID. Mention identity may be lost if that
+formatted text is edited and written back through a high-level Markdown helper. For
+identity-safe edits, retrieve and submit raw ADF with the low-level API until dedicated
+formatted read/edit/write support is available. Raw ADF in low-level responses and
+`HelperResult.data` remains untouched. Native transition `fields` and `update` mappings
+are forwarded unchanged and do not receive Markdown conversion.
+
 ## `HelperResult`
 
 Most helper methods return `HelperResult`.

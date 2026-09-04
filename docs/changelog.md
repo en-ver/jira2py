@@ -7,6 +7,7 @@
 - `Issues.get_issue()` now accepts `Sequence[str] | None` for `fields`. A supplied sequence is validated and serialized only at the Get Issue endpoint; comma-delimited scalar strings are no longer accepted.
 - Removed `IssueHelpers.read()` and its fixed retrieval profile. Retrieve issues directly with `JiraAPI`, which now remains the sole full-issue retrieval authority.
 - `fields=None` omits the parameter for Jira's default behavior unless raw `extra_params["fields"]` overrides it. Selectors are forwarded exactly, without implicit fields or `expand`; wildcard and negative selectors may be broad.
+- High-level Markdown inputs shaped as `[~accountId:<id>]` now create Jira mentions rather than literal text.
 
 ```python
 # Before (removed)
@@ -30,6 +31,8 @@ text = format_issue(
 ```
 
 ### Added
+
+- Added universal Jira account mentions to high-level Markdown writes: issue create/edit descriptions, `environment`, compatible custom textarea fields, comment add/update bodies, and worklog add/update comments. Input accepts case-insensitive `accountId`, including IDs containing `:`. Formatted ADF reads remain presentation-only through pyadf and can lose mention identity if edited and written back; raw ADF is required for identity-safe edits until dedicated formatted read/edit/write support is added.
 
 - Added named low-level transition-discovery controls for `includeUnavailableTransitions`, `skipRemoteOnlyCondition`, and `sortByOpsBarAndStatus`, while retaining the existing positional arguments and `extra_params` precedence.
 - Added focused transition discovery through `MetadataHelpers.transitions(..., transition_id=..., include_unavailable_transitions=...)`. It always expands `transitions.fields`, keeps Jira's complete raw transition envelope in helper data, and presents destination IDs/names, availability and workflow indicators, plus screen field keys/names/requirements/operations.
