@@ -108,6 +108,32 @@ text = format_issue(
 
 The supplied selector sequence is forwarded unchanged: jira2py does not add fields, deduplicate selectors, or request an expansion. `None` omits `fields` and lets Jira choose its default unless raw `extra_params["fields"]` overrides it. Wildcards and negative selectors such as `"*all"` and `"-description"` can still return broad responses; choose projections deliberately.
 
+## Jira account mentions in high-level Markdown
+
+High-level Markdown write helpers recognize Jira account mentions in the canonical form
+`[~accountId:<account-id>]`. Use a real opaque account ID from Jira user discovery,
+not a display name:
+
+```python
+helpers.comments.add("PROJECT-123", "Please review: [~accountId:557057:User:AbC]")
+```
+
+This applies to issue create/edit descriptions, `environment`, compatible custom
+textarea fields, comment add/update bodies, and worklog add/update comments. The
+`accountId` label is case-insensitive on input, and IDs can contain `:`. A single
+leading backslash escapes a token; malformed tokens and tokens inside Markdown code,
+links, or images remain ordinary text rather than creating mentions. Jira may notify
+the mentioned account where it supports notifications; jira2py does not guarantee
+delivery.
+
+Formatted ADF reads from `format_issue` and formatted comment/worklog helper output
+are presentation-only: pyadf renders a mention's display text, not its account ID.
+The identity may be lost if formatted text is edited and written back through a
+high-level Markdown helper. For identity-safe edits, retrieve and submit raw ADF with
+the low-level API until dedicated formatted read/edit/write support is available.
+Native transition `fields` / `update` mappings continue to accept Jira ADF directly
+and do not convert Markdown mentions.
+
 ## Workflow transitions
 
 Discover the current issue's transitions and transition-screen metadata before choosing the Jira transition **ID**:

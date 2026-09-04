@@ -206,6 +206,62 @@ def test_format_issue_is_pure_and_browse_url_is_optional() -> None:
     assert "URL:" not in format_issue(data)
 
 
+def test_format_issue_uses_pyadf_mention_presentation_without_mutating_raw_adf() -> (
+    None
+):
+    data = {
+        "key": "PROJ-123",
+        "fields": {
+            "description": {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "mention",
+                                "attrs": {
+                                    "id": "557057:User:AbC",
+                                    "text": "@Alice",
+                                    "accessLevel": "CONTAINER",
+                                },
+                            }
+                        ],
+                    }
+                ],
+            },
+            "customfield_10001": {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "mention",
+                                "attrs": {
+                                    "id": "557057:Other:ID",
+                                    "text": "@Bob",
+                                },
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+    }
+    original = deepcopy(data)
+
+    formatted = format_issue(data)
+
+    assert "@Alice" in formatted
+    assert "@Bob" in formatted
+    assert "557057:User:AbC" not in formatted
+    assert "557057:Other:ID" not in formatted
+    assert data == original
+
+
 def test_format_issue_renders_current_helper_markdown_output() -> None:
     formatted = format_issue(
         _sample_issue_data(),

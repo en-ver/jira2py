@@ -34,7 +34,7 @@ def markdown_to_adf(markdown: str) -> AdfDocument:
         return AdfDocument(type="doc", version=1, content=[])
 
     try:
-        return _markdown_to_adf(markdown)
+        return _markdown_to_adf(markdown, jira_mentions=True)
     except Exception:
         logger.exception("Markdown to ADF conversion failed, wrapping as plain text")
         return AdfDocument(

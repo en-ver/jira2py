@@ -98,6 +98,32 @@ A successful transition helper result means Jira accepted the request, not that 
 
 `format_issue` is pure: it does not fetch or mutate the issue. It shows only field keys Jira returned, so missing fields are omitted and present empty values remain visible.
 
+### Jira account mentions
+
+High-level Markdown write helpers recognize Jira account mentions as
+`[~accountId:<account-id>]`. Obtain the opaque account ID through Jira user discovery;
+do not substitute a display name. This syntax applies to issue create/edit descriptions,
+`environment`, compatible custom textarea fields, comment add/update bodies, and
+worklog add/update comments:
+
+```python
+helpers.comments.add("PROJ-123", "Please review [~accountId:557057:User:AbC]")
+```
+
+The `accountId` label is case-insensitive on input, and IDs can contain `:`. A single
+leading backslash escapes a token; malformed tokens and tokens inside Markdown code,
+links, or images remain ordinary text rather than creating mentions. Jira may notify
+the mentioned account where supported; jira2py does not guarantee notification
+delivery.
+
+Formatted issue, comment, and worklog ADF output is presentation-only: pyadf renders
+mention display text rather than the account ID. Mention identity may be lost if that
+formatted text is edited and written back through a high-level Markdown helper. For
+identity-safe edits, retrieve and submit raw ADF with the low-level API until dedicated
+formatted read/edit/write support is available. Raw ADF in `HelperResult.data` and
+low-level API responses is unchanged. Native transition `fields` and `update` mappings
+are also unchanged and are not Markdown-converted.
+
 ### Changelogs
 
 ```python
