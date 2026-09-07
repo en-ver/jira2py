@@ -122,17 +122,58 @@ This applies to issue create/edit descriptions, `environment`, compatible custom
 textarea fields, comment add/update bodies, and worklog add/update comments. The
 `accountId` label is case-insensitive on input, and IDs can contain `:`. A single
 leading backslash escapes a token; malformed tokens and tokens inside Markdown code,
-links, or images remain ordinary text rather than creating mentions. Jira may notify
-the mentioned account where it supports notifications; jira2py does not guarantee
-delivery.
+links, or images remain ordinary text rather than creating mentions. Bold, italic, and
+strikethrough wrappers around a valid mention create an unmarked Jira mention, so that
+formatting is discarded. Jira may notify the mentioned account where it supports
+notifications; jira2py does not guarantee delivery.
 
 Formatted ADF reads from `format_issue` and formatted comment/worklog helper output
-are presentation-only: pyadf renders a mention's display text, not its account ID.
-The identity may be lost if formatted text is edited and written back through a
-high-level Markdown helper. For identity-safe edits, retrieve and submit raw ADF with
-the low-level API until dedicated formatted read/edit/write support is available.
-Native transition `fields` / `update` mappings continue to accept Jira ADF directly
-and do not convert Markdown mentions.
+present mentions with adf-bridge's identity-preserving `[~accountId:<id>]` tokens; a
+mention's display text is not retained. jira2py does not traverse mentions or rewrite
+rendered Markdown, so literal matching tokens, including code spans, remain literal.
+Raw ADF in low-level responses and `HelperResult.data` remains unchanged. Native transition
+`fields` / `update` mappings continue to accept Jira ADF directly and do not convert
+Markdown mentions.
+
+## Jira-managed Markdown images
+
+High-level writes can turn an ordinary Markdown image into Jira-managed media when its
+destination is the exact HTTPS attachment `content` URL returned by an upload on the
+same issue:
+
+```python
+uploaded = helpers.attachments.upload("PROJECT-123", "screen.png")
+content_url = uploaded.data[0]["content"]
+helpers.issues.edit(
+    "PROJECT-123",
+    description=f"Full replacement description\n\n![Failure screen]({content_url})",
+)
+```
+
+This applies only to issue **edit** `description`, `environment`, and compatible custom
+textarea fields, plus comment add/update bodies and worklog add/update comments. The
+attachment must be associated with that issue and have an `image/*` MIME type. The URL
+must not contain a query or fragment delimiter, including bare `?` or `#`. External and
+relative image destinations retain ordinary external-media behavior. These methods
+replace their complete rich-text value; they do not append Markdown fragments.
+
+Issue creation has no existing issue context, so an attachment-content image URL is
+rejected before the create POST. Create the issue first, upload the image to its returned
+key, then edit the complete rich-text field using the upload result's `content` URL.
+Markdown image titles and dimensions are not preserved or authored. On formatted
+ADF-to-Markdown reads, managed media has no recoverable attachment-content URL and is
+shown only as readable attachment text; use raw ADF when Jira enrichments or exact media
+structure must be retained. After a successful managed-media write, jira2py verifies the
+raw persisted ADF structure. Jira-rendered HTML is not a runtime verification contract;
+corroborate tenant rendering with authorized live end-to-end testing.
+
+jira2py validates the observed Jira attachment `303` redirect shape privately before
+writing. That Media Services mapping is compatibility-sensitive observed behavior, not a
+public Jira mapping API. It never changes `download_attachment_content()`, which still
+follows redirects and returns bytes. If a direct issue, comment, or worklog mutation
+fails with a connection error or Jira 5xx, it may already have been applied. The helper
+error sets `details["mutation_may_have_succeeded"]`; reread the affected resource before
+retrying. jira2py does not retry or roll back after that uncertain failure.
 
 ## Workflow transitions
 

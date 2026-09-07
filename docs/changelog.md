@@ -32,7 +32,22 @@ text = format_issue(
 
 ### Added
 
-- Added universal Jira account mentions to high-level Markdown writes: issue create/edit descriptions, `environment`, compatible custom textarea fields, comment add/update bodies, and worklog add/update comments. Input accepts case-insensitive `accountId`, including IDs containing `:`. Formatted ADF reads remain presentation-only through pyadf and can lose mention identity if edited and written back; raw ADF is required for identity-safe edits until dedicated formatted read/edit/write support is added.
+- Replaced direct `marklassian` and `pyadf` use with `adf-bridge>=0.1.2`. Formatted ADF
+  presentation uses adf-bridge tokens and remains readable and presentation-only; managed
+  media attachment-content URLs cannot be recovered from formatted Markdown or leak Media
+  Services IDs.
+- Added automatic Jira-managed Markdown images on existing-issue high-level writes:
+  issue edit rich fields, comment add/update, and worklog add/update. Only canonical
+  configured-Jira attachment-content URLs for associated `image/*` attachments qualify;
+  source query and fragment delimiters, including bare `?` and `#`, are rejected. Create
+  remains create → upload → complete-field edit, never an implicit upload. Jira's private
+  no-follow `303` Media Services mapping is compatibility-sensitive observed behavior;
+  public bytes downloads remain unchanged. Verification reads raw persisted ADF structure,
+  not rendered response expansions.
+- Direct issue, comment, and worklog mutations now flag connection and Jira 5xx failures
+  as potentially delivered with `mutation_may_have_succeeded`; callers must reread before
+  retrying, and jira2py does not retry or roll back after that uncertain failure.
+- Added Jira account mentions to high-level Markdown writes: issue create/edit descriptions, `environment`, compatible custom textarea fields, comment add/update bodies, and worklog add/update comments. Input accepts case-insensitive `accountId`, including IDs containing `:`. Bold, italic, and strikethrough wrappers around a valid mention are discarded because Jira mentions are unmarked. Formatted ADF reads present adf-bridge's identity-preserving `[~accountId:<id>]` token without jira2py mention traversal or rendered-Markdown rewriting; raw ADF remains unchanged.
 
 - Added named low-level transition-discovery controls for `includeUnavailableTransitions`, `skipRemoteOnlyCondition`, and `sortByOpsBarAndStatus`, while retaining the existing positional arguments and `extra_params` precedence.
 - Added focused transition discovery through `MetadataHelpers.transitions(..., transition_id=..., include_unavailable_transitions=...)`. It always expands `transitions.fields`, keeps Jira's complete raw transition envelope in helper data, and presents destination IDs/names, availability and workflow indicators, plus screen field keys/names/requirements/operations.

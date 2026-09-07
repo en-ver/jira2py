@@ -112,17 +112,52 @@ helpers.comments.add("PROJ-123", "Please review [~accountId:557057:User:AbC]")
 
 The `accountId` label is case-insensitive on input, and IDs can contain `:`. A single
 leading backslash escapes a token; malformed tokens and tokens inside Markdown code,
-links, or images remain ordinary text rather than creating mentions. Jira may notify
-the mentioned account where supported; jira2py does not guarantee notification
-delivery.
+links, or images remain ordinary text rather than creating mentions. Bold, italic, and
+strikethrough wrappers around a valid mention create an unmarked Jira mention, so that
+formatting is discarded. Jira may notify the mentioned account where supported;
+jira2py does not guarantee notification delivery.
 
-Formatted issue, comment, and worklog ADF output is presentation-only: pyadf renders
-mention display text rather than the account ID. Mention identity may be lost if that
-formatted text is edited and written back through a high-level Markdown helper. For
-identity-safe edits, retrieve and submit raw ADF with the low-level API until dedicated
-formatted read/edit/write support is available. Raw ADF in `HelperResult.data` and
-low-level API responses is unchanged. Native transition `fields` and `update` mappings
-are also unchanged and are not Markdown-converted.
+Formatted issue, comment, and worklog ADF output presents mentions with adf-bridge's
+identity-preserving `[~accountId:<account-id>]` token; a mention's display text is not
+retained. jira2py does not traverse mentions or rewrite the rendered Markdown, so
+literal matching tokens, including code spans, remain literal. Raw ADF in
+`HelperResult.data` and low-level API responses is unchanged. Native
+transition `fields` and `update` mappings are also unchanged and are not
+Markdown-converted.
+
+### Jira-managed Markdown images
+
+After uploading an image, use the upload item's `content` URL in ordinary Markdown:
+
+```python
+upload = helpers.attachments.upload("PROJ-123", "screen.png")
+helpers.comments.add("PROJ-123", f"![Failure screen]({upload.data[0]['content']})")
+```
+
+The same automatic managed-media conversion applies to issue **edit** `description`,
+`environment`, and compatible custom textarea fields, and to comment and worklog
+add/update bodies. It accepts only exact configured-Jira HTTPS attachment-content URLs
+for attachments associated with the target issue and marked `image/*`, with no query or
+fragment delimiter, including bare `?` or `#`. External and relative image URLs remain
+external. Every high-level write replaces the full field or body value, so submit the
+complete desired Markdown, not an append fragment.
+
+Issue create cannot use an attachment-content image URL because there is no issue yet.
+Create the issue, upload the image to the returned issue key, then edit the complete
+rich-text field with the upload result's `content` URL. Titles and dimensions on
+Markdown images are not preserved. Managed ADF media has no recoverable attachment URL
+on formatted Markdown reads; use raw ADF when exact Jira media structure matters.
+Successful managed-media writes verify raw persisted ADF structure. Jira-rendered HTML
+is not a runtime verification contract; corroborate tenant rendering with authorized
+live end-to-end testing.
+
+The internal no-follow `303` redirect validation is based on Jira's current observed
+Media Services redirect shape. It is compatibility-sensitive rather than a public Jira
+mapping API. The public attachment bytes download contract is unchanged. If a direct
+issue, comment, or worklog mutation fails with a connection error or Jira 5xx, it may
+already have been applied. Its helper error sets
+`details["mutation_may_have_succeeded"]`; callers must reread before retrying. jira2py
+does not retry or roll back after that uncertain failure.
 
 ### Changelogs
 

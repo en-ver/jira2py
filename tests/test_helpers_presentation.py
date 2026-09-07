@@ -201,14 +201,12 @@ def test_format_issue_is_pure_and_browse_url_is_optional() -> None:
     )
 
     assert data == original
-    assert "Hello **world**" in formatted
+    assert "Hello&#32;**&#119;orld**" in formatted
     assert "URL: https://example.atlassian.net/browse/PROJ-123" in formatted
     assert "URL:" not in format_issue(data)
 
 
-def test_format_issue_uses_pyadf_mention_presentation_without_mutating_raw_adf() -> (
-    None
-):
+def test_format_issue_uses_bridge_mention_tokens_without_mutating_raw_adf() -> None:
     data = {
         "key": "PROJ-123",
         "fields": {
@@ -255,10 +253,10 @@ def test_format_issue_uses_pyadf_mention_presentation_without_mutating_raw_adf()
 
     formatted = format_issue(data)
 
-    assert "@Alice" in formatted
-    assert "@Bob" in formatted
-    assert "557057:User:AbC" not in formatted
-    assert "557057:Other:ID" not in formatted
+    assert "[~accountId:557057:User:AbC]" in formatted
+    assert "[~accountId:557057:Other:ID]" in formatted
+    assert "@Alice" not in formatted
+    assert "@Bob" not in formatted
     assert data == original
 
 
@@ -297,7 +295,7 @@ def test_format_issue_renders_current_helper_markdown_output() -> None:
         - blocks PROJ-200: linked issue [Done] (link id: 55)
 
         --- [DESCRIPTION] ---
-        Hello **world**
+        Hello&#32;**&#119;orld**
 
         --- [ADDITIONAL FIELDS] ---
         --- [ACCEPTANCE CRITERIA (CUSTOMFIELD_10001)] ---

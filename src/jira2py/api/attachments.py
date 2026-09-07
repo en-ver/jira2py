@@ -90,6 +90,13 @@ class Attachments(ApiBase):
             follow_redirects=True,
         )
 
+    def _get_attachment_content_redirect_location(self, attachment_id: str) -> str:
+        """Return Jira's no-follow attachment redirect Location for internal use."""
+        return self._client._request_jira_redirect_location(
+            method="GET",
+            context_path=f"attachment/content/{attachment_id}",
+        )
+
     def add_attachment(
         self,
         issue_id: str,

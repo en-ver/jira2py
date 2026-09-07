@@ -7,14 +7,18 @@ from datetime import UTC, datetime
 
 from jira2py.api import JiraAPI
 
-from ._adf import markdown_to_adf
+from ._managed_media import _JiraMarkdownWriteSession, _PreparedMarkdownDocument
 from ._text import format_worklog, format_worklog_list, format_worklog_report
 from ._validation import (
     parse_iso_datetime,
     require_non_empty_string,
     validate_date_range,
 )
-from .errors import JiraHelperOperationError, JiraHelperValidationError
+from .errors import (
+    JiraHelperOperationError,
+    JiraHelperValidationError,
+    _mutation_request_error,
+)
 from .models import (
     JiraIssue,
     JiraWorklog,
@@ -89,18 +93,23 @@ class WorklogHelpers:
         if comment is not None:
             comment = require_non_empty_string(comment, field_name="comment")
 
+        session = _JiraMarkdownWriteSession(self.api, issue_key)
+        prepared = session.prepare(comment) if comment is not None else None
         try:
             data = self.api.worklogs.add_worklog(
                 issue_id=issue_key,
                 time_spent=time_spent,
                 started=started,
-                comment=markdown_to_adf(comment) if comment is not None else None,
+                comment=prepared.document if prepared is not None else None,
             )
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to add worklog to {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=f"Failed to add worklog to {issue_key}: {exc}",
+                issue_key=issue_key,
             ) from exc
 
+        _verify_managed_worklog_readback(issue_key, session, prepared, data)
         worklog = JiraWorklog.model_validate(data)
         text = f"Added worklog to {issue_key}\n\n{format_worklog(worklog)}"
         return HelperResult.with_data(text, data)
@@ -128,19 +137,27 @@ class WorklogHelpers:
                 "At least one of time_spent, started, or comment must be provided."
             )
 
+        session = _JiraMarkdownWriteSession(self.api, issue_key)
+        prepared = session.prepare(comment) if comment is not None else None
         try:
             data = self.api.worklogs.update_worklog(
                 issue_id=issue_key,
                 worklog_id=worklog_id,
                 time_spent=time_spent,
                 started=started,
-                comment=markdown_to_adf(comment) if comment is not None else None,
+                comment=prepared.document if prepared is not None else None,
             )
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to update worklog {worklog_id} on {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=(
+                    f"Failed to update worklog {worklog_id} on {issue_key}: {exc}"
+                ),
+                issue_key=issue_key,
+                target=f"worklog:{worklog_id}",
             ) from exc
 
+        _verify_managed_worklog_readback(issue_key, session, prepared, data)
         worklog = JiraWorklog.model_validate(data)
         text = (
             f"Updated worklog {worklog_id} on {issue_key}\n\n{format_worklog(worklog)}"
@@ -158,8 +175,13 @@ class WorklogHelpers:
                 worklog_id=worklog_id,
             )
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to delete worklog {worklog_id} from {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=(
+                    f"Failed to delete worklog {worklog_id} from {issue_key}: {exc}"
+                ),
+                issue_key=issue_key,
+                target=f"worklog:{worklog_id}",
             ) from exc
 
         data = {
@@ -324,6 +346,28 @@ class WorklogHelpers:
                 break
 
         return rows
+
+
+def _verify_managed_worklog_readback(
+    issue_key: str,
+    session: _JiraMarkdownWriteSession,
+    prepared: _PreparedMarkdownDocument | None,
+    data: dict[str, object],
+) -> None:
+    if prepared is None or not prepared.has_managed_images:
+        return
+    try:
+        session.verify(prepared, data.get("comment"))
+    except Exception as exc:
+        raise JiraHelperOperationError(
+            "Jira may have applied the worklog mutation, but managed image readback "
+            "verification failed. Reread the worklog before retrying.",
+            details={
+                "stage": "persisted_readback",
+                "issue_key": issue_key,
+                "mutation_may_have_succeeded": True,
+            },
+        ) from exc
 
 
 def _build_row(

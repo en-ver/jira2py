@@ -23,8 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "httpx[http2]>=0.28.0,<1",
-    "marklassian>=0.3.0",
-    "pyadf>=0.3.0",
+    "adf-bridge>=0.1.2,<0.2",
     "pydantic>=2.12.5",
     "tenacity>=9.1.4",
 ]

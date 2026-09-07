@@ -92,6 +92,8 @@ jira.comments.delete_comment("PROJ-123", "10001")
 **Returns:** `None`
 
 !!! tip
-    High-level helpers convert Markdown strings to ADF for you. See [High-level Helpers](helpers.md).
+    High-level helpers convert Markdown strings to ADF for you. Comment add/update also
+    support an associated issue attachment's canonical `content` URL in Markdown images;
+    this replaces the complete comment body. See [High-level Helpers](helpers.md).
 
 :link: [Jira REST API — Issue comments](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-comments/)

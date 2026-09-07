@@ -239,6 +239,17 @@ class TestClientErrorHandling:
         assert "network error" in str(exc_info.value).lower()
         assert exc_info.value.__cause__ is network_error
 
+    def test_handle_error_with_remote_protocol_error(self, test_credentials):
+        """Test that protocol errors raise JiraConnectionError."""
+        client = JiraClientSync(test_credentials)
+        protocol_error = httpx.RemoteProtocolError("Peer disconnected")
+
+        with pytest.raises(JiraConnectionError) as exc_info:
+            client._handle_error(protocol_error)
+
+        assert "network error" in str(exc_info.value).lower()
+        assert exc_info.value.__cause__ is protocol_error
+
     def test_handle_error_with_unknown_error(self, test_credentials):
         """Test that unknown errors raise JiraError."""
         client = JiraClientSync(test_credentials)

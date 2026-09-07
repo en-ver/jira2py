@@ -5,11 +5,22 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from adf_bridge import AdfBridgeError
+
 from jira2py.api import JiraAPI
 
 from ._adf import convert_markdown_fields, detect_adf_field_ids, markdown_to_adf
+from ._managed_media import (
+    _JiraMarkdownWriteSession,
+    _PreparedMarkdownDocument,
+    _validate_create_markdown_images,
+)
 from ._validation import require_non_empty_string, validate_field_conflicts
-from .errors import JiraHelperOperationError, JiraHelperValidationError
+from .errors import (
+    JiraHelperOperationError,
+    JiraHelperValidationError,
+    _mutation_request_error,
+)
 from .models import IssueTransition
 from .results import HelperResult
 
@@ -41,22 +52,35 @@ class IssueHelpers:
             fields=fields,
         )
 
-        issue_fields: dict[str, Any] = {
-            **self._prepare_markdown_fields(
+        try:
+            extra_fields = self._prepare_markdown_fields(
                 fields,
                 reserved_fields=_CREATE_FIELD_CONFLICTS,
-            ),
+                reject_create_attachment_images=True,
+            )
+            if description:
+                _validate_create_markdown_images(self.api, [description])
+                extra_fields["description"] = markdown_to_adf(description)
+        except AdfBridgeError as exc:
+            raise JiraHelperValidationError(
+                "Markdown input cannot be converted to Jira rich text."
+            ) from exc
+
+        issue_fields: dict[str, Any] = {
+            **extra_fields,
             "project": {"key": project_key},
             "issuetype": {"name": issue_type},
             "summary": summary,
         }
-        if description:
-            issue_fields["description"] = markdown_to_adf(description)
 
         try:
             data = self.api.issues.create_issue(fields=issue_fields)
         except Exception as exc:
-            raise JiraHelperOperationError(f"Failed to create issue: {exc}") from exc
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=f"Failed to create issue: {exc}",
+                target=f"project:{project_key}",
+            ) from exc
 
         key = data.get("key", "?")
         text = f"Created {key}: {summary}\nURL: {self.api.credentials.url}/browse/{key}"
@@ -79,14 +103,18 @@ class IssueHelpers:
             fields=fields,
         )
 
-        update_fields = self._prepare_markdown_fields(
+        session = _JiraMarkdownWriteSession(self.api, issue_key)
+        update_fields, managed_documents = self._prepare_edit_markdown_fields(
             fields,
-            reserved_fields=_EDIT_FIELD_CONFLICTS,
+            session=session,
         )
         if summary:
             update_fields["summary"] = summary
         if description:
-            update_fields["description"] = markdown_to_adf(description)
+            prepared = session.prepare(description)
+            update_fields["description"] = prepared.document
+            if prepared.has_managed_images:
+                managed_documents["description"] = prepared
 
         try:
             data = self.api.issues.edit_issue(
@@ -95,9 +123,18 @@ class IssueHelpers:
                 return_issue=raw,
             )
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to update issue {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=f"Failed to update issue {issue_key}: {exc}",
+                issue_key=issue_key,
             ) from exc
+
+        if managed_documents:
+            self._verify_managed_issue_readback(
+                issue_key,
+                session=session,
+                managed_documents=managed_documents,
+            )
 
         text = (
             f"Successfully updated {issue_key}\n"
@@ -140,8 +177,11 @@ class IssueHelpers:
         try:
             self.api.issues.transition_issue(**transition_kwargs)
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to transition issue {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=f"Failed to transition issue {issue_key}: {exc}",
+                issue_key=issue_key,
+                target=f"transition:{resolved.id}",
             ) from exc
 
         data = {
@@ -249,12 +289,75 @@ class IssueHelpers:
         fields: Mapping[str, Any] | None,
         *,
         reserved_fields: frozenset[str],
+        reject_create_attachment_images: bool = False,
     ) -> dict[str, Any]:
         extra_fields = dict(fields or {})
         validate_field_conflicts(extra_fields, reserved_fields=reserved_fields)
         if not extra_fields:
             return extra_fields
-        return convert_markdown_fields(extra_fields, self._get_adf_field_ids())
+        adf_field_ids = self._get_adf_field_ids()
+        if reject_create_attachment_images:
+            _validate_create_markdown_images(
+                self.api,
+                (
+                    value
+                    for field_id, value in extra_fields.items()
+                    if field_id in adf_field_ids and isinstance(value, str)
+                ),
+            )
+        return convert_markdown_fields(extra_fields, adf_field_ids)
+
+    def _prepare_edit_markdown_fields(
+        self,
+        fields: Mapping[str, Any] | None,
+        *,
+        session: _JiraMarkdownWriteSession,
+    ) -> tuple[dict[str, Any], dict[str, _PreparedMarkdownDocument]]:
+        extra_fields = dict(fields or {})
+        validate_field_conflicts(extra_fields, reserved_fields=_EDIT_FIELD_CONFLICTS)
+        if not extra_fields:
+            return extra_fields, {}
+
+        adf_field_ids = self._get_adf_field_ids()
+        managed_documents: dict[str, _PreparedMarkdownDocument] = {}
+        for field_id, value in extra_fields.items():
+            if field_id not in adf_field_ids or not isinstance(value, str):
+                continue
+            prepared = session.prepare(value)
+            extra_fields[field_id] = prepared.document
+            if prepared.has_managed_images:
+                managed_documents[field_id] = prepared
+        return extra_fields, managed_documents
+
+    def _verify_managed_issue_readback(
+        self,
+        issue_key: str,
+        *,
+        session: _JiraMarkdownWriteSession,
+        managed_documents: Mapping[str, _PreparedMarkdownDocument],
+    ) -> None:
+        try:
+            persisted_issue = self.api.issues.get_issue(
+                issue_id=issue_key,
+                fields=list(managed_documents),
+            )
+            persisted_fields = persisted_issue.get("fields")
+            if not isinstance(persisted_fields, dict):
+                raise JiraHelperOperationError(
+                    "Jira did not return fields for managed image verification."
+                )
+            for field_id, prepared in managed_documents.items():
+                session.verify(prepared, persisted_fields.get(field_id))
+        except Exception as exc:
+            raise JiraHelperOperationError(
+                "Jira may have applied the issue update, but managed image readback "
+                "verification failed. Reread the issue before retrying.",
+                details={
+                    "stage": "persisted_readback",
+                    "issue_key": issue_key,
+                    "mutation_may_have_succeeded": True,
+                },
+            ) from exc
 
     def _get_adf_field_ids(self) -> set[str]:
         try:
