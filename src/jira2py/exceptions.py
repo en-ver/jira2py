@@ -155,7 +155,7 @@ class JiraRateLimitError(JiraAPIError):
         message: str,
         *,
         status_code: int,
-        response: httpx.Response,
+        response: httpx.Response | None,
         error_messages: list[str] | None = None,
         retry_after: float | None = None,
         rate_limit_reason: str | None = None,

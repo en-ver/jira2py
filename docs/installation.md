@@ -100,9 +100,10 @@ print(jira.users.get_current_user()["displayName"])
     The `description`, comment `body`, and worklog `comment` fields use Jira's
     [Atlassian Document Format](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/).
     Low-level APIs accept ADF directly. High-level helpers convert their Markdown
-    write inputs and recognize Jira mentions as `[~accountId:<account-id>]`; see
-    [High-level Helpers](guide/high-level-helpers.md) for the supported fields and
-    formatted-read identity limitation.
+    write inputs, recognize Jira mentions as `[~accountId:<account-id>]`, and can
+    resolve associated Jira attachment-content image URLs on existing issues; see
+    [High-level Helpers](guide/high-level-helpers.md) for supported fields, the required
+    create → upload → edit image flow, and formatted-read limitations.
 
 ```python
 try:

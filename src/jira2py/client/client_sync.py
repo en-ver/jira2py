@@ -3,6 +3,7 @@
 import atexit
 import contextlib
 import logging
+import math
 import random
 import threading
 from collections.abc import Mapping
@@ -49,6 +50,19 @@ _DEFAULT_JITTER_RANGE = (0.7, 1.3)
 _HEADER_RETRY_AFTER = "Retry-After"
 _HEADER_RATELIMIT_REASON = "RateLimit-Reason"
 _STATUS_RATE_LIMITED = 429
+
+
+class _RedirectResponseError(Exception):
+    """Sanitized private redirect failure used only to drive 429 retries."""
+
+    def __init__(self, status_code: int, retry_after: float | None = None) -> None:
+        self.status_code = status_code
+        self.retry_after = retry_after
+        super().__init__(status_code, retry_after)
+
+
+class _RedirectTransportError(Exception):
+    """Sanitized private redirect transport failure."""
 
 
 def _create_httpx_client(credentials: JiraCredentials) -> httpx.Client:
@@ -209,6 +223,107 @@ class JiraClientSync:
         )
         return response.content
 
+    def _request_jira_redirect_location(
+        self,
+        method: str,
+        context_path: str,
+        params: dict[str, Any] | None = None,
+        *,
+        extra_params: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Get one Jira attachment redirect target without reading or following it.
+
+        This private seam intentionally performs a headers-only request.  It is used
+        only to identify Jira-managed attachment media; public attachment downloads
+        continue to follow redirects and return bytes.
+        """
+        merged_params = {
+            key: value
+            for key, value in {**(params or {}), **(extra_params or {})}.items()
+            if value is not None
+        }
+        request_kwargs: dict[str, Any] = {"follow_redirects": False}
+        if merged_params:
+            request_kwargs["params"] = merged_params
+
+        redirect_status_code: int | None = None
+        redirect_retry_after: float | None = None
+        connection_error: str | None = None
+        try:
+            for attempt in Retrying(
+                stop=stop_after_attempt(self._max_retries + 1),
+                wait=self._wait_for_retry,
+                retry=retry_if_exception(self._is_retryable),
+                before_sleep=self._log_retry,
+                reraise=True,
+            ):
+                with attempt:
+                    location: str | None = None
+                    retry_after: float | None = None
+                    transport_error: str | None = None
+                    try:
+                        with self._get_persistent_client().stream(
+                            method, context_path, **request_kwargs
+                        ) as response:
+                            try:
+                                status_code = response.status_code
+                                if status_code == 303:
+                                    locations = response.headers.get_list("location")
+                                    try:
+                                        if len(locations) == 1 and locations[0]:
+                                            location = locations[0]
+                                    finally:
+                                        locations.clear()
+                                        del locations
+                                elif status_code == _STATUS_RATE_LIMITED:
+                                    retry_after = self._parse_retry_after(
+                                        response.headers.get(_HEADER_RETRY_AFTER)
+                                    )
+                            finally:
+                                del response
+                    except httpx.TimeoutException as error:
+                        transport_error = "Request timed out."
+                        self._scrub_redirect_transport_request(error)
+                        del error
+                    except httpx.TransportError as error:
+                        transport_error = "Network error."
+                        self._scrub_redirect_transport_request(error)
+                        del error
+                    except httpx.HTTPError as error:
+                        transport_error = "HTTP error occurred."
+                        self._scrub_redirect_transport_request(error)
+                        del error
+
+                    if transport_error is not None:
+                        raise _RedirectTransportError(transport_error)
+                    if location is not None:
+                        return location
+                    raise _RedirectResponseError(status_code, retry_after)
+        except _RedirectResponseError as error:
+            redirect_status_code = error.status_code
+            redirect_retry_after = error.retry_after
+            del error
+        except _RedirectTransportError as error:
+            connection_error = str(error)
+            del error
+
+        del merged_params
+        del request_kwargs
+        del method
+        del context_path
+        del params
+        del extra_params
+
+        if redirect_status_code is not None:
+            self._raise_redirect_status_error(
+                redirect_status_code, redirect_retry_after
+            )
+        if connection_error is not None:
+            raise JiraConnectionError(connection_error)
+        raise JiraError(
+            "Unexpected error: redirect request completed without a response"
+        )
+
     def _send_jira_request(
         self,
         method: str,
@@ -273,7 +388,92 @@ class JiraClientSync:
         return (
             isinstance(error, httpx.HTTPStatusError)
             and error.response.status_code == _STATUS_RATE_LIMITED
+        ) or (
+            isinstance(error, _RedirectResponseError)
+            and error.status_code == _STATUS_RATE_LIMITED
         )
+
+    @staticmethod
+    def _scrub_redirect_transport_request(error: httpx.HTTPError) -> None:
+        """Remove the ephemeral request from a private redirect transport failure."""
+        request = getattr(error, "_request", None)
+        if isinstance(request, httpx.Request):
+            request.headers.clear()
+        del request
+        with contextlib.suppress(AttributeError):
+            delattr(error, "_request")
+
+    @staticmethod
+    def _parse_retry_after(value: str | None) -> float | None:
+        """Return a usable Retry-After value without retaining its raw header."""
+        if not value:
+            return None
+        with contextlib.suppress(ValueError, OverflowError):
+            retry_after = float(value)
+            if math.isfinite(retry_after) and retry_after >= 0:
+                return retry_after
+        return None
+
+    @staticmethod
+    def _raise_redirect_status_error(
+        status_code: int, retry_after: float | None
+    ) -> NoReturn:
+        """Raise a public error using only sanitized redirect response metadata."""
+        if status_code == 303:
+            raise JiraError(
+                "Attachment content redirect did not provide one Location header"
+            )
+        if status_code == 401:
+            raise JiraAuthenticationError(
+                "Authentication failed. Check your credentials.",
+                status_code=status_code,
+                response=None,
+                error_messages=[],
+            )
+        if status_code == 403:
+            raise JiraAuthenticationError(
+                "Access forbidden. You don't have permission to access this resource.",
+                status_code=status_code,
+                response=None,
+                error_messages=[],
+            )
+        if status_code == 404:
+            raise JiraNotFoundError(
+                "Resource not found.",
+                status_code=status_code,
+                response=None,
+                error_messages=[],
+            )
+        if status_code == _STATUS_RATE_LIMITED:
+            raise JiraRateLimitError(
+                "API rate limit exceeded.",
+                status_code=status_code,
+                response=None,
+                error_messages=[],
+                retry_after=retry_after,
+            )
+        if status_code == 400:
+            raise JiraValidationError(
+                "Request validation failed. Check your input data.",
+                status_code=status_code,
+                response=None,
+                error_messages=[],
+            )
+        if 400 <= status_code < 500:
+            raise JiraAPIError(
+                f"Client error: {status_code}",
+                status_code=status_code,
+                response=None,
+                error_messages=[],
+            )
+        if status_code >= 500:
+            raise JiraAPIError(
+                f"Server error: {status_code}",
+                status_code=status_code,
+                response=None,
+                error_messages=[],
+            )
+        raise JiraError("Attachment content redirect did not return HTTP 303")
 
     def _wait_for_retry(self, retry_state: RetryCallState) -> float:
         """Calculate wait time for retry, respecting Retry-After header.
@@ -293,12 +493,16 @@ class JiraClientSync:
         has_retry_after = False
 
         exc = retry_state.outcome.exception() if retry_state.outcome else None
+        retry_after = None
         if isinstance(exc, httpx.HTTPStatusError):
-            retry_after = exc.response.headers.get(_HEADER_RETRY_AFTER)
-            if retry_after:
-                with contextlib.suppress(ValueError):
-                    wait = float(retry_after)
-                    has_retry_after = True
+            retry_after = self._parse_retry_after(
+                exc.response.headers.get(_HEADER_RETRY_AFTER)
+            )
+        elif isinstance(exc, _RedirectResponseError):
+            retry_after = exc.retry_after
+        if retry_after is not None:
+            wait = retry_after
+            has_retry_after = True
 
         if has_retry_after:
             # Additive jitter above the server minimum (0–30%)
@@ -319,6 +523,8 @@ class JiraClientSync:
         if isinstance(exc, httpx.HTTPStatusError):
             retry_after = exc.response.headers.get(_HEADER_RETRY_AFTER)
             reason = exc.response.headers.get(_HEADER_RATELIMIT_REASON)
+        elif isinstance(exc, _RedirectResponseError):
+            retry_after = exc.retry_after
 
         logger.warning(
             "Rate limited by Jira (attempt %d). reason=%s, retry_after=%s",
@@ -398,7 +604,7 @@ class JiraClientSync:
             JiraRateLimitError: For 429 responses.
             JiraValidationError: For 400 responses.
             JiraAPIError: For other 4xx/5xx responses.
-            JiraConnectionError: For network/timeout errors.
+            JiraConnectionError: For transport/timeout errors.
             JiraError: For any other errors.
         """
         if isinstance(error, httpx.HTTPStatusError):
@@ -431,11 +637,9 @@ class JiraClientSync:
                 ) from error
 
             if status_code == _STATUS_RATE_LIMITED:
-                retry_after_header = response.headers.get(_HEADER_RETRY_AFTER)
-                retry_after = None
-                if retry_after_header:
-                    with contextlib.suppress(ValueError):
-                        retry_after = float(retry_after_header)
+                retry_after = self._parse_retry_after(
+                    response.headers.get(_HEADER_RETRY_AFTER)
+                )
 
                 raise JiraRateLimitError(
                     "API rate limit exceeded.",
@@ -476,7 +680,7 @@ class JiraClientSync:
                 f"Request timed out: {error}",
             ) from error
 
-        if isinstance(error, httpx.NetworkError):
+        if isinstance(error, httpx.TransportError):
             raise JiraConnectionError(
                 f"Network error: {error}",
             ) from error

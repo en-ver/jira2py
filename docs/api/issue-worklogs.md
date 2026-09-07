@@ -75,4 +75,9 @@ jira.worklogs.delete_worklog("PROJ-123", "10010")
 
 **Returns:** `None`
 
+!!! tip
+    High-level worklog add/update accepts Markdown comments and can resolve an associated
+    issue attachment's canonical `content` URL as managed media. The comment is a full
+    replacement, not an append operation. See [High-level Helpers](helpers.md).
+
 :link: [Jira REST API — Issue worklogs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-worklogs/)

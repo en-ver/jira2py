@@ -6,10 +6,10 @@ from typing import Literal
 
 from jira2py.api import JiraAPI
 
-from ._adf import markdown_to_adf
+from ._managed_media import _JiraMarkdownWriteSession, _PreparedMarkdownDocument
 from ._text import format_comment
 from ._validation import require_non_empty_string
-from .errors import JiraHelperOperationError
+from .errors import JiraHelperOperationError, _mutation_request_error
 from .models import CommentPage, JiraComment
 from .results import HelperResult
 
@@ -80,16 +80,21 @@ class CommentHelpers:
         issue_key = require_non_empty_string(issue_key, field_name="issue_key")
         body = require_non_empty_string(body, field_name="body")
 
+        session = _JiraMarkdownWriteSession(self.api, issue_key)
+        prepared = session.prepare(body)
         try:
             data = self.api.comments.add_comment(
                 issue_id=issue_key,
-                body=markdown_to_adf(body),
+                body=prepared.document,
             )
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to add comment to {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=f"Failed to add comment to {issue_key}: {exc}",
+                issue_key=issue_key,
             ) from exc
 
+        _verify_managed_comment_readback(issue_key, session, prepared, data)
         text = f"Added comment to {issue_key}\nURL: {self.api.credentials.url}/browse/{issue_key}"
         return HelperResult.with_data(text, data)
 
@@ -99,17 +104,25 @@ class CommentHelpers:
         comment_id = require_non_empty_string(comment_id, field_name="comment_id")
         body = require_non_empty_string(body, field_name="body")
 
+        session = _JiraMarkdownWriteSession(self.api, issue_key)
+        prepared = session.prepare(body)
         try:
             data = self.api.comments.update_comment(
                 issue_id=issue_key,
                 comment_id=comment_id,
-                body=markdown_to_adf(body),
+                body=prepared.document,
             )
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to update comment {comment_id} on {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=(
+                    f"Failed to update comment {comment_id} on {issue_key}: {exc}"
+                ),
+                issue_key=issue_key,
+                target=f"comment:{comment_id}",
             ) from exc
 
+        _verify_managed_comment_readback(issue_key, session, prepared, data)
         comment = JiraComment.model_validate(data)
         text = (
             f"Updated comment {comment_id} on {issue_key}\n"
@@ -129,8 +142,13 @@ class CommentHelpers:
                 comment_id=comment_id,
             )
         except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to delete comment {comment_id} from {issue_key}: {exc}"
+            raise _mutation_request_error(
+                exc,
+                ordinary_message=(
+                    f"Failed to delete comment {comment_id} from {issue_key}: {exc}"
+                ),
+                issue_key=issue_key,
+                target=f"comment:{comment_id}",
             ) from exc
 
         data = {
@@ -143,6 +161,28 @@ class CommentHelpers:
             f"URL: {self.api.credentials.url}/browse/{issue_key}"
         )
         return HelperResult.with_data(text, data)
+
+
+def _verify_managed_comment_readback(
+    issue_key: str,
+    session: _JiraMarkdownWriteSession,
+    prepared: _PreparedMarkdownDocument,
+    data: dict[str, object],
+) -> None:
+    if not prepared.has_managed_images:
+        return
+    try:
+        session.verify(prepared, data.get("body"))
+    except Exception as exc:
+        raise JiraHelperOperationError(
+            "Jira may have applied the comment mutation, but managed image readback "
+            "verification failed. Reread the comment before retrying.",
+            details={
+                "stage": "persisted_readback",
+                "issue_key": issue_key,
+                "mutation_may_have_succeeded": True,
+            },
+        ) from exc
 
 
 __all__ = ["CommentHelpers"]

@@ -5,10 +5,14 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import Mock
 
+import httpx
 import pytest
 
 import jira2py.helpers.issues as issues_module
 from jira2py import JiraAPI
+from jira2py.api.issue_fields import IssueFields
+from jira2py.api.issues import Issues
+from jira2py.exceptions import JiraConnectionError
 from jira2py.helpers.errors import JiraHelperOperationError, JiraHelperValidationError
 from jira2py.helpers.issues import IssueHelpers
 
@@ -198,6 +202,95 @@ def test_edit_raw_response_handles_empty_response_body() -> None:
         "Successfully updated PROJ-123\n"
         "URL: https://example.atlassian.net/browse/PROJ-123"
     )
+
+
+def test_issue_edit_timeout_is_marked_as_uncertain_delivery() -> None:
+    api = _make_api()
+    api.issues.edit_issue.side_effect = JiraConnectionError("request timed out")
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).edit("PROJ-123", summary="Updated")
+
+    assert "may have applied the mutation" in str(exc_info.value)
+    assert "must reread" in str(exc_info.value)
+    assert exc_info.value.details == {
+        "stage": "mutation_request",
+        "issue_key": "PROJ-123",
+        "mutation_may_have_succeeded": True,
+    }
+    assert isinstance(exc_info.value.__cause__, JiraConnectionError)
+    api.issues.edit_issue.assert_called_once()
+
+
+def test_issue_edit_remote_protocol_error_is_marked_as_uncertain_delivery(
+    make_client,
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        raise httpx.RemoteProtocolError("peer disconnected")
+
+    client = make_client(handler)
+    api = SimpleNamespace(
+        credentials=client.credentials,
+        issues=Issues(client),
+        fields=Mock(),
+    )
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).edit("PROJ-123", summary="Updated")
+
+    assert exc_info.value.details == {
+        "stage": "mutation_request",
+        "issue_key": "PROJ-123",
+        "mutation_may_have_succeeded": True,
+    }
+    assert isinstance(exc_info.value.__cause__, JiraConnectionError)
+    assert len(requests) == 1
+    assert requests[0].method == "PUT"
+    assert requests[0].url.path == "/rest/api/3/issue/PROJ-123"
+
+
+def test_preflight_remote_protocol_error_is_an_ordinary_failure(make_client) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        raise httpx.RemoteProtocolError("peer disconnected")
+
+    client = make_client(handler)
+    api = SimpleNamespace(
+        credentials=client.credentials,
+        issues=Issues(client),
+        fields=IssueFields(client),
+    )
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).edit(
+            "PROJ-123", fields={"environment": "Body"}
+        )
+
+    assert "Failed to fetch Jira field metadata" in str(exc_info.value)
+    assert exc_info.value.details == {}
+    assert isinstance(exc_info.value.__cause__, JiraConnectionError)
+    assert len(requests) == 1
+    assert requests[0].method == "GET"
+    assert requests[0].url.path == "/rest/api/3/field"
+
+
+def test_preflight_connection_failure_is_not_marked_as_uncertain_delivery() -> None:
+    api = _make_api()
+    api.fields.get_fields.side_effect = JiraConnectionError("request timed out")
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).edit(
+            "PROJ-123", fields={"environment": "Body"}
+        )
+
+    assert "Failed to fetch Jira field metadata" in str(exc_info.value)
+    assert exc_info.value.details == {}
+    api.issues.edit_issue.assert_not_called()
 
 
 def test_transition_keeps_name_selector_compatibility_and_is_unverified() -> None:

@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from jira2py.exceptions import JiraAPIError, JiraConnectionError
+
 
 class JiraHelperError(Exception):
     """Base error for jira2py helper-layer failures."""
@@ -30,6 +32,34 @@ class JiraHelperConfigError(JiraHelperError):
 
 class JiraHelperOperationError(JiraHelperError):
     """Raised when a helper-backed Jira API operation fails."""
+
+
+def _mutation_request_error(
+    exc: Exception,
+    *,
+    ordinary_message: str,
+    issue_key: str | None = None,
+    target: str | None = None,
+) -> JiraHelperOperationError:
+    """Describe delivery uncertainty only after a direct mutation request failed."""
+    if isinstance(exc, JiraConnectionError) or (
+        isinstance(exc, JiraAPIError) and 500 <= exc.status_code < 600
+    ):
+        details: dict[str, Any] = {
+            "stage": "mutation_request",
+            "mutation_may_have_succeeded": True,
+        }
+        if issue_key is not None:
+            details["issue_key"] = issue_key
+        if target is not None:
+            details["target"] = target
+        return JiraHelperOperationError(
+            "Jira may have applied the mutation, but the mutation request failed "
+            "before confirmation. Callers must reread the affected resource before "
+            "retrying.",
+            details=details,
+        )
+    return JiraHelperOperationError(ordinary_message)
 
 
 class AttachmentError(JiraHelperError):

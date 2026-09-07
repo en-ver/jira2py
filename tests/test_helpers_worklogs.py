@@ -7,6 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 from jira2py import JiraAPI
+from jira2py.exceptions import JiraConnectionError
 from jira2py.helpers.errors import JiraHelperOperationError, JiraHelperValidationError
 from jira2py.helpers.worklogs import WorklogHelpers
 
@@ -123,7 +124,7 @@ def test_add_worklog_converts_jira_mention_and_uses_presentation_output() -> Non
     assert result.data == api.worklogs.add_worklog.return_value
     assert "Added worklog to PROJ-1" in result.text
     assert "Worklog wl-1 — Alice (a1)" in result.text
-    assert "Did work with @Alice" in result.text
+    assert "Did work with&#32;[~accountId:557057:User:AbC]" in result.text
 
 
 def test_update_worklog_requires_update_fields_and_uses_presentation_output() -> None:
@@ -193,7 +194,26 @@ def test_update_worklog_requires_update_fields_and_uses_presentation_output() ->
     assert result.data == api.worklogs.update_worklog.return_value
     assert "Updated worklog wl-1 on PROJ-1" in result.text
     assert "Time spent: 2h / 7200s" in result.text
-    assert "Updated note for @Alice" in result.text
+    assert "Updated note for&#32;[~accountId:557057:User:AbC]" in result.text
+
+
+def test_worklog_delete_timeout_is_marked_as_uncertain_delivery() -> None:
+    api = _make_api()
+    api.worklogs.delete_worklog.side_effect = JiraConnectionError("request timed out")
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        WorklogHelpers(cast(JiraAPI, api)).delete("PROJ-1", "wl-1")
+
+    assert "may have applied the mutation" in str(exc_info.value)
+    assert "must reread" in str(exc_info.value)
+    assert exc_info.value.details == {
+        "stage": "mutation_request",
+        "issue_key": "PROJ-1",
+        "target": "worklog:wl-1",
+        "mutation_may_have_succeeded": True,
+    }
+    assert isinstance(exc_info.value.__cause__, JiraConnectionError)
+    api.worklogs.delete_worklog.assert_called_once()
 
 
 def test_delete_worklog_returns_explicit_ids_without_confirmation() -> None:
