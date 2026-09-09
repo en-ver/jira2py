@@ -19,6 +19,13 @@ from adf_bridge import (
 from jira2py.api import JiraAPI
 
 from ._adf import markdown_to_adf
+from ._image_dimensions import (
+    _ImageDimensions,
+    _parse_complete_image_dimensions,
+    _probe_image_dimensions,
+    _validate_image_dimensions,
+)
+from .attachments import DEFAULT_MAX_DOWNLOAD
 from .errors import JiraHelperOperationError, JiraHelperValidationError
 
 _ATTACHMENT_CONTENT_PREFIX = "/rest/api/3/attachment/content/"
@@ -42,6 +49,13 @@ class _PreparedMarkdownDocument:
         return bool(self.resolved_images)
 
 
+@dataclass(frozen=True, slots=True)
+class _ResolvedAttachment:
+    media_id: str
+    width: int
+    height: int
+
+
 class _JiraMarkdownWriteSession:
     """Resolve managed attachment images once for one helper write operation."""
 
@@ -51,7 +65,7 @@ class _JiraMarkdownWriteSession:
         self._origin: _ConfiguredJiraOrigin | None = None
         self._origin_loaded = False
         self._attachments: list[dict[str, Any]] | None = None
-        self._media_ids_by_attachment_id: dict[str, str] = {}
+        self._resolved_attachments_by_id: dict[str, _ResolvedAttachment] = {}
         self._resolved_by_source_url: dict[str, ResolvedJiraImage] = {}
 
     def prepare(self, markdown: str) -> _PreparedMarkdownDocument:
@@ -64,49 +78,60 @@ class _JiraMarkdownWriteSession:
             ) from exc
 
         resolutions: list[ResolvedJiraImage] = []
+        resolution: ResolvedJiraImage | None = None
         origin = self._origin_for_images() if image_urls else None
-        for source_url in dict.fromkeys(image_urls):
-            classification, attachment_id = _classify_attachment_content_url(
-                source_url, origin
-            )
-            if classification == "malformed":
-                raise JiraHelperValidationError(
-                    "Jira attachment-content image URL is malformed for the configured Jira site."
+        try:
+            for source_url in dict.fromkeys(image_urls):
+                classification, attachment_id = _classify_attachment_content_url(
+                    source_url, origin
                 )
-            if classification == "candidate":
-                if attachment_id is None:
+                if classification == "malformed":
                     raise JiraHelperValidationError(
                         "Jira attachment-content image URL is malformed for the configured Jira site."
                     )
-                resolutions.append(self._resolve_source_url(source_url, attachment_id))
+                if classification == "candidate":
+                    if attachment_id is None:
+                        raise JiraHelperValidationError(
+                            "Jira attachment-content image URL is malformed for the configured Jira site."
+                        )
+                    resolution = self._resolve_source_url(source_url, attachment_id)
+                    resolutions.append(resolution)
+                    resolution = None
 
-        try:
-            document = markdown_to_adf(markdown, resolved_images=resolutions)
-        except AdfBridgeError as exc:
-            raise JiraHelperValidationError(
-                "Markdown input cannot be converted to Jira rich text."
-            ) from exc
+            try:
+                document = markdown_to_adf(markdown, resolved_images=resolutions)
+            except AdfBridgeError as exc:
+                raise JiraHelperValidationError(
+                    "Markdown input cannot be converted to Jira rich text."
+                ) from exc
+        except Exception:
+            resolution = None
+            resolutions.clear()
+            self.discard_sensitive_state()
+            raise
 
         return _PreparedMarkdownDocument(document, tuple(resolutions))
 
-    def verify(self, prepared: _PreparedMarkdownDocument, persisted: Any) -> None:
-        """Verify only the managed media submitted in one prepared document."""
+    def verify(self, prepared: _PreparedMarkdownDocument, persisted: Any) -> bool:
+        """Return whether Jira preserved one managed document's submitted media."""
         if not prepared.has_managed_images:
-            return
+            return True
         if not isinstance(persisted, dict):
-            raise JiraHelperOperationError(
-                "Jira did not return persisted rich-text ADF for managed image verification."
-            )
+            return False
         try:
             verify_jira_media_readback(
                 prepared.document,
                 persisted,
                 resolved_images=prepared.resolved_images,
             )
-        except AdfBridgeError as exc:
-            raise JiraHelperOperationError(
-                "Jira did not preserve managed image structure during rich-text verification."
-            ) from exc
+        except Exception:
+            return False
+        return True
+
+    def discard_sensitive_state(self) -> None:
+        """Discard resolved media identities after a managed-write failure."""
+        self._resolved_attachments_by_id.clear()
+        self._resolved_by_source_url.clear()
 
     def _origin_for_images(self) -> _ConfiguredJiraOrigin | None:
         if not self._origin_loaded:
@@ -121,10 +146,13 @@ class _JiraMarkdownWriteSession:
         if cached is not None:
             return cached
 
-        media_id = self._media_ids_by_attachment_id.get(attachment_id)
-        if media_id is None:
+        resolved_attachment = self._resolved_attachments_by_id.get(attachment_id)
+        if resolved_attachment is None:
             attachment = self._find_issue_attachment(attachment_id)
             self._require_image_attachment(attachment)
+            expected_size = self._require_attachment_size(attachment)
+            dimensions = self._acquire_image_dimensions(attachment_id, expected_size)
+            redirect_request_failed = False
             try:
                 location = (
                     self._api.attachments._get_attachment_content_redirect_location(
@@ -132,6 +160,8 @@ class _JiraMarkdownWriteSession:
                     )
                 )
             except Exception:
+                redirect_request_failed = True
+            if redirect_request_failed:
                 raise JiraHelperOperationError(
                     "Failed to obtain the Jira attachment media redirect."
                 ) from None
@@ -139,30 +169,41 @@ class _JiraMarkdownWriteSession:
                 media_id = _media_id_from_redirect_location(location)
             finally:
                 del location
-            self._media_ids_by_attachment_id[attachment_id] = media_id
+            resolved_attachment = _ResolvedAttachment(
+                media_id=media_id,
+                width=dimensions.width,
+                height=dimensions.height,
+            )
+            self._resolved_attachments_by_id[attachment_id] = resolved_attachment
 
         resolved = ResolvedJiraImage(
             source_url=source_url,
-            media_id=media_id,
+            media_id=resolved_attachment.media_id,
             collection="",
+            width=resolved_attachment.width,
+            height=resolved_attachment.height,
         )
         self._resolved_by_source_url[source_url] = resolved
         return resolved
 
     def _find_issue_attachment(self, attachment_id: str) -> dict[str, Any]:
+        attachment_list_failed = False
         if self._attachments is None:
             try:
                 self._attachments = self._api.attachments.get_issue_attachments(
                     self._issue_key
                 )
-            except Exception as exc:
-                raise JiraHelperOperationError(
-                    "Failed to list issue attachments for managed image resolution."
-                ) from exc
+            except Exception:
+                attachment_list_failed = True
+        attachments = self._attachments
+        if attachment_list_failed or attachments is None:
+            raise JiraHelperOperationError(
+                "Failed to list issue attachments for managed image resolution."
+            ) from None
 
         matches = [
             attachment
-            for attachment in self._attachments
+            for attachment in attachments
             if _attachment_id_matches(attachment.get("id"), attachment_id)
         ]
         if len(matches) != 1:
@@ -182,6 +223,83 @@ class _JiraMarkdownWriteSession:
             raise JiraHelperValidationError(
                 "The Markdown image URL must reference an associated image attachment."
             )
+
+    @staticmethod
+    def _require_attachment_size(attachment: dict[str, Any]) -> int:
+        size = attachment.get("size")
+        if isinstance(size, bool) or not isinstance(size, int) or size < 1:
+            raise JiraHelperOperationError(
+                "Jira attachment size metadata is unavailable for managed image resolution."
+            )
+        return size
+
+    def _acquire_image_dimensions(
+        self, attachment_id: str, expected_size: int
+    ) -> _ImageDimensions:
+        prefix_end = min(63, expected_size - 1)
+        prefix_read_failed = False
+        try:
+            prefix = self._api.attachments._get_attachment_content_bounded(
+                attachment_id,
+                expected_size=expected_size,
+                max_bytes=DEFAULT_MAX_DOWNLOAD,
+                byte_range=(0, prefix_end),
+            )
+        except Exception:
+            prefix_read_failed = True
+        if prefix_read_failed:
+            raise JiraHelperOperationError(
+                "Failed to read Jira attachment content for managed image resolution."
+            ) from None
+
+        prefix_complete = prefix.complete
+        try:
+            dimensions = (
+                _parse_complete_image_dimensions(prefix.body)
+                if prefix_complete
+                else _probe_image_dimensions(prefix.body)
+            )
+        finally:
+            prefix.body.close()
+            del prefix
+
+        if (
+            dimensions is None
+            and not prefix_complete
+            and expected_size > DEFAULT_MAX_DOWNLOAD
+        ):
+            raise JiraHelperValidationError(
+                "The image format requires a complete attachment larger than the managed image limit."
+            )
+        if dimensions is None and not prefix_complete:
+            full_read_failed = False
+            try:
+                full = self._api.attachments._get_attachment_content_bounded(
+                    attachment_id,
+                    expected_size=expected_size,
+                    max_bytes=DEFAULT_MAX_DOWNLOAD,
+                )
+            except Exception:
+                full_read_failed = True
+            if full_read_failed:
+                raise JiraHelperOperationError(
+                    "Failed to read Jira attachment content for managed image resolution."
+                ) from None
+            try:
+                dimensions = _parse_complete_image_dimensions(full.body)
+            finally:
+                full.body.close()
+                del full
+
+        if dimensions is None:
+            raise JiraHelperValidationError(
+                "The attachment is not a supported managed image format."
+            )
+        if not _validate_image_dimensions(dimensions):
+            raise JiraHelperValidationError(
+                "The attachment image dimensions exceed managed image safety limits."
+            )
+        return dimensions
 
 
 def _validate_create_markdown_images(

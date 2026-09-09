@@ -1,19 +1,27 @@
 from __future__ import annotations
 
+import io
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
 
 import httpx
 import pytest
+from adf_bridge import ResolvedJiraImage
 
 from jira2py import JiraAPI
 from jira2py.api.attachments import Attachments
+from jira2py.client.client_sync import _BoundedJiraContent
+from jira2py.exceptions import JiraConnectionError
+from jira2py.helpers._adf import markdown_to_adf
 from jira2py.helpers._managed_media import (
     _classify_attachment_content_url,
     _configured_jira_origin,
+    _JiraMarkdownWriteSession,
     _media_id_from_redirect_location,
 )
+from jira2py.helpers.attachments import DEFAULT_MAX_DOWNLOAD
 from jira2py.helpers.comments import CommentHelpers
 from jira2py.helpers.errors import JiraHelperOperationError, JiraHelperValidationError
 from jira2py.helpers.issues import IssueHelpers
@@ -93,10 +101,58 @@ def _assert_transport_failure_graph_is_redacted(error: BaseException) -> None:
             pending.append(current.__context__)
 
 
+def _assert_exception_graph_and_traceback_locals_are_redacted(
+    error: BaseException, *forbidden: str
+) -> None:
+    pending = [error]
+    seen: set[int] = set()
+
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+
+        assert all(value not in str(current) for value in forbidden)
+        assert all(value not in repr(current) for value in forbidden)
+
+        traceback = current.__traceback__
+        while traceback is not None:
+            frame = traceback.tb_frame
+            if "/src/jira2py/" in frame.f_code.co_filename:
+                for value in frame.f_locals.values():
+                    assert not isinstance(value, (httpx.Request, httpx.Response))
+                    assert all(item not in repr(value) for item in forbidden)
+            traceback = traceback.tb_next
+
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+
+
+def _png_prefix(width: int = 32, height: int = 48) -> bytes:
+    return (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        + width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+        + b"\x08\x06\x00\x00\x00"
+        + b"\x00" * 35
+    )
+
+
+def _bounded_png_prefix() -> _BoundedJiraContent:
+    return _BoundedJiraContent(io.BytesIO(_png_prefix()), complete=False)
+
+
 def _make_api() -> SimpleNamespace:
+    attachments = Mock()
+    attachments._get_attachment_content_bounded.side_effect = (
+        lambda *_args, **_kwargs: _bounded_png_prefix()
+    )
     return SimpleNamespace(
         credentials=SimpleNamespace(url="https://example.atlassian.net"),
-        attachments=Mock(),
+        attachments=attachments,
         comments=Mock(),
         fields=Mock(),
         issues=Mock(),
@@ -106,8 +162,13 @@ def _make_api() -> SimpleNamespace:
 
 def _attachment(
     attachment_id: str = "10000", mime_type: str = "image/png"
-) -> dict[str, str]:
-    return {"id": attachment_id, "mimeType": mime_type, "filename": "screen.png"}
+) -> dict[str, Any]:
+    return {
+        "id": attachment_id,
+        "mimeType": mime_type,
+        "filename": "screen.png",
+        "size": 256,
+    }
 
 
 def test_only_canonical_configured_attachment_urls_are_managed() -> None:
@@ -203,7 +264,9 @@ def test_issue_edit_resolves_repeated_images_once_and_reads_back_all_fields() ->
         if block["type"] == "mediaSingle"
     ]
     assert [attrs["id"] for attrs in media] == [_MEDIA_ID, _MEDIA_ID]
-    assert set(media[0]) == {"type", "id", "collection", "alt"}
+    assert set(media[0]) == {"type", "id", "collection", "alt", "width", "height"}
+    assert media[0]["width"] == 32
+    assert media[0]["height"] == 48
     assert media[1]["alt"] == "again"
     assert (
         captured["fields"]["environment"]["content"][0]["content"][0]["attrs"][
@@ -211,6 +274,265 @@ def test_issue_edit_resolves_repeated_images_once_and_reads_back_all_fields() ->
         ]
         == ""
     )
+    assert captured["fields"]["description"]["content"][0]["attrs"] == {
+        "layout": "center",
+        "width": 100,
+        "widthType": "percentage",
+    }
+
+
+def test_managed_images_in_root_and_lists_are_dimensioned_once_per_attachment() -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [_attachment()]
+    api.attachments._get_attachment_content_redirect_location.return_value = (
+        _MEDIA_LOCATION
+    )
+
+    prepared = _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+        f"![root]({_CONTENT_URL})\n\n- ![list]({_CONTENT_URL})"
+    )
+
+    document = cast(Any, prepared.document)
+    root_media = document["content"][0]
+    list_media = document["content"][1]["content"][0]["content"][0]
+    for media_single in (root_media, list_media):
+        assert media_single["type"] == "mediaSingle"
+        assert media_single["attrs"] == {
+            "layout": "center",
+            "width": 100,
+            "widthType": "percentage",
+        }
+        assert media_single["content"][0]["attrs"]["width"] == 32
+        assert media_single["content"][0]["attrs"]["height"] == 48
+    api.attachments._get_attachment_content_bounded.assert_called_once()
+    api.attachments._get_attachment_content_redirect_location.assert_called_once()
+
+
+def test_managed_jpeg_uses_one_full_fallback_after_the_prefix_probe(
+    make_client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jpeg = (
+        b"\xff\xd8\xff\xfe\x00\x42"
+        + b"x" * 64
+        + b"\xff\xc0\x00\x11\x08\x01\xe0\x02\x80\x03"
+        b"\x01\x11\x00\x02\x11\x00\x03\x11\x00\xff\xd9"
+    )
+    content_ranges: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/api/3/issue/PROJ-1":
+            return httpx.Response(
+                200,
+                json={
+                    "fields": {
+                        "attachment": [
+                            {
+                                **_attachment(),
+                                "mimeType": "image/jpeg",
+                                "size": len(jpeg),
+                            }
+                        ]
+                    }
+                },
+            )
+
+        assert request.url.path == "/rest/api/3/attachment/content/10000"
+        assert request.url.params["redirect"] == "false"
+        assert request.headers["accept"] == "*/*"
+        assert request.headers["accept-encoding"] == "identity"
+        content_ranges.append(request.headers.get("range"))
+        if request.headers.get("range") == "bytes=0-63":
+            return httpx.Response(
+                206,
+                headers={
+                    "Content-Range": f"bytes 0-63/{len(jpeg)}",
+                    "Content-Length": "64",
+                },
+                stream=httpx.ByteStream(jpeg[:64]),
+            )
+        assert "range" not in request.headers
+        return httpx.Response(
+            200,
+            headers={"Content-Length": str(len(jpeg))},
+            stream=httpx.ByteStream(jpeg),
+        )
+
+    client = make_client(handler)
+    attachments = Attachments(client)
+    redirect_location = Mock(return_value=_MEDIA_LOCATION)
+    monkeypatch.setattr(
+        attachments, "_get_attachment_content_redirect_location", redirect_location
+    )
+    api = SimpleNamespace(
+        credentials=client.credentials,
+        attachments=attachments,
+        issues=Mock(),
+    )
+    source_url = f"{client.credentials.url}/rest/api/3/attachment/content/10000"
+
+    prepared = _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+        f"![jpeg]({source_url})"
+    )
+
+    assert len(jpeg) > 64
+    assert prepared.resolved_images[0].width == 640
+    assert prepared.resolved_images[0].height == 480
+    assert content_ranges == ["bytes=0-63", None]
+    redirect_location.assert_called_once_with("10000")
+
+
+def test_large_fast_path_image_does_not_require_a_full_download() -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [
+        {**_attachment(), "size": DEFAULT_MAX_DOWNLOAD + 1}
+    ]
+    api.attachments._get_attachment_content_redirect_location.return_value = (
+        _MEDIA_LOCATION
+    )
+
+    prepared = _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+        f"![large]({_CONTENT_URL})"
+    )
+
+    assert prepared.resolved_images[0].width == 32
+    api.attachments._get_attachment_content_bounded.assert_called_once()
+    assert api.attachments._get_attachment_content_bounded.call_args.kwargs[
+        "byte_range"
+    ] == (
+        0,
+        63,
+    )
+
+
+def test_unsupported_or_oversized_fallback_requirements_fail_before_write() -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [
+        {**_attachment(), "size": DEFAULT_MAX_DOWNLOAD + 1}
+    ]
+    api.attachments._get_attachment_content_bounded.side_effect = (
+        lambda *_args, **_kwargs: _BoundedJiraContent(io.BytesIO(b"unknown"), False)
+    )
+
+    with pytest.raises(JiraHelperValidationError, match="complete attachment larger"):
+        _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+            f"![unsupported]({_CONTENT_URL})"
+        )
+
+    api.attachments._get_attachment_content_bounded.assert_called_once()
+    api.attachments._get_attachment_content_redirect_location.assert_not_called()
+
+
+def test_malformed_or_protocol_invalid_images_fail_before_the_mutation() -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [_attachment()]
+    api.attachments._get_attachment_content_bounded.side_effect = [
+        _BoundedJiraContent(io.BytesIO(b"\x89PNG\r\n\x1a\n"), complete=False),
+        _BoundedJiraContent(io.BytesIO(b"\x89PNG\r\n\x1a\n"), complete=True),
+    ]
+
+    with pytest.raises(JiraHelperValidationError, match="supported managed image"):
+        _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+            f"![malformed]({_CONTENT_URL})"
+        )
+
+    api.attachments._get_attachment_content_redirect_location.assert_not_called()
+
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [_attachment()]
+    api.attachments._get_attachment_content_bounded.side_effect = (
+        lambda *_args, **_kwargs: _BoundedJiraContent(io.BytesIO(b"unknown"), True)
+    )
+    with pytest.raises(JiraHelperValidationError, match="supported managed image"):
+        _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+            f"![complete]({_CONTENT_URL})"
+        )
+
+    api.attachments._get_attachment_content_bounded.assert_called_once()
+    api.attachments._get_attachment_content_redirect_location.assert_not_called()
+
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [_attachment()]
+    api.attachments._get_attachment_content_bounded.side_effect = RuntimeError(
+        "invalid range response"
+    )
+    with pytest.raises(
+        JiraHelperOperationError, match="attachment content"
+    ) as exc_info:
+        _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+            f"![range]({_CONTENT_URL})"
+        )
+
+    assert exc_info.value.details == {}
+    api.attachments._get_attachment_content_redirect_location.assert_not_called()
+
+
+@pytest.mark.parametrize("failure_stage", ["prefix", "fallback"])
+def test_managed_bounded_content_failures_have_no_exception_context(
+    failure_stage: str,
+) -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [_attachment()]
+    original_error = RuntimeError("attachment-content-read-secret")
+    if failure_stage == "prefix":
+        api.attachments._get_attachment_content_bounded.side_effect = original_error
+    else:
+        api.attachments._get_attachment_content_bounded.side_effect = [
+            _BoundedJiraContent(io.BytesIO(b"unknown"), complete=False),
+            original_error,
+        ]
+
+    with pytest.raises(
+        JiraHelperOperationError, match="attachment content"
+    ) as exc_info:
+        _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+            f"![screen]({_CONTENT_URL})"
+        )
+
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert exc_info.value.__suppress_context__
+    _assert_exception_graph_and_traceback_locals_are_redacted(
+        exc_info.value, "attachment-content-read-secret"
+    )
+    api.attachments._get_attachment_content_redirect_location.assert_not_called()
+
+
+@pytest.mark.parametrize("size", [None, True, 0, -1])
+def test_missing_or_invalid_attachment_size_fails_before_content_read(
+    size: Any,
+) -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [
+        {**_attachment(), "size": size}
+    ]
+
+    with pytest.raises(JiraHelperOperationError, match="size metadata"):
+        _JiraMarkdownWriteSession(cast(JiraAPI, api), "PROJ-1").prepare(
+            f"![screen]({_CONTENT_URL})"
+        )
+
+    api.attachments._get_attachment_content_bounded.assert_not_called()
+    api.attachments._get_attachment_content_redirect_location.assert_not_called()
+
+
+def test_legacy_dimensionless_resolutions_and_external_images_remain_widthless() -> (
+    None
+):
+    legacy = markdown_to_adf(
+        f"![legacy]({_CONTENT_URL})",
+        resolved_images=[ResolvedJiraImage(_CONTENT_URL, _MEDIA_ID, "")],
+    )
+    legacy_media = cast(Any, legacy)["content"][0]
+    assert legacy_media["attrs"] == {"layout": "center"}
+    assert set(legacy_media["content"][0]["attrs"]) == {
+        "type",
+        "id",
+        "collection",
+        "alt",
+    }
+
+    external = markdown_to_adf("![external](https://images.example/screen.png)")
+    assert cast(Any, external)["content"][0]["attrs"] == {"layout": "center"}
 
 
 def test_external_images_preserve_existing_write_io() -> None:
@@ -334,6 +656,59 @@ def test_rejected_signed_redirect_traceback_does_not_retain_secrets() -> None:
     api.issues.edit_issue.assert_not_called()
 
 
+def test_redirect_close_failure_after_signed_location_is_fully_redacted(
+    make_client, monkeypatch
+) -> None:
+    signed_location = (
+        f"https://api.media.atlassian.com/file/{_MEDIA_ID}/binary?"
+        "token=redirect-close-secret"
+    )
+
+    class CloseFailingBody(httpx.SyncByteStream):
+        def __init__(self) -> None:
+            self.closed = False
+
+        def __iter__(self):
+            yield b"unused"
+
+        def close(self) -> None:
+            self.closed = True
+            raise httpx.ReadError("stream close failed")
+
+    body = CloseFailingBody()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/api/3/issue/PROJ-1":
+            return httpx.Response(200, json={"fields": {"attachment": [_attachment()]}})
+        assert request.url.path == "/rest/api/3/attachment/content/10000"
+        return httpx.Response(303, headers={"Location": signed_location}, stream=body)
+
+    client = make_client(handler)
+    attachments = Attachments(client)
+    monkeypatch.setattr(
+        attachments,
+        "_get_attachment_content_bounded",
+        Mock(return_value=_bounded_png_prefix()),
+    )
+    api = SimpleNamespace(
+        credentials=client.credentials,
+        attachments=attachments,
+        issues=Mock(),
+    )
+    source_url = f"{client.credentials.url}/rest/api/3/attachment/content/10000"
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).edit(
+            "PROJ-1", description=f"![screen]({source_url})"
+        )
+
+    _assert_exception_graph_and_traceback_locals_are_redacted(
+        exc_info.value, signed_location, "redirect-close-secret"
+    )
+    assert body.closed
+    api.issues.edit_issue.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "error_type",
     [httpx.ReadTimeout, httpx.RemoteProtocolError, httpx.ConnectError],
@@ -347,6 +722,10 @@ def test_managed_image_transport_failure_does_not_retain_authenticated_request(
         if request.url.path == "/rest/api/3/issue/PROJ-1":
             return httpx.Response(200, json={"fields": {"attachment": [_attachment()]}})
         assert request.url.path == "/rest/api/3/attachment/content/10000"
+        assert request.url.params["redirect"] == "false"
+        assert request.headers["range"] == "bytes=0-63"
+        assert request.headers["accept"] == "*/*"
+        assert request.headers["accept-encoding"] == "identity"
         assert request.headers["authorization"].startswith("Basic ")
         assert request.headers["cookie"] == "request-cookie-secret"
         assert request.headers["x-private"] == "request-extra-secret"
@@ -458,3 +837,269 @@ def test_post_write_verification_failure_is_uncertain_and_never_retried() -> Non
 
     api.comments.add_comment.assert_called_once()
     api.attachments.delete_attachment.assert_not_called()
+
+
+def test_managed_attachment_listing_status_failure_is_fully_sanitized(
+    make_client,
+) -> None:
+    body_secret = "attachment-list-response-body-secret"
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(500, content=body_secret)
+
+    client = make_client(handler)
+    api = SimpleNamespace(
+        credentials=client.credentials,
+        attachments=Attachments(client),
+        issues=Mock(),
+    )
+    source_url = f"{client.credentials.url}/rest/api/3/attachment/content/10000"
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).edit(
+            "PROJ-1", description=f"![screen]({source_url})"
+        )
+
+    _assert_exception_graph_and_traceback_locals_are_redacted(
+        exc_info.value, body_secret, "Basic "
+    )
+    assert len(requests) == 1
+    assert requests[0].headers["authorization"].startswith("Basic ")
+
+
+@pytest.mark.parametrize("family", ["comment", "issue", "worklog"])
+def test_later_preflight_failure_discards_prior_media_resolutions(
+    family: str,
+) -> None:
+    first_media_id = "223e4567-e89b-12d3-a456-426614174000"
+    first_location = (
+        f"https://api.media.atlassian.com/file/{first_media_id}/binary?token=first"
+    )
+    second_content_url = _CONTENT_URL.removesuffix("10000") + "10001"
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [
+        _attachment("10000"),
+        _attachment("10001"),
+    ]
+
+    def redirect_location(attachment_id: str) -> str:
+        if attachment_id == "10000":
+            return first_location
+        return "https://untrusted.example/not-a-media-redirect?token=second"
+
+    api.attachments._get_attachment_content_redirect_location.side_effect = (
+        redirect_location
+    )
+
+    if family == "comment":
+
+        def invoke() -> None:
+            CommentHelpers(cast(JiraAPI, api)).add(
+                "PROJ-1",
+                f"![first]({_CONTENT_URL}) ![second]({second_content_url})",
+            )
+
+        mutation = api.comments.add_comment
+    elif family == "issue":
+
+        def invoke() -> None:
+            IssueHelpers(cast(JiraAPI, api)).edit(
+                "PROJ-1",
+                description=f"![first]({_CONTENT_URL}) ![second]({second_content_url})",
+            )
+
+        mutation = api.issues.edit_issue
+    else:
+
+        def invoke() -> None:
+            WorklogHelpers(cast(JiraAPI, api)).add(
+                "PROJ-1",
+                "1h",
+                comment=f"![first]({_CONTENT_URL}) ![second]({second_content_url})",
+            )
+
+        mutation = api.worklogs.add_worklog
+
+    with pytest.raises(
+        JiraHelperOperationError, match="approved Media Services"
+    ) as exc_info:
+        invoke()
+
+    _assert_exception_graph_and_traceback_locals_are_redacted(
+        exc_info.value, first_media_id
+    )
+    mutation.assert_not_called()
+
+
+@pytest.mark.parametrize("later_field", ["description", "custom_textarea"])
+def test_issue_edit_rich_fields_are_prepared_transactionally(later_field: str) -> None:
+    first_media_id = "223e4567-e89b-12d3-a456-426614174000"
+    first_location = (
+        f"https://api.media.atlassian.com/file/{first_media_id}/binary?token=first"
+    )
+    second_content_url = _CONTENT_URL.removesuffix("10000") + "10001"
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [
+        _attachment("10000"),
+        _attachment("10001"),
+    ]
+
+    def redirect_location(attachment_id: str) -> str:
+        if attachment_id == "10000":
+            return first_location
+        return "https://untrusted.example/not-a-media-redirect?token=second"
+
+    api.attachments._get_attachment_content_redirect_location.side_effect = (
+        redirect_location
+    )
+    fields: dict[str, Any] = {"environment": f"![first]({_CONTENT_URL})"}
+    edit_kwargs: dict[str, Any] = {"fields": fields}
+    if later_field == "description":
+        edit_kwargs["description"] = f"![second]({second_content_url})"
+        api.fields.get_fields.return_value = []
+    else:
+        fields["customfield_10001"] = f"![second]({second_content_url})"
+        api.fields.get_fields.return_value = [
+            {
+                "id": "customfield_10001",
+                "schema": {
+                    "custom": (
+                        "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+                    )
+                },
+            }
+        ]
+    fields_before = deepcopy(fields)
+
+    with pytest.raises(
+        JiraHelperOperationError, match="approved Media Services"
+    ) as exc_info:
+        IssueHelpers(cast(JiraAPI, api)).edit("PROJ-1", **edit_kwargs)
+
+    _assert_exception_graph_and_traceback_locals_are_redacted(
+        exc_info.value, first_media_id
+    )
+    assert fields == fields_before
+    api.issues.edit_issue.assert_not_called()
+
+
+@pytest.mark.parametrize("family", ["comment", "issue", "worklog"])
+def test_managed_mutation_failures_discard_media_from_exception_graphs(
+    family: str,
+) -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [_attachment()]
+    api.attachments._get_attachment_content_redirect_location.return_value = (
+        _MEDIA_LOCATION
+    )
+
+    if family == "comment":
+        api.comments.add_comment.side_effect = JiraConnectionError("network failure")
+
+        def invoke() -> None:
+            CommentHelpers(cast(JiraAPI, api)).add(
+                "PROJ-1", f"![screen]({_CONTENT_URL})"
+            )
+
+        mutation = api.comments.add_comment
+    elif family == "issue":
+        api.issues.edit_issue.side_effect = JiraConnectionError("network failure")
+
+        def invoke() -> None:
+            IssueHelpers(cast(JiraAPI, api)).edit(
+                "PROJ-1", description=f"![screen]({_CONTENT_URL})"
+            )
+
+        mutation = api.issues.edit_issue
+    else:
+        api.worklogs.add_worklog.side_effect = JiraConnectionError("network failure")
+
+        def invoke() -> None:
+            WorklogHelpers(cast(JiraAPI, api)).add(
+                "PROJ-1", "1h", comment=f"![screen]({_CONTENT_URL})"
+            )
+
+        mutation = api.worklogs.add_worklog
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        invoke()
+
+    assert exc_info.value.details == {
+        "stage": "mutation_request",
+        "mutation_may_have_succeeded": True,
+        "issue_key": "PROJ-1",
+    }
+    _assert_exception_graph_and_traceback_locals_are_redacted(exc_info.value, _MEDIA_ID)
+    mutation.assert_called_once()
+
+
+@pytest.mark.parametrize("family", ["comment", "issue", "worklog"])
+def test_managed_persisted_readback_failures_discard_media_from_exception_graphs(
+    family: str,
+) -> None:
+    api = _make_api()
+    api.attachments.get_issue_attachments.return_value = [_attachment()]
+    api.attachments._get_attachment_content_redirect_location.return_value = (
+        _MEDIA_LOCATION
+    )
+
+    def malformed_document(document: dict[str, Any]) -> dict[str, Any]:
+        persisted = deepcopy(document)
+        del persisted["content"][0]["content"][0]["attrs"]["width"]
+        return persisted
+
+    if family == "comment":
+        api.comments.add_comment.side_effect = lambda **kwargs: {
+            "id": "10000",
+            "body": malformed_document(kwargs["body"]),
+        }
+
+        def invoke() -> None:
+            CommentHelpers(cast(JiraAPI, api)).add(
+                "PROJ-1", f"![screen]({_CONTENT_URL})"
+            )
+
+        mutation = api.comments.add_comment
+    elif family == "issue":
+        submitted: dict[str, Any] = {}
+
+        def edit_issue(**kwargs: Any) -> None:
+            submitted.update(kwargs["fields"])
+            return None
+
+        api.issues.edit_issue.side_effect = edit_issue
+        api.issues.get_issue.side_effect = lambda **_kwargs: {
+            "fields": {"description": malformed_document(submitted["description"])}
+        }
+
+        def invoke() -> None:
+            IssueHelpers(cast(JiraAPI, api)).edit(
+                "PROJ-1", description=f"![screen]({_CONTENT_URL})"
+            )
+
+        mutation = api.issues.edit_issue
+    else:
+        api.worklogs.add_worklog.side_effect = lambda **kwargs: {
+            "id": "10001",
+            "comment": malformed_document(kwargs["comment"]),
+        }
+
+        def invoke() -> None:
+            WorklogHelpers(cast(JiraAPI, api)).add(
+                "PROJ-1", "1h", comment=f"![screen]({_CONTENT_URL})"
+            )
+
+        mutation = api.worklogs.add_worklog
+
+    with pytest.raises(JiraHelperOperationError) as exc_info:
+        invoke()
+
+    assert exc_info.value.details == {
+        "stage": "persisted_readback",
+        "issue_key": "PROJ-1",
+        "mutation_may_have_succeeded": True,
+    }
+    _assert_exception_graph_and_traceback_locals_are_redacted(exc_info.value, _MEDIA_ID)
+    mutation.assert_called_once()

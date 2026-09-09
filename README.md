@@ -160,20 +160,34 @@ replace their complete rich-text value; they do not append Markdown fragments.
 Issue creation has no existing issue context, so an attachment-content image URL is
 rejected before the create POST. Create the issue first, upload the image to its returned
 key, then edit the complete rich-text field using the upload result's `content` URL.
-Markdown image titles and dimensions are not preserved or authored. On formatted
-ADF-to-Markdown reads, managed media has no recoverable attachment-content URL and is
-shown only as readable attachment text; use raw ADF when Jira enrichments or exact media
-structure must be retained. After a successful managed-media write, jira2py verifies the
-raw persisted ADF structure. Jira-rendered HTML is not a runtime verification contract;
-corroborate tenant rendering with authorized live end-to-end testing.
+Markdown image titles are not preserved. Before a managed write, jira2py privately
+acquires intrinsic dimensions for PNG/APNG, JPEG, GIF, WebP, BMP, and TIFF; JPEG and
+TIFF EXIF orientation is applied. It makes an authenticated, no-follow `redirect=false`
+64-byte Jira-host range probe and performs one complete fallback only when needed. The
+fallback is bounded to 100 MiB; a larger attachment whose supported dimensions are found
+in the prefix is accepted without a full download. Dimensions must be positive, no more
+than 65,535 on either axis, and no more than 89,478,485 total pixels. This is metadata
+inspection, not pixel decoding. Unsupported or malformed images and failed acquisition
+are pre-write helper errors, so no mutation is sent.
 
-jira2py validates the observed Jira attachment `303` redirect shape privately before
-writing. That Media Services mapping is compatibility-sensitive observed behavior, not a
-public Jira mapping API. It never changes `download_attachment_content()`, which still
-follows redirects and returns bytes. If a direct issue, comment, or worklog mutation
-fails with a connection error or Jira 5xx, it may already have been applied. The helper
-error sets `details["mutation_may_have_succeeded"]`; reread the affected resource before
-retrying. jira2py does not retry or roll back after that uncertain failure.
+Dimensioned managed media is centered with a 100% parent width and exact intrinsic child
+width/height. Acquisition occurs once per unique attachment for a single helper mutation;
+attachment bytes are never persisted. External and relative images remain widthless
+external media and are never fetched. On formatted ADF-to-Markdown reads, managed media
+has no recoverable attachment-content URL and is shown only as readable attachment text;
+use raw ADF when Jira enrichments or exact media structure must be retained. After a
+successful managed-media write, jira2py verifies the raw persisted ADF structure.
+Jira-rendered HTML is not a runtime verification contract; corroborate tenant rendering
+with authorized live end-to-end testing.
+
+jira2py validates the observed Jira attachment `303` redirect shape privately after
+acquiring dimensions and before writing. That Media Services mapping is
+compatibility-sensitive observed behavior, not a public Jira mapping API. It never
+changes `download_attachment_content()`, which still follows redirects and returns bytes.
+If a direct issue, comment, or worklog mutation fails with a connection error or Jira 5xx,
+it may already have been applied. The helper error sets
+`details["mutation_may_have_succeeded"]`; reread the affected resource before retrying.
+jira2py does not retry or roll back after that uncertain failure.
 
 ## Workflow transitions
 

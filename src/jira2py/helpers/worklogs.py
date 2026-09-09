@@ -95,6 +95,8 @@ class WorklogHelpers:
 
         session = _JiraMarkdownWriteSession(self.api, issue_key)
         prepared = session.prepare(comment) if comment is not None else None
+        managed_images = prepared is not None and prepared.has_managed_images
+        mutation_error: JiraHelperOperationError | None = None
         try:
             data = self.api.worklogs.add_worklog(
                 issue_id=issue_key,
@@ -103,13 +105,39 @@ class WorklogHelpers:
                 comment=prepared.document if prepared is not None else None,
             )
         except Exception as exc:
-            raise _mutation_request_error(
+            mutation_error = _mutation_request_error(
                 exc,
-                ordinary_message=f"Failed to add worklog to {issue_key}: {exc}",
+                ordinary_message=(
+                    f"Failed to add worklog to {issue_key}"
+                    if managed_images
+                    else f"Failed to add worklog to {issue_key}: {exc}"
+                ),
                 issue_key=issue_key,
-            ) from exc
+            )
+            if not managed_images:
+                raise mutation_error from exc
+        if mutation_error is not None:
+            session.discard_sensitive_state()
+            prepared = None
+            del prepared
+            del session
+            raise mutation_error from None
 
-        _verify_managed_worklog_readback(issue_key, session, prepared, data)
+        if not _verify_managed_worklog_readback(session, prepared, data):
+            session.discard_sensitive_state()
+            del data
+            prepared = None
+            del prepared
+            del session
+            raise JiraHelperOperationError(
+                "Jira may have applied the worklog mutation, but managed image readback "
+                "verification failed. Reread the worklog before retrying.",
+                details={
+                    "stage": "persisted_readback",
+                    "issue_key": issue_key,
+                    "mutation_may_have_succeeded": True,
+                },
+            ) from None
         worklog = JiraWorklog.model_validate(data)
         text = f"Added worklog to {issue_key}\n\n{format_worklog(worklog)}"
         return HelperResult.with_data(text, data)
@@ -139,6 +167,8 @@ class WorklogHelpers:
 
         session = _JiraMarkdownWriteSession(self.api, issue_key)
         prepared = session.prepare(comment) if comment is not None else None
+        managed_images = prepared is not None and prepared.has_managed_images
+        mutation_error: JiraHelperOperationError | None = None
         try:
             data = self.api.worklogs.update_worklog(
                 issue_id=issue_key,
@@ -148,16 +178,40 @@ class WorklogHelpers:
                 comment=prepared.document if prepared is not None else None,
             )
         except Exception as exc:
-            raise _mutation_request_error(
+            mutation_error = _mutation_request_error(
                 exc,
                 ordinary_message=(
-                    f"Failed to update worklog {worklog_id} on {issue_key}: {exc}"
+                    f"Failed to update worklog {worklog_id} on {issue_key}"
+                    if managed_images
+                    else f"Failed to update worklog {worklog_id} on {issue_key}: {exc}"
                 ),
                 issue_key=issue_key,
                 target=f"worklog:{worklog_id}",
-            ) from exc
+            )
+            if not managed_images:
+                raise mutation_error from exc
+        if mutation_error is not None:
+            session.discard_sensitive_state()
+            prepared = None
+            del prepared
+            del session
+            raise mutation_error from None
 
-        _verify_managed_worklog_readback(issue_key, session, prepared, data)
+        if not _verify_managed_worklog_readback(session, prepared, data):
+            session.discard_sensitive_state()
+            del data
+            prepared = None
+            del prepared
+            del session
+            raise JiraHelperOperationError(
+                "Jira may have applied the worklog mutation, but managed image readback "
+                "verification failed. Reread the worklog before retrying.",
+                details={
+                    "stage": "persisted_readback",
+                    "issue_key": issue_key,
+                    "mutation_may_have_succeeded": True,
+                },
+            ) from None
         worklog = JiraWorklog.model_validate(data)
         text = (
             f"Updated worklog {worklog_id} on {issue_key}\n\n{format_worklog(worklog)}"
@@ -349,25 +403,16 @@ class WorklogHelpers:
 
 
 def _verify_managed_worklog_readback(
-    issue_key: str,
     session: _JiraMarkdownWriteSession,
     prepared: _PreparedMarkdownDocument | None,
     data: dict[str, object],
-) -> None:
-    if prepared is None or not prepared.has_managed_images:
-        return
+) -> bool:
+    if prepared is None:
+        return True
     try:
-        session.verify(prepared, data.get("comment"))
-    except Exception as exc:
-        raise JiraHelperOperationError(
-            "Jira may have applied the worklog mutation, but managed image readback "
-            "verification failed. Reread the worklog before retrying.",
-            details={
-                "stage": "persisted_readback",
-                "issue_key": issue_key,
-                "mutation_may_have_succeeded": True,
-            },
-        ) from exc
+        return session.verify(prepared, data.get("comment"))
+    except Exception:
+        return False
 
 
 def _build_row(

@@ -82,19 +82,45 @@ class CommentHelpers:
 
         session = _JiraMarkdownWriteSession(self.api, issue_key)
         prepared = session.prepare(body)
+        managed_images = prepared.has_managed_images
+        mutation_error: JiraHelperOperationError | None = None
         try:
             data = self.api.comments.add_comment(
                 issue_id=issue_key,
                 body=prepared.document,
             )
         except Exception as exc:
-            raise _mutation_request_error(
+            mutation_error = _mutation_request_error(
                 exc,
-                ordinary_message=f"Failed to add comment to {issue_key}: {exc}",
+                ordinary_message=(
+                    f"Failed to add comment to {issue_key}"
+                    if managed_images
+                    else f"Failed to add comment to {issue_key}: {exc}"
+                ),
                 issue_key=issue_key,
-            ) from exc
+            )
+            if not managed_images:
+                raise mutation_error from exc
+        if mutation_error is not None:
+            session.discard_sensitive_state()
+            del prepared
+            del session
+            raise mutation_error from None
 
-        _verify_managed_comment_readback(issue_key, session, prepared, data)
+        if not _verify_managed_comment_readback(session, prepared, data):
+            session.discard_sensitive_state()
+            del data
+            del prepared
+            del session
+            raise JiraHelperOperationError(
+                "Jira may have applied the comment mutation, but managed image readback "
+                "verification failed. Reread the comment before retrying.",
+                details={
+                    "stage": "persisted_readback",
+                    "issue_key": issue_key,
+                    "mutation_may_have_succeeded": True,
+                },
+            ) from None
         text = f"Added comment to {issue_key}\nURL: {self.api.credentials.url}/browse/{issue_key}"
         return HelperResult.with_data(text, data)
 
@@ -106,6 +132,8 @@ class CommentHelpers:
 
         session = _JiraMarkdownWriteSession(self.api, issue_key)
         prepared = session.prepare(body)
+        managed_images = prepared.has_managed_images
+        mutation_error: JiraHelperOperationError | None = None
         try:
             data = self.api.comments.update_comment(
                 issue_id=issue_key,
@@ -113,16 +141,38 @@ class CommentHelpers:
                 body=prepared.document,
             )
         except Exception as exc:
-            raise _mutation_request_error(
+            mutation_error = _mutation_request_error(
                 exc,
                 ordinary_message=(
-                    f"Failed to update comment {comment_id} on {issue_key}: {exc}"
+                    f"Failed to update comment {comment_id} on {issue_key}"
+                    if managed_images
+                    else f"Failed to update comment {comment_id} on {issue_key}: {exc}"
                 ),
                 issue_key=issue_key,
                 target=f"comment:{comment_id}",
-            ) from exc
+            )
+            if not managed_images:
+                raise mutation_error from exc
+        if mutation_error is not None:
+            session.discard_sensitive_state()
+            del prepared
+            del session
+            raise mutation_error from None
 
-        _verify_managed_comment_readback(issue_key, session, prepared, data)
+        if not _verify_managed_comment_readback(session, prepared, data):
+            session.discard_sensitive_state()
+            del data
+            del prepared
+            del session
+            raise JiraHelperOperationError(
+                "Jira may have applied the comment mutation, but managed image readback "
+                "verification failed. Reread the comment before retrying.",
+                details={
+                    "stage": "persisted_readback",
+                    "issue_key": issue_key,
+                    "mutation_may_have_succeeded": True,
+                },
+            ) from None
         comment = JiraComment.model_validate(data)
         text = (
             f"Updated comment {comment_id} on {issue_key}\n"
@@ -164,25 +214,14 @@ class CommentHelpers:
 
 
 def _verify_managed_comment_readback(
-    issue_key: str,
     session: _JiraMarkdownWriteSession,
     prepared: _PreparedMarkdownDocument,
     data: dict[str, object],
-) -> None:
-    if not prepared.has_managed_images:
-        return
+) -> bool:
     try:
-        session.verify(prepared, data.get("body"))
-    except Exception as exc:
-        raise JiraHelperOperationError(
-            "Jira may have applied the comment mutation, but managed image readback "
-            "verification failed. Reread the comment before retrying.",
-            details={
-                "stage": "persisted_readback",
-                "issue_key": issue_key,
-                "mutation_may_have_succeeded": True,
-            },
-        ) from exc
+        return session.verify(prepared, data.get("body"))
+    except Exception:
+        return False
 
 
 __all__ = ["CommentHelpers"]

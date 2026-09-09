@@ -3,6 +3,8 @@
 from collections.abc import Mapping
 from typing import Any
 
+from jira2py.client.client_sync import _BoundedJiraContent
+
 from .api_base import ApiBase
 
 
@@ -88,6 +90,22 @@ class Attachments(ApiBase):
             params=params,
             extra_params=extra_params,
             follow_redirects=True,
+        )
+
+    def _get_attachment_content_bounded(
+        self,
+        attachment_id: str,
+        *,
+        expected_size: int,
+        max_bytes: int,
+        byte_range: tuple[int, int] | None = None,
+    ) -> _BoundedJiraContent:
+        """Read private managed-media content without following redirects."""
+        return self._client._request_jira_bounded_content(
+            context_path=f"attachment/content/{attachment_id}",
+            expected_size=expected_size,
+            max_bytes=max_bytes,
+            byte_range=byte_range,
         )
 
     def _get_attachment_content_redirect_location(self, attachment_id: str) -> str:
