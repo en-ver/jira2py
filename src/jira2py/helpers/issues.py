@@ -106,16 +106,14 @@ class IssueHelpers:
         session = _JiraMarkdownWriteSession(self.api, issue_key)
         update_fields, managed_documents = self._prepare_edit_markdown_fields(
             fields,
+            description=description,
             session=session,
         )
         if summary:
             update_fields["summary"] = summary
-        if description:
-            prepared = session.prepare(description)
-            update_fields["description"] = prepared.document
-            if prepared.has_managed_images:
-                managed_documents["description"] = prepared
 
+        managed_images = bool(managed_documents)
+        mutation_error: JiraHelperOperationError | None = None
         try:
             data = self.api.issues.edit_issue(
                 issue_id=issue_key,
@@ -123,18 +121,47 @@ class IssueHelpers:
                 return_issue=raw,
             )
         except Exception as exc:
-            raise _mutation_request_error(
+            mutation_error = _mutation_request_error(
                 exc,
-                ordinary_message=f"Failed to update issue {issue_key}: {exc}",
+                ordinary_message=(
+                    f"Failed to update issue {issue_key}"
+                    if managed_images
+                    else f"Failed to update issue {issue_key}: {exc}"
+                ),
                 issue_key=issue_key,
-            ) from exc
-
-        if managed_documents:
-            self._verify_managed_issue_readback(
-                issue_key,
-                session=session,
-                managed_documents=managed_documents,
             )
+            if not managed_images:
+                raise mutation_error from exc
+        if mutation_error is not None:
+            session.discard_sensitive_state()
+            managed_documents.clear()
+            update_fields.clear()
+            del managed_documents
+            del update_fields
+            del session
+            raise mutation_error from None
+
+        if managed_images and not self._verify_managed_issue_readback(
+            issue_key,
+            session=session,
+            managed_documents=managed_documents,
+        ):
+            session.discard_sensitive_state()
+            managed_documents.clear()
+            update_fields.clear()
+            del data
+            del managed_documents
+            del update_fields
+            del session
+            raise JiraHelperOperationError(
+                "Jira may have applied the issue update, but managed image readback "
+                "verification failed. Reread the issue before retrying.",
+                details={
+                    "stage": "persisted_readback",
+                    "issue_key": issue_key,
+                    "mutation_may_have_succeeded": True,
+                },
+            ) from None
 
         text = (
             f"Successfully updated {issue_key}\n"
@@ -311,22 +338,39 @@ class IssueHelpers:
         self,
         fields: Mapping[str, Any] | None,
         *,
+        description: str | None,
         session: _JiraMarkdownWriteSession,
     ) -> tuple[dict[str, Any], dict[str, _PreparedMarkdownDocument]]:
         extra_fields = dict(fields or {})
         validate_field_conflicts(extra_fields, reserved_fields=_EDIT_FIELD_CONFLICTS)
-        if not extra_fields:
-            return extra_fields, {}
+        prepared_documents: dict[str, _PreparedMarkdownDocument] = {}
+        prepared: _PreparedMarkdownDocument | None = None
+        try:
+            if extra_fields:
+                adf_field_ids = self._get_adf_field_ids()
+                for field_id, value in extra_fields.items():
+                    if field_id not in adf_field_ids or not isinstance(value, str):
+                        continue
+                    prepared = session.prepare(value)
+                    prepared_documents[field_id] = prepared
+                    prepared = None
+            if description:
+                prepared = session.prepare(description)
+                prepared_documents["description"] = prepared
+                prepared = None
+        except Exception:
+            session.discard_sensitive_state()
+            prepared_documents.clear()
+            prepared = None
+            raise
 
-        adf_field_ids = self._get_adf_field_ids()
-        managed_documents: dict[str, _PreparedMarkdownDocument] = {}
-        for field_id, value in extra_fields.items():
-            if field_id not in adf_field_ids or not isinstance(value, str):
-                continue
-            prepared = session.prepare(value)
-            extra_fields[field_id] = prepared.document
-            if prepared.has_managed_images:
-                managed_documents[field_id] = prepared
+        for field_id, document in prepared_documents.items():
+            extra_fields[field_id] = document.document
+        managed_documents = {
+            field_id: document
+            for field_id, document in prepared_documents.items()
+            if document.has_managed_images
+        }
         return extra_fields, managed_documents
 
     def _verify_managed_issue_readback(
@@ -335,7 +379,7 @@ class IssueHelpers:
         *,
         session: _JiraMarkdownWriteSession,
         managed_documents: Mapping[str, _PreparedMarkdownDocument],
-    ) -> None:
+    ) -> bool:
         try:
             persisted_issue = self.api.issues.get_issue(
                 issue_id=issue_key,
@@ -343,21 +387,13 @@ class IssueHelpers:
             )
             persisted_fields = persisted_issue.get("fields")
             if not isinstance(persisted_fields, dict):
-                raise JiraHelperOperationError(
-                    "Jira did not return fields for managed image verification."
-                )
+                return False
             for field_id, prepared in managed_documents.items():
-                session.verify(prepared, persisted_fields.get(field_id))
-        except Exception as exc:
-            raise JiraHelperOperationError(
-                "Jira may have applied the issue update, but managed image readback "
-                "verification failed. Reread the issue before retrying.",
-                details={
-                    "stage": "persisted_readback",
-                    "issue_key": issue_key,
-                    "mutation_may_have_succeeded": True,
-                },
-            ) from exc
+                if not session.verify(prepared, persisted_fields.get(field_id)):
+                    return False
+        except Exception:
+            return False
+        return True
 
     def _get_adf_field_ids(self) -> set[str]:
         try:

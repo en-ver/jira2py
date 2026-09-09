@@ -50,6 +50,10 @@ with open("download.bin", "wb") as fh:
 
 **Returns:** `bytes`
 
+This public download continues to follow Jira redirects and returns fully buffered bytes.
+It is unchanged by high-level managed Markdown image writes, which use a separate private,
+authenticated no-follow bounded read for dimension acquisition.
+
 ---
 
 ## `add_attachment`

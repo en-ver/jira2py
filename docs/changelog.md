@@ -32,7 +32,7 @@ text = format_issue(
 
 ### Added
 
-- Replaced direct `marklassian` and `pyadf` use with `adf-bridge>=0.1.2`. Formatted ADF
+- Replaced direct `marklassian` and `pyadf` use with `adf-bridge>=0.1.3`. Formatted ADF
   presentation uses adf-bridge tokens and remains readable and presentation-only; managed
   media attachment-content URLs cannot be recovered from formatted Markdown or leak Media
   Services IDs.
@@ -40,10 +40,17 @@ text = format_issue(
   issue edit rich fields, comment add/update, and worklog add/update. Only canonical
   configured-Jira attachment-content URLs for associated `image/*` attachments qualify;
   source query and fragment delimiters, including bare `?` and `#`, are rejected. Create
-  remains create → upload → complete-field edit, never an implicit upload. Jira's private
-  no-follow `303` Media Services mapping is compatibility-sensitive observed behavior;
-  public bytes downloads remain unchanged. Verification reads raw persisted ADF structure,
-  not rendered response expansions.
+  remains create → upload → complete-field edit, never an implicit upload. Before writing,
+  a private authenticated no-follow `redirect=false` 64-byte range probe acquires PNG/APNG,
+  GIF, WebP, or BMP dimensions; JPEG, TIFF, and inconclusive probes use one complete
+  fallback bounded to 100 MiB. JPEG/TIFF EXIF orientation is applied. Dimensioned managed
+  media is centered at 100% parent width with exact intrinsic child dimensions. Dimensions
+  must be positive, at most 65,535 per axis, and at most 89,478,485 pixels. A supported
+  large image that succeeds from the prefix does not need a complete download. Acquisition
+  is once per unique attachment per helper mutation and never fetches external URLs or
+  persists attachment bytes. Jira's private no-follow `303` Media Services mapping is
+  compatibility-sensitive observed behavior; public bytes downloads remain unchanged.
+  Verification reads raw persisted ADF structure, not rendered response expansions.
 - Direct issue, comment, and worklog mutations now flag connection and Jira 5xx failures
   as potentially delivered with `mutation_may_have_succeeded`; callers must reread before
   retrying, and jira2py does not retry or roll back after that uncertain failure.

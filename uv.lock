@@ -4,15 +4,15 @@ requires-python = ">=3.11"
 
 [[package]]
 name = "adf-bridge"
-version = "0.1.2"
+version = "0.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastjsonschema" },
     { name = "mistune" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c6/67/9a09d50daedb9892e88c3d02fd917bbae7a5dc10eac45e90dcf8e62b5803/adf_bridge-0.1.2.tar.gz", hash = "sha256:8c55d2e28b239519f0996bb8b6c4948a3c0c154082afdabc6078d36e051b211d", size = 63210, upload-time = "2026-09-07T05:53:23.801Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/eb/7fc50c6bfcf18da07b2d05d8ea4532120908cc83215de274235e779bfa82/adf_bridge-0.1.3.tar.gz", hash = "sha256:b6928a8c7aef9a22243a400f7cf9ee53c32317065bec042af60f2b4afbc8e166", size = 66052, upload-time = "2026-09-09T13:31:33.59Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/3b/e007149d82d5227c0a4b5407cfadc15033a0c1bb5c4a029201962f97cbef/adf_bridge-0.1.2-py3-none-any.whl", hash = "sha256:90fad16ee1cb2f24811c8100e4435d114017fb161079281eef169db3f8203f0e", size = 47083, upload-time = "2026-09-07T05:53:22.52Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/9c/631be7f21f3b506f5049bdd73f36cf9eb0076b23a99925a40f970bdd616c/adf_bridge-0.1.3-py3-none-any.whl", hash = "sha256:df160cecf3bd2d9ad51ce096ed7f3760df4fc2e9c80d5efd3b1bddcbc10f75fd", size = 48251, upload-time = "2026-09-09T13:31:32.333Z" },
 ]
 
 [[package]]
@@ -388,6 +388,15 @@ wheels = [
 ]
 
 [[package]]
+name = "imagesize"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fb/5e/513ff06670c84e7b9887c1fdf61b2d42b4f574a831f2f1d2222023049d8a/imagesize-2.0.1.tar.gz", hash = "sha256:b2ba6a4dea487a7ebcd53248d3476aca449d30db12a2dde5e0c5ca9624fd77e5", size = 1883774, upload-time = "2026-08-24T12:35:19.13Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/f9/575c8d760eae1fc99651b7cc5efd96ad5379ca4d6b53750b0fb4fe983f34/imagesize-2.0.1-py3-none-any.whl", hash = "sha256:ea0c9a0384df69ed86a943a15cde37d0360b82491b3910dc2215e202e62b5b02", size = 14794, upload-time = "2026-08-24T12:35:12.548Z" },
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -415,6 +424,7 @@ source = { editable = "." }
 dependencies = [
     { name = "adf-bridge" },
     { name = "httpx", extra = ["http2"] },
+    { name = "imagesize" },
     { name = "pydantic" },
     { name = "tenacity" },
 ]
@@ -435,8 +445,9 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "adf-bridge", specifier = ">=0.1.2,<0.2" },
+    { name = "adf-bridge", specifier = ">=0.1.3,<0.2" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.0,<1" },
+    { name = "imagesize", specifier = ">=2.0.1,<2.1" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "tenacity", specifier = ">=9.1.4" },
 ]

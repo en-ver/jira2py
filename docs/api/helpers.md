@@ -91,19 +91,32 @@ including bare `?` or `#`. The attachment must belong to the target issue and be
 The helpers replace complete field or body values, not append fragments. Issue creation
 rejects both canonical and malformed same-site attachment-content image destinations:
 create first, upload to the returned key, then edit the full rich-text field with the
-upload result's `content` URL. Markdown image titles and dimensions are not preserved.
+upload result's `content` URL. Markdown image titles are not preserved.
+
+Before a managed write, jira2py acquires dimensions privately from the authenticated Jira
+attachment endpoint. A no-follow `redirect=false` 64-byte range probe handles PNG/APNG,
+GIF, WebP, and BMP; JPEG and TIFF, and any inconclusive probe, use one complete fallback
+when its reported attachment size is at most 100 MiB. JPEG/TIFF EXIF orientation is
+applied. Dimensions must be positive, at most 65,535 per axis, and at most 89,478,485
+pixels. The parser inspects metadata only and does not prove that every pixel decodes.
+Unsupported, malformed, oversized-for-fallback, or protocol-invalid content fails before
+the mutation. A supported large image found in the prefix does not need a full download.
+Each helper mutation acquires each unique attachment once and retains no attachment bytes.
+
+Managed media is centered with a 100% parent width and exact intrinsic child dimensions.
+External and relative images remain widthless external media and are never fetched.
 Formatted ADF reads cannot recover the managed attachment-content URL; use raw ADF when
 that structure matters. Successful managed-media writes verify raw persisted ADF
 structure; rendered HTML is not a runtime verification contract and needs authorized
 live end-to-end corroboration for a specific tenant.
 
-Before writing, jira2py validates Jira's currently observed no-follow `303` Media
-Services redirect shape. This is compatibility-sensitive behavior, not a public Jira
-mapping API. `download_attachment_content()` remains the separate public bytes download
-operation and continues to follow redirects. A direct issue, comment, or worklog
-mutation that fails with a connection error or Jira 5xx may already have been applied;
-the helper error sets `details["mutation_may_have_succeeded"]`, and callers must reread
-before retrying. jira2py does not retry or roll back after that uncertain failure.
+After dimensions are acquired, jira2py validates Jira's currently observed no-follow
+`303` Media Services redirect shape. This is compatibility-sensitive behavior, not a
+public Jira mapping API. `download_attachment_content()` remains the separate public
+bytes download operation and continues to follow redirects. A direct issue, comment, or
+worklog mutation that fails with a connection error or Jira 5xx may already have been
+applied; the helper error sets `details["mutation_may_have_succeeded"]`, and callers must
+reread before retrying. jira2py does not retry or roll back after that uncertain failure.
 
 ## `HelperResult`
 
