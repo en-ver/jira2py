@@ -1,0 +1,229 @@
+# Issues
+
+Accessed via `jira.issues`. Create, read, edit, and transition Jira Cloud issues, plus related metadata.
+
+## `get_issue`
+
+```python
+issue = jira.issues.get_issue("PROJ-123", fields=["summary", "status", "assignee"])
+issue = jira.issues.get_issue("PROJ-123", fields=["*navigable", "-description"])
+issue = jira.issues.get_issue("PROJ-123", expand="renderedFields,changelog")
+```
+
+| Parameter      | Type                        | Default  | Description                                                              |
+| -------------- | --------------------------- | -------- | ------------------------------------------------------------------------ |
+| `issue_id`     | `str`                       | required | Issue ID or key                                                          |
+| `fields`       | `Sequence[str] \| None`     | `None`   | Exact Jira field selectors, one selector per item                        |
+| `expand`       | `str \| None`               | `None`   | Comma-separated properties to expand                                     |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional raw query parameters that take priority over named parameters |
+
+A supplied `fields` sequence must be non-empty. Each item must be a non-blank, unpadded string with no comma; scalar strings and bytes are rejected. jira2py serializes the sequence for this endpoint immediately before the request, preserving selector order and duplicates without adding fields or an `expand` value.
+
+`fields=None` omits the query parameter so Jira chooses its default. As with every low-level API method, `extra_params` has precedence: `extra_params["fields"]` is a raw override and is not interpreted or validated as the named sequence.
+
+Selectors can be broad
+
+`"*all"`, `"*navigable"`, and negative selectors such as `"-description"` are forwarded exactly as supplied. They can still produce broad responses, including when a negative selector is used alone. Choose selectors deliberately and let Jira validate which ones it supports.
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `create_issue`
+
+```python
+new_issue = jira.issues.create_issue(fields={
+    "project": {"key": "PROJ"},
+    "issuetype": {"name": "Task"},
+    "summary": "New task",
+})
+```
+
+Use [`get_create_issue_types`](#get_create_issue_types) and [`get_create_fields`](#get_create_fields) to discover valid create metadata.
+
+| Parameter        | Type                        | Default  | Description                                  |
+| ---------------- | --------------------------- | -------- | -------------------------------------------- |
+| `fields`         | `Mapping[str, Any]`         | required | Issue fields                                 |
+| `update_history` | `bool`                      | `False`  | Whether to add the project to browse history |
+| `extra_params`   | `Mapping[str, Any] \| None` | `None`   | Additional query parameters                  |
+| `extra_data`     | `Mapping[str, Any] \| None` | `None`   | Additional request body data                 |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `edit_issue`
+
+```python
+jira.issues.edit_issue("PROJ-123", fields={"summary": "Updated summary"})
+updated = jira.issues.edit_issue(
+    "PROJ-123",
+    fields={"priority": {"name": "High"}},
+    return_issue=True,
+)
+```
+
+Use this generic field-edit pathway if you need to set assignee fields supported by your Jira screens. jira2py does **not** add a dedicated assign API.
+
+| Parameter      | Type                        | Default  | Description                         |
+| -------------- | --------------------------- | -------- | ----------------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key                     |
+| `fields`       | `Mapping[str, Any]`         | required | Fields to update                    |
+| `notify_users` | `bool`                      | `True`   | Whether to send email notifications |
+| `return_issue` | `bool`                      | `False`  | Whether to return the updated issue |
+| `expand`       | `str \| None`               | `None`   | Properties to expand                |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters         |
+| `extra_data`   | `Mapping[str, Any] \| None` | `None`   | Additional request body data        |
+
+**Returns:** `dict[str, Any] \| None`
+
+______________________________________________________________________
+
+## `get_transitions`
+
+```python
+transitions = jira.issues.get_transitions("PROJ-123")
+transitions = jira.issues.get_transitions("PROJ-123", expand="transitions.fields")
+diagnostics = jira.issues.get_transitions(
+    "PROJ-123",
+    transition_id="31",
+    include_unavailable_transitions=True,
+    skip_remote_only_condition=False,
+    sort_by_ops_bar_and_status=True,
+)
+```
+
+| Parameter                         | Type                        | Default  | Description                                                                            |
+| --------------------------------- | --------------------------- | -------- | -------------------------------------------------------------------------------------- |
+| `issue_id`                        | `str`                       | required | Issue ID or key                                                                        |
+| `expand`                          | `str \| None`               | `None`   | Optional expand value such as `transitions.fields`                                     |
+| `transition_id`                   | `str \| None`               | `None`   | Optional transition ID filter                                                          |
+| `extra_params`                    | `Mapping[str, Any] \| None` | `None`   | Additional query parameters; takes priority over every named query parameter           |
+| `include_unavailable_transitions` | `bool \| None`              | `None`   | Include unavailable transitions for diagnostics; this does not make them executable    |
+| `skip_remote_only_condition`      | `bool \| None`              | `None`   | Jira's remote-only-condition discovery control; it does not bypass workflow conditions |
+| `sort_by_ops_bar_and_status`      | `bool \| None`              | `None`   | Apply Jira's operations-bar and status ordering                                        |
+
+The first four parameters retain their positional order. The three Jira query controls are keyword-only so existing positional calls, including a positional `extra_params`, remain compatible. `extra_params` can still override `expand`, `transitionId`, or any of the named controls.
+
+**Returns:** `dict[str, Any]` with a `transitions` list.
+
+______________________________________________________________________
+
+## `transition_issue`
+
+```python
+jira.issues.transition_issue(
+    "PROJ-123",
+    transition_id="31",
+    fields={"resolution": {"name": "Done"}},
+    update={"labels": [{"add": "released"}]},
+)
+```
+
+Use `get_transitions(..., expand="transitions.fields")` to discover the transition's current screen metadata. `fields` and `update` are Jira-native payload mappings and must not contain the same field key; Jira validates required values, schemas, allowed values, and operations. `history_metadata` and issue `properties` remain available only through this low-level method.
+
+| Parameter          | Type                                  | Default  | Description                                |
+| ------------------ | ------------------------------------- | -------- | ------------------------------------------ |
+| `issue_id`         | `str`                                 | required | Issue ID or key                            |
+| `transition_id`    | `str`                                 | required | Explicit Jira transition ID                |
+| `fields`           | `Mapping[str, Any] \| None`           | `None`   | Optional fields to set while transitioning |
+| `update`           | `Mapping[str, Any] \| None`           | `None`   | Optional Jira update operations            |
+| `history_metadata` | `Mapping[str, Any] \| None`           | `None`   | Optional transition history metadata       |
+| `properties`       | `Sequence[Mapping[str, Any]] \| None` | `None`   | Optional issue properties                  |
+| `extra_params`     | `Mapping[str, Any] \| None`           | `None`   | Additional query parameters                |
+| `extra_data`       | `Mapping[str, Any] \| None`           | `None`   | Additional request body data               |
+
+**Returns:** `dict[str, Any] \| None`
+
+______________________________________________________________________
+
+## `get_changelogs`
+
+```python
+changelogs = jira.issues.get_changelogs("PROJ-123")
+```
+
+| Parameter      | Type                        | Default  | Description                 |
+| -------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`     | `str`                       | required | Issue ID or key             |
+| `start_at`     | `int`                       | `0`      | First item index            |
+| `max_results`  | `int`                       | `50`     | Maximum results             |
+| `extra_params` | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+This low-level method returns exactly one raw Jira page. Use `start_at` to request another page, or use `JiraHelpers.changelogs.list()` when you need the complete history.
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `get_changelogs_by_ids`
+
+```python
+page = jira.issues.get_changelogs_by_ids("PROJ-123", [10001, 10002])
+histories = page["histories"]
+```
+
+Sends one `POST /rest/api/3/issue/{issueIdOrKey}/changelog/list` request for known changelog IDs. It returns Jira's raw `PageOfChangelogs` envelope unchanged: `histories` is in Jira's response order and the envelope also contains page metadata.
+
+| Parameter       | Type                        | Default  | Description                                                     |
+| --------------- | --------------------------- | -------- | --------------------------------------------------------------- |
+| `issue_id`      | `str`                       | required | Issue ID or key                                                 |
+| `changelog_ids` | `Sequence[int]`             | required | Jira changelog IDs to request                                   |
+| `extra_params`  | `Mapping[str, Any] \| None` | `None`   | Additional query parameters                                     |
+| `extra_data`    | `Mapping[str, Any] \| None` | `None`   | Additional request-body data; its keys override named body data |
+
+**Returns:** `dict[str, Any]` (`PageOfChangelogs`, including `histories`, `startAt`, `maxResults`, and `total`)
+
+______________________________________________________________________
+
+## `get_edit_metadata`
+
+```python
+meta = jira.issues.get_edit_metadata("PROJ-123")
+```
+
+| Parameter                  | Type                        | Default  | Description                 |
+| -------------------------- | --------------------------- | -------- | --------------------------- |
+| `issue_id`                 | `str`                       | required | Issue ID or key             |
+| `override_screen_security` | `bool`                      | `False`  | Override screen security    |
+| `override_editable_flag`   | `bool`                      | `False`  | Override editable flag      |
+| `extra_params`             | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `get_create_issue_types`
+
+```python
+types = jira.issues.get_create_issue_types("PROJ")
+```
+
+| Parameter           | Type                        | Default  | Description                 |
+| ------------------- | --------------------------- | -------- | --------------------------- |
+| `project_id_or_key` | `str`                       | required | Project ID or key           |
+| `start_at`          | `int`                       | `0`      | First item index            |
+| `max_results`       | `int`                       | `50`     | Maximum items               |
+| `extra_params`      | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+______________________________________________________________________
+
+## `get_create_fields`
+
+```python
+fields = jira.issues.get_create_fields("PROJ", "10001")
+```
+
+| Parameter           | Type                        | Default  | Description                 |
+| ------------------- | --------------------------- | -------- | --------------------------- |
+| `project_id_or_key` | `str`                       | required | Project ID or key           |
+| `issue_type_id`     | `str`                       | required | Issue type ID               |
+| `start_at`          | `int`                       | `0`      | First item index            |
+| `max_results`       | `int`                       | `50`     | Maximum items               |
+| `extra_params`      | `Mapping[str, Any] \| None` | `None`   | Additional query parameters |
+
+**Returns:** `dict[str, Any]`
+
+[Jira REST API — Issues group](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/)
