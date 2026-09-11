@@ -20,7 +20,7 @@ helpers = JiraHelpers(api)
 | `helpers.comments` | `CommentHelpers` | `list()`, `add()`, `update()`, `delete()` |
 | `helpers.changelogs` | `ChangelogHelpers` | `list()`, `list_by_ids()` |
 | `helpers.worklogs` | `WorklogHelpers` | `list()`, `add()`, `update()`, `delete()`, `report()` |
-| `helpers.attachments` | `AttachmentHelpers` | `list()`, `read()`, `plan_download()`, `download()`, `upload()`, `delete()` |
+| `helpers.attachments` | `AttachmentHelpers` | `list()`, `read()`, `download()`, `upload()`, `delete()` |
 | `helpers.metadata` | `MetadataHelpers` | `list_fields()`, `issue_types()`, `create_fields()`, `edit_fields()`, `transitions()`, `project()`, `projects()`, `statuses()`, `priorities()`, `users()` |
 | `helpers.links` | `LinkHelpers` | `list()`, `types()`, `create()`, `delete()` |
 | `helpers.filters` | `FiltersHelpers` | `list()`, `search()`, `run()` |
@@ -33,7 +33,7 @@ helpers.issues.transition("PROJ-123", "31")
 helpers.comments.update("PROJ-123", "10001", "Updated note")
 helpers.changelogs.list("PROJ-123")
 helpers.worklogs.add("PROJ-123", "1h")
-helpers.attachments.download("10001", output_path="downloads/")
+helpers.attachments.download("10001", directory="downloads/")
 helpers.metadata.statuses()
 helpers.links.list("PROJ-123")
 helpers.filters.run("12345")
@@ -113,7 +113,7 @@ live end-to-end corroboration for a specific tenant.
 After dimensions are acquired, jira2py validates Jira's currently observed no-follow
 `303` Media Services redirect shape. This is compatibility-sensitive behavior, not a
 public Jira mapping API. `download_attachment_content()` remains the separate public
-bytes download operation and continues to follow redirects. A direct issue, comment, or
+bounded streaming operation and continues to follow redirects. A direct issue, comment, or
 worklog mutation that fails with a connection error or Jira 5xx may already have been
 applied; the helper error sets `details["mutation_may_have_succeeded"]`, and callers must
 reread before retrying. jira2py does not retry or roll back after that uncertain failure.
@@ -239,7 +239,6 @@ Public helper errors include:
 
 Common public helper models include:
 
-- `AttachmentDownloadPlan`
 - `AttachmentMeta`
 - `FilterSearchResult`
 - `IssueTransition`
@@ -303,8 +302,14 @@ Common public helper models include:
 
 - `list(issue_key)`
 - `read(attachment_id)`
-- `plan_download(attachment_id, *, output_path=None, max_download=...)`
-- `download(attachment_id, *, output_path=None, max_download=...)`
+- `download(attachment_id, *, directory=".", filename=None, max_download=...)`
+
+`download()` resolves and owns the destination directory. An explicit `filename` must be
+a safe basename; otherwise Jira metadata is sanitized to one. It creates the directory if
+needed, streams to a same-directory temporary file, and atomically replaces the final
+entry only after the transfer succeeds. Its data contains status, attachment ID, filename,
+absolute output file, observed size, and MIME type. Missing metadata `size` means only the
+cumulative cap is enforced; a supplied zero requires empty content.
 - `upload(issue_key, file_path)`
 - `delete(attachment_id)`
 

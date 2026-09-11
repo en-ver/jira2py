@@ -48,7 +48,7 @@ jira = JiraAPI(credentials_file="./jira-credentials.json")
 
 ## Choose an API layer
 
-- **`JiraAPI`** is the low-level, endpoint-oriented interface. Operations return parsed Jira JSON-like data when available; downloads return bytes and operations without a response body return `None`.
+- **`JiraAPI`** is the low-level, endpoint-oriented interface. Operations return parsed Jira JSON-like data when available; attachment downloads stream to a caller-owned binary destination and return observed bytes.
 - **`JiraHelpers`** provides grouped workflows and readable `HelperResult` values, with optional structured data, for common tasks.
 - **`format_issue`** is an optional pure presentation function for an issue response you already retrieved.
 
@@ -182,9 +182,9 @@ with authorized live end-to-end testing.
 
 jira2py validates the observed Jira attachment `303` redirect shape privately after
 acquiring dimensions and before writing. That Media Services mapping is
-compatibility-sensitive observed behavior, not a public Jira mapping API. It never
-changes `download_attachment_content()`, which still follows redirects and returns bytes.
-If a direct issue, comment, or worklog mutation fails with a connection error or Jira 5xx,
+compatibility-sensitive observed behavior, not a public Jira mapping API. Public attachment
+downloads separately stream from the configured Jira endpoint to a caller-owned binary
+destination with a required cumulative bound. If a direct issue, comment, or worklog mutation fails with a connection error or Jira 5xx,
 it may already have been applied. The helper error sets
 `details["mutation_may_have_succeeded"]`; reread the affected resource before retrying.
 jira2py does not retry or roll back after that uncertain failure.

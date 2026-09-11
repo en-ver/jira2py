@@ -5,7 +5,9 @@ from __future__ import annotations
 import mimetypes
 import os
 import re
+import tempfile
 from pathlib import Path
+from typing import BinaryIO, cast
 
 from jira2py.api import JiraAPI
 
@@ -18,11 +20,11 @@ from .errors import (
     JiraHelperOperationError,
     JiraHelperValidationError,
 )
-from .models import AttachmentDownloadPlan, AttachmentMeta
+from .models import AttachmentMeta
 from .results import HelperResult
 
 DEFAULT_MAX_DOWNLOAD = 100 * 1024 * 1024  # 100 MB
-_INVALID_FILENAME_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_INVALID_FILENAME_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f-\x9f]')
 
 
 class AttachmentHelpers:
@@ -73,17 +75,20 @@ class AttachmentHelpers:
         attachment = AttachmentMeta.model_validate(data)
         return HelperResult.with_data(format_attachment_metadata(attachment), data)
 
-    def plan_download(
+    def download(
         self,
         attachment_id: str,
         *,
-        output_path: str | None = None,
+        directory: str | os.PathLike[str] = ".",
+        filename: str | None = None,
         max_download: int = DEFAULT_MAX_DOWNLOAD,
     ) -> HelperResult:
-        """Fetch attachment metadata and plan a generic download destination."""
+        """Download an attachment atomically into a directory-owned destination."""
         self.validate_id(attachment_id)
-        if max_download < 1:
-            raise JiraHelperValidationError("max_download must be at least 1.")
+        _validate_max_download(max_download)
+        resolved_directory = _resolve_download_directory(directory)
+        if filename is not None:
+            _validate_explicit_filename(filename)
 
         try:
             data = self.api.attachments.get_attachment_metadata(
@@ -94,96 +99,65 @@ class AttachmentHelpers:
                 f"Failed to fetch attachment metadata {attachment_id}: {exc}"
             ) from exc
 
+        expected_size = _metadata_expected_size(data, attachment_id)
         meta = AttachmentMeta.model_validate(data)
-        if meta.size > max_download:
+        if expected_size is not None and expected_size > max_download:
             raise AttachmentError(
-                f"Attachment too large: {format_size(meta.size)}. "
+                f"Attachment too large: {format_size(expected_size)}. "
                 f"Max allowed: {format_size(max_download)}"
             )
 
-        filename = _sanitize_attachment_filename(meta.filename, attachment_id)
-        output_file, resolved_output = _build_attachment_output_path(
-            filename,
-            output_path=output_path,
+        effective_filename = (
+            filename
+            if filename is not None
+            else _sanitize_attachment_filename(meta.filename, attachment_id)
         )
-        plan = AttachmentDownloadPlan(
-            attachment_id=attachment_id,
-            filename=filename,
-            output_file=output_file,
-            resolved_output=resolved_output,
-            meta=meta,
-            content_url=(
-                data.get("content")
-                or f"{self.api.credentials.url}/rest/api/3/attachment/content/{attachment_id}"
-            ),
-        )
-        return HelperResult.with_data(_format_download_plan(plan), plan)
-
-    def download(
-        self,
-        attachment_id: str,
-        *,
-        output_path: str | None = None,
-        max_download: int = DEFAULT_MAX_DOWNLOAD,
-    ) -> HelperResult:
-        """Download a Jira attachment to a local file."""
-        plan_result = self.plan_download(
-            attachment_id,
-            output_path=output_path,
-            max_download=max_download,
-        )
-        plan = plan_result.data
-        if not isinstance(plan, AttachmentDownloadPlan):
-            raise AttachmentDownloadError(
-                f"Failed to plan download for attachment {attachment_id}"
-            )
-
+        final_path = resolved_directory / effective_filename
         try:
-            content = self.api.attachments.download_attachment_content(
-                attachment_id=attachment_id
-            )
+            resolved_directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise AttachmentDownloadError(
+                f"Failed to create download directory {resolved_directory}: {exc}"
+            ) from exc
+
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", delete=False, dir=resolved_directory, prefix=".jira2py-"
+            ) as destination:
+                temporary_path = Path(destination.name)
+                observed_size = self.api.attachments.download_attachment_content(
+                    attachment_id,
+                    cast(BinaryIO, destination),
+                    max_bytes=max_download,
+                    expected_size=expected_size,
+                )
+            os.replace(temporary_path, final_path)
+            temporary_path = None
         except Exception as exc:
             raise AttachmentDownloadError(
                 f"Failed to download attachment {attachment_id}: {exc}"
             ) from exc
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
-        if len(content) > max_download:
-            raise AttachmentDownloadError(
-                "Downloaded attachment exceeded max allowed size: "
-                f"{format_size(len(content))} > {format_size(max_download)}"
-            )
-
-        if "size" in plan.meta.model_fields_set and len(content) != plan.meta.size:
-            raise AttachmentDownloadError(
-                f"Downloaded attachment {attachment_id} size mismatch: "
-                f"expected {plan.meta.size} bytes from metadata, "
-                f"got {len(content)} bytes"
-            )
-
-        try:
-            plan.resolved_output.parent.mkdir(parents=True, exist_ok=True)
-            plan.resolved_output.write_bytes(content)
-        except OSError as exc:
-            raise AttachmentDownloadError(
-                f"Failed to write attachment {attachment_id} to {plan.output_file}: {exc}"
-            ) from exc
-
-        data = {
+        output_file = str(final_path)
+        result_data = {
             "status": "downloaded",
             "attachment_id": attachment_id,
-            "filename": plan.filename,
-            "output_file": plan.output_file,
-            "size": len(content),
-            "mime_type": plan.meta.mimeType,
-            "content_url": plan.content_url,
+            "filename": effective_filename,
+            "output_file": output_file,
+            "size": observed_size,
+            "mime_type": meta.mimeType,
         }
         text = (
-            f"Downloaded attachment {plan.filename} (id: {attachment_id})\n"
-            f"Type: {plan.meta.mimeType}\n"
-            f"Size: {format_size(len(content))}\n"
-            f"Output: {plan.output_file}"
+            f"Downloaded attachment {effective_filename} (id: {attachment_id})\n"
+            f"Type: {meta.mimeType}\n"
+            f"Size: {format_size(observed_size)}\n"
+            f"Output: {output_file}"
         )
-        return HelperResult.with_data(text, data)
+        return HelperResult.with_data(text, result_data)
 
     def upload(self, issue_key: str, file_path: str) -> HelperResult:
         """Upload a local file as a Jira issue attachment."""
@@ -250,39 +224,65 @@ class AttachmentHelpers:
         )
 
 
+def _validate_max_download(max_download: int) -> None:
+    if (
+        isinstance(max_download, bool)
+        or not isinstance(max_download, int)
+        or max_download < 1
+    ):
+        raise JiraHelperValidationError("max_download must be an integer at least 1.")
+
+
+def _resolve_download_directory(directory: str | os.PathLike[str]) -> Path:
+    try:
+        resolved_directory = Path(directory).expanduser().resolve(strict=False)
+    except (TypeError, OSError) as exc:
+        raise JiraHelperValidationError(
+            "directory must be a valid local path."
+        ) from exc
+    if resolved_directory.exists() and not resolved_directory.is_dir():
+        raise JiraHelperValidationError(
+            f"Download directory is not a directory: {resolved_directory}"
+        )
+    return resolved_directory
+
+
+def _validate_explicit_filename(filename: str) -> None:
+    if (
+        not isinstance(filename, str)
+        or not filename
+        or filename in {".", ".."}
+        or "/" in filename
+        or "\\" in filename
+        or _INVALID_FILENAME_CHARS_RE.search(filename) is not None
+        or Path(filename).is_absolute()
+    ):
+        raise JiraHelperValidationError("filename must be a safe non-empty basename.")
+
+
+def _metadata_expected_size(data: dict[str, object], attachment_id: str) -> int | None:
+    if "size" not in data:
+        return None
+    size = data["size"]
+    if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+        raise AttachmentDownloadError(
+            f"Attachment {attachment_id} metadata has an invalid size."
+        )
+    return size
+
+
 def _sanitize_attachment_filename(filename: str | None, attachment_id: str) -> str:
-    raw_filename = (filename or f"attachment-{attachment_id}").replace("\\", "/")
+    raw_filename = (filename or _attachment_filename_fallback(attachment_id)).replace(
+        "\\", "/"
+    )
     basename = raw_filename.split("/")[-1]
     sanitized = _INVALID_FILENAME_CHARS_RE.sub("_", basename).strip().strip(".")
-    if not sanitized or sanitized in {".", ".."}:
-        return f"attachment-{attachment_id}"
-    return sanitized
+    return sanitized or _attachment_filename_fallback(attachment_id)
 
 
-def _build_attachment_output_path(
-    filename: str,
-    *,
-    output_path: str | None = None,
-) -> tuple[str, Path]:
-    if output_path:
-        resolved = os.path.abspath(output_path)
-        if os.path.isdir(resolved) or output_path.endswith(("/", "\\")):
-            output_file = os.path.join(resolved, filename)
-        else:
-            output_file = resolved
-    else:
-        output_file = os.path.abspath(filename)
-
-    return output_file, Path(output_file).resolve()
-
-
-def _format_download_plan(plan: AttachmentDownloadPlan) -> str:
-    return (
-        f"Attachment ready: {plan.filename}\n"
-        f"Type: {plan.meta.mimeType}\n"
-        f"Size: {format_size(plan.meta.size)}\n"
-        f"Planned output: {plan.output_file}"
-    )
+def _attachment_filename_fallback(attachment_id: str) -> str:
+    safe_id = _INVALID_FILENAME_CHARS_RE.sub("_", attachment_id).strip().strip(".")
+    return f"attachment-{safe_id or 'download'}"
 
 
 __all__ = ["AttachmentHelpers", "DEFAULT_MAX_DOWNLOAD"]

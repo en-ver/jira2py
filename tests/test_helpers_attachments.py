@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import BinaryIO, cast
 from unittest.mock import Mock
 
 import pytest
@@ -15,14 +16,37 @@ from jira2py.helpers.errors import (
     JiraHelperOperationError,
     JiraHelperValidationError,
 )
-from jira2py.helpers.models import AttachmentDownloadPlan
 
 
 def _make_api() -> SimpleNamespace:
-    return SimpleNamespace(
-        credentials=SimpleNamespace(url="https://example.atlassian.net"),
-        attachments=Mock(),
-    )
+    return SimpleNamespace(attachments=Mock())
+
+
+def _metadata(*, filename: str = "report.csv", size: object = 11) -> dict[str, object]:
+    return {
+        "id": "10001",
+        "filename": filename,
+        "mimeType": "text/csv",
+        "size": size,
+        "content": "https://untrusted.example/never-used",
+    }
+
+
+def _stream_bytes(content: bytes):
+    def stream(
+        attachment_id: str,
+        destination: BinaryIO,
+        *,
+        max_bytes: int,
+        expected_size: int | None,
+    ) -> int:
+        assert attachment_id == "10001"
+        assert len(content) <= max_bytes
+        assert expected_size is None or len(content) == expected_size
+        destination.write(content)
+        return len(content)
+
+    return stream
 
 
 def test_validate_id_rejects_blank_attachment_id() -> None:
@@ -83,149 +107,314 @@ def test_read_attachment_formats_metadata() -> None:
     )
 
 
-def test_plan_download_fetches_metadata_and_plans_output(tmp_path: Path) -> None:
+def test_download_streams_to_same_directory_temporary_file_and_replaces_atomically(
+    tmp_path: Path,
+) -> None:
     api = _make_api()
-    api.attachments.get_attachment_metadata.return_value = {
-        "id": "10001",
-        "filename": "../bad:name?.txt",
-        "mimeType": "text/plain",
-        "size": 1536,
-        "content": "https://cdn.example.test/10001",
-    }
-    helper = AttachmentHelpers(cast(JiraAPI, api))
-
-    result = helper.plan_download(
-        "10001",
-        output_path=str(tmp_path / "downloads") + "/",
+    api.attachments.get_attachment_metadata.return_value = _metadata(
+        filename="nested/report.csv"
     )
+    temporary_paths: list[Path] = []
 
-    api.attachments.get_attachment_metadata.assert_called_once_with(
-        attachment_id="10001"
-    )
-    assert isinstance(result.data, AttachmentDownloadPlan)
-    assert result.data.attachment_id == "10001"
-    assert result.data.filename == "bad_name_.txt"
-    assert result.data.output_file == str(
-        (tmp_path / "downloads" / "bad_name_.txt").resolve()
-    )
-    assert (
-        result.data.resolved_output
-        == (tmp_path / "downloads" / "bad_name_.txt").resolve()
-    )
-    assert result.data.meta.id == 10001
-    assert result.data.content_url == "https://cdn.example.test/10001"
-    assert "Attachment ready: bad_name_.txt" in result.text
-    assert "Size: 1.5 KB" in result.text
+    def stream(
+        _attachment_id: str,
+        destination: BinaryIO,
+        *,
+        max_bytes: int,
+        expected_size: int | None,
+    ) -> int:
+        temporary_paths.append(Path(destination.name))
+        assert max_bytes == 100 * 1024 * 1024
+        assert expected_size == 11
+        destination.write(b"hello world")
+        return 11
 
-
-def test_plan_download_uses_existing_directory_output_path(tmp_path: Path) -> None:
-    api = _make_api()
-    api.attachments.get_attachment_metadata.return_value = {
-        "id": 10002,
-        "filename": "report.csv",
-        "mimeType": "text/csv",
-        "size": 64,
-    }
-    output_dir = tmp_path / "exports"
-    output_dir.mkdir()
-
-    result = AttachmentHelpers(cast(JiraAPI, api)).plan_download(
-        "10002",
-        output_path=str(output_dir),
-    )
-
-    assert isinstance(result.data, AttachmentDownloadPlan)
-    assert result.data.output_file == str((output_dir / "report.csv").resolve())
-    assert result.data.content_url == (
-        "https://example.atlassian.net/rest/api/3/attachment/content/10002"
-    )
-
-
-def test_download_attachment_writes_bytes_to_safe_output_path(tmp_path: Path) -> None:
-    api = _make_api()
-    api.attachments.get_attachment_metadata.return_value = {
-        "id": "10003",
-        "filename": "nested/report.csv",
-        "mimeType": "text/csv",
-        "size": 11,
-    }
-    api.attachments.download_attachment_content.return_value = b"hello world"
+    api.attachments.download_attachment_content.side_effect = stream
+    target_directory = tmp_path / "downloads"
+    target_directory.mkdir()
+    final_path = target_directory / "report.csv"
+    final_path.write_bytes(b"old")
 
     result = AttachmentHelpers(cast(JiraAPI, api)).download(
-        "10003",
-        output_path=str(tmp_path / "downloads") + "/",
+        "10001", directory=target_directory
     )
 
-    output_file = (tmp_path / "downloads" / "report.csv").resolve()
-    assert output_file.read_bytes() == b"hello world"
-    api.attachments.download_attachment_content.assert_called_once_with(
-        attachment_id="10003"
-    )
+    assert final_path.read_bytes() == b"hello world"
+    assert temporary_paths[0].parent == target_directory.resolve()
+    assert not temporary_paths[0].exists()
     assert result.data == {
         "status": "downloaded",
-        "attachment_id": "10003",
+        "attachment_id": "10001",
         "filename": "report.csv",
-        "output_file": str(output_file),
+        "output_file": str(final_path),
         "size": 11,
         "mime_type": "text/csv",
-        "content_url": "https://example.atlassian.net/rest/api/3/attachment/content/10003",
     }
-    assert result.text == (
-        "Downloaded attachment report.csv (id: 10003)\n"
-        "Type: text/csv\n"
-        "Size: 11 bytes\n"
-        f"Output: {output_file}"
+    assert isinstance(result.data, dict)
+    assert "content_url" not in result.data
+
+
+def test_download_success_does_not_unlink_consumed_temporary_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata()
+    api.attachments.download_attachment_content.side_effect = _stream_bytes(
+        b"hello world"
+    )
+
+    def unexpected_unlink(_path: Path, *args: object, **kwargs: object) -> None:
+        raise AssertionError("successful replacement must not be followed by unlink")
+
+    monkeypatch.setattr(Path, "unlink", unexpected_unlink)
+
+    result = AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=tmp_path)
+
+    assert (tmp_path / "report.csv").read_bytes() == b"hello world"
+    assert isinstance(result.data, dict)
+    assert result.data["status"] == "downloaded"
+
+
+def test_download_creates_directory_and_uses_explicit_basename(tmp_path: Path) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata(
+        filename="ignored.csv"
+    )
+    api.attachments.download_attachment_content.side_effect = _stream_bytes(
+        b"hello world"
+    )
+
+    result = AttachmentHelpers(cast(JiraAPI, api)).download(
+        "10001", directory=tmp_path / "new" / "downloads", filename="chosen.csv"
+    )
+
+    assert (
+        tmp_path / "new" / "downloads" / "chosen.csv"
+    ).read_bytes() == b"hello world"
+    assert isinstance(result.data, dict)
+    assert result.data["filename"] == "chosen.csv"
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "",
+        ".",
+        "..",
+        "nested/file",
+        r"nested\file",
+        "bad:name",
+        "\x00bad",
+        "bad\x7f",
+        "bad\x85",
+    ],
+)
+def test_download_rejects_unsafe_explicit_filename_before_metadata(
+    filename: str,
+) -> None:
+    api = _make_api()
+
+    with pytest.raises(JiraHelperValidationError, match="filename"):
+        AttachmentHelpers(cast(JiraAPI, api)).download("10001", filename=filename)
+
+    api.attachments.get_attachment_metadata.assert_not_called()
+
+
+def test_download_rejects_existing_non_directory_before_metadata(
+    tmp_path: Path,
+) -> None:
+    api = _make_api()
+    destination = tmp_path / "not-a-directory"
+    destination.write_text("file")
+
+    with pytest.raises(JiraHelperValidationError, match="not a directory"):
+        AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=destination)
+
+    api.attachments.get_attachment_metadata.assert_not_called()
+
+
+def test_download_sanitizes_metadata_filename_and_fallback(tmp_path: Path) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata(
+        filename="../bad:\x7fname\x85?.txt"
+    )
+    api.attachments.download_attachment_content.side_effect = _stream_bytes(
+        b"hello world"
+    )
+
+    result = AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=tmp_path)
+
+    assert isinstance(result.data, dict)
+    assert result.data["filename"] == "bad__name__.txt"
+    assert (tmp_path / "bad__name__.txt").read_bytes() == b"hello world"
+
+
+def test_download_sanitizes_control_characters_in_fallback_filename(
+    tmp_path: Path,
+) -> None:
+    attachment_id = "100\x7f\x85"
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata(
+        filename="", size=0
+    )
+
+    def empty_stream(
+        actual_attachment_id: str,
+        destination: BinaryIO,
+        *,
+        max_bytes: int,
+        expected_size: int | None,
+    ) -> int:
+        assert actual_attachment_id == attachment_id
+        assert max_bytes == 100 * 1024 * 1024
+        assert expected_size == 0
+        return destination.write(b"")
+
+    api.attachments.download_attachment_content.side_effect = empty_stream
+
+    result = AttachmentHelpers(cast(JiraAPI, api)).download(
+        attachment_id, directory=tmp_path
+    )
+
+    assert isinstance(result.data, dict)
+    assert result.data["filename"] == "attachment-100__"
+    assert (tmp_path / "attachment-100__").exists()
+
+
+def test_download_distinguishes_missing_and_zero_metadata_size(tmp_path: Path) -> None:
+    api = _make_api()
+    missing_size = _metadata()
+    del missing_size["size"]
+    api.attachments.get_attachment_metadata.return_value = missing_size
+    api.attachments.download_attachment_content.side_effect = _stream_bytes(
+        b"hello world"
+    )
+
+    AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=tmp_path)
+    assert (
+        api.attachments.download_attachment_content.call_args.kwargs["expected_size"]
+        is None
+    )
+
+    api.attachments.reset_mock()
+    api.attachments.get_attachment_metadata.return_value = _metadata(size=0)
+    api.attachments.download_attachment_content.side_effect = _stream_bytes(b"")
+
+    AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=tmp_path)
+    assert (
+        api.attachments.download_attachment_content.call_args.kwargs["expected_size"]
+        == 0
     )
 
 
-def test_download_attachment_rejects_oversized_bytes_after_fetch() -> None:
+@pytest.mark.parametrize("limit", [False, 0, -1, 1.5])
+def test_download_rejects_invalid_max_download_before_metadata(limit: object) -> None:
     api = _make_api()
-    api.attachments.get_attachment_metadata.return_value = {
-        "id": "10003",
-        "filename": "report.csv",
-        "mimeType": "text/csv",
-        "size": 5,
-    }
-    api.attachments.download_attachment_content.return_value = b"123456"
-
-    with pytest.raises(AttachmentDownloadError, match="exceeded max allowed size"):
-        AttachmentHelpers(cast(JiraAPI, api)).download("10003", max_download=5)
-
-
-def test_download_attachment_rejects_metadata_size_mismatch(tmp_path: Path) -> None:
-    api = _make_api()
-    api.attachments.get_attachment_metadata.return_value = {
-        "id": "10003",
-        "filename": "report.csv",
-        "mimeType": "text/csv",
-        "size": 11,
-    }
-    api.attachments.download_attachment_content.return_value = b"hello"
-
-    with pytest.raises(AttachmentDownloadError, match="size mismatch"):
-        AttachmentHelpers(cast(JiraAPI, api)).download(
-            "10003",
-            output_path=str(tmp_path / "downloads") + "/",
-        )
-
-    assert not (tmp_path / "downloads" / "report.csv").exists()
-
-
-def test_plan_download_rejects_invalid_limit_and_large_files() -> None:
-    api = _make_api()
-    api.attachments.get_attachment_metadata.return_value = {
-        "id": 10003,
-        "filename": "archive.zip",
-        "mimeType": "application/zip",
-        "size": 4096,
-    }
-    helper = AttachmentHelpers(cast(JiraAPI, api))
 
     with pytest.raises(JiraHelperValidationError, match="max_download"):
-        helper.plan_download("10003", max_download=0)
+        AttachmentHelpers(cast(JiraAPI, api)).download("10001", max_download=limit)  # type: ignore[arg-type]
 
-    with pytest.raises(AttachmentError, match="Attachment too large"):
-        helper.plan_download("10003", max_download=1024)
+    api.attachments.get_attachment_metadata.assert_not_called()
+
+
+@pytest.mark.parametrize("size", [True, "bad", None, [], 1.5, -1])
+def test_download_rejects_malformed_metadata_size_before_output(
+    tmp_path: Path, size: object
+) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata(size=size)
+
+    with pytest.raises(AttachmentDownloadError, match="invalid size"):
+        AttachmentHelpers(cast(JiraAPI, api)).download(
+            "10001", directory=tmp_path / "not-created"
+        )
+
+    assert not (tmp_path / "not-created").exists()
+    api.attachments.download_attachment_content.assert_not_called()
+
+
+def test_download_rejects_oversized_metadata_before_output(tmp_path: Path) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata(size=12)
+
+    with pytest.raises(AttachmentError, match="too large"):
+        AttachmentHelpers(cast(JiraAPI, api)).download(
+            "10001", directory=tmp_path / "not-created", max_download=11
+        )
+
+    assert not (tmp_path / "not-created").exists()
+    api.attachments.download_attachment_content.assert_not_called()
+
+
+def test_download_failure_preserves_existing_file_and_removes_temporary_file(
+    tmp_path: Path,
+) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata()
+    destination = tmp_path / "report.csv"
+    destination.write_bytes(b"old")
+    temporary_paths: list[Path] = []
+
+    def broken_stream(
+        _attachment_id: str,
+        handle: BinaryIO,
+        **_kwargs: object,
+    ) -> int:
+        temporary_paths.append(Path(handle.name))
+        handle.write(b"partial")
+        raise RuntimeError("stream failed")
+
+    api.attachments.download_attachment_content.side_effect = broken_stream
+
+    with pytest.raises(AttachmentDownloadError, match="stream failed"):
+        AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=tmp_path)
+
+    assert destination.read_bytes() == b"old"
+    assert not temporary_paths[0].exists()
+
+
+@pytest.mark.parametrize("interruption", [KeyboardInterrupt, SystemExit])
+def test_download_interruption_cleans_temporary_file(
+    tmp_path: Path, interruption: type[BaseException]
+) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata()
+    temporary_paths: list[Path] = []
+
+    def interrupted_stream(
+        _attachment_id: str, destination: BinaryIO, **_kwargs: object
+    ) -> int:
+        temporary_paths.append(Path(destination.name))
+        destination.write(b"partial")
+        raise interruption()
+
+    api.attachments.download_attachment_content.side_effect = interrupted_stream
+
+    with pytest.raises(interruption):
+        AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=tmp_path)
+
+    assert not temporary_paths[0].exists()
+
+
+def test_download_replacement_failure_preserves_existing_file_and_cleans_temp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api = _make_api()
+    api.attachments.get_attachment_metadata.return_value = _metadata()
+    api.attachments.download_attachment_content.side_effect = _stream_bytes(
+        b"hello world"
+    )
+    destination = tmp_path / "report.csv"
+    destination.write_bytes(b"old")
+    monkeypatch.setattr(
+        os, "replace", lambda *_args: (_ for _ in ()).throw(OSError("no"))
+    )
+
+    with pytest.raises(AttachmentDownloadError, match="no"):
+        AttachmentHelpers(cast(JiraAPI, api)).download("10001", directory=tmp_path)
+
+    assert destination.read_bytes() == b"old"
+    assert list(tmp_path.glob(".jira2py-*")) == []
 
 
 def test_upload_attachment_reads_local_file_and_returns_created_metadata(
@@ -243,10 +432,7 @@ def test_upload_attachment_reads_local_file_and_returns_created_metadata(
         }
     ]
 
-    result = AttachmentHelpers(cast(JiraAPI, api)).upload(
-        "PROJ-1",
-        str(upload_file),
-    )
+    result = AttachmentHelpers(cast(JiraAPI, api)).upload("PROJ-1", str(upload_file))
 
     api.attachments.add_attachment.assert_called_once_with(
         issue_id="PROJ-1",
@@ -283,12 +469,11 @@ def test_delete_attachment_returns_explicit_id() -> None:
     assert result.text == "Deleted attachment 10006"
 
 
-def test_plan_download_wraps_metadata_errors() -> None:
+def test_download_wraps_metadata_errors() -> None:
     api = _make_api()
     api.attachments.get_attachment_metadata.side_effect = RuntimeError("boom")
 
     with pytest.raises(
-        JiraHelperOperationError,
-        match="Failed to fetch attachment metadata 10004",
+        JiraHelperOperationError, match="Failed to fetch attachment metadata 10001"
     ):
-        AttachmentHelpers(cast(JiraAPI, api)).plan_download("10004")
+        AttachmentHelpers(cast(JiraAPI, api)).download("10001")

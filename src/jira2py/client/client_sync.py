@@ -10,7 +10,7 @@ import re
 import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, NoReturn
+from typing import Any, BinaryIO, NoReturn
 
 import httpx
 from tenacity import (
@@ -54,6 +54,7 @@ _HEADER_RETRY_AFTER = "Retry-After"
 _HEADER_RATELIMIT_REASON = "RateLimit-Reason"
 _STATUS_RATE_LIMITED = 429
 _BOUNDED_CONTENT_CHUNK_SIZE = 64 * 1024
+_ATTACHMENT_TRANSFER_CHUNK_SIZE = 64 * 1024
 _CONTENT_RANGE_RE = re.compile(r"(?i:bytes)[ \t]+([0-9]+)-([0-9]+)/([0-9]+)")
 
 
@@ -93,6 +94,27 @@ class _BoundedContentTransportError(Exception):
 
 class _BoundedContentProtocolError(Exception):
     """Sanitized private bounded-content protocol failure."""
+
+
+class _AttachmentTransferResponseError(Exception):
+    """Sanitized private streaming-transfer response failure."""
+
+    def __init__(self, status_code: int, retry_after: float | None = None) -> None:
+        self.status_code = status_code
+        self.retry_after = retry_after
+        super().__init__(status_code, retry_after)
+
+
+class _AttachmentTransferTransportError(Exception):
+    """Sanitized private streaming-transfer transport failure."""
+
+
+class _AttachmentTransferProtocolError(Exception):
+    """Sanitized private streaming-transfer validation failure."""
+
+
+class _AttachmentTransferDestinationError(Exception):
+    """Sanitized private streaming-transfer destination failure."""
 
 
 def _create_httpx_client(credentials: JiraCredentials) -> httpx.Client:
@@ -226,32 +248,182 @@ class JiraClientSync:
         )
         return self._handle_response(response)
 
-    def _request_jira_bytes(
+    def _request_jira_stream_to(
         self,
-        method: str,
-        context_path: str,
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
         *,
+        context_path: str,
+        destination: BinaryIO,
+        max_bytes: int,
+        expected_size: int | None,
+        params: dict[str, Any] | None = None,
         extra_params: Mapping[str, Any] | None = None,
-        extra_data: Mapping[str, Any] | None = None,
-        headers: Mapping[str, str] | None = None,
-        files: Any | None = None,
-        follow_redirects: bool = False,
-    ) -> bytes:
-        """Make a synchronous request and return raw response bytes."""
-        response = self._send_jira_request(
-            method=method,
-            context_path=context_path,
-            params=params,
-            data=data,
-            extra_params=extra_params,
-            extra_data=extra_data,
-            headers=headers,
-            files=files,
-            follow_redirects=follow_redirects,
+        follow_redirects: bool,
+    ) -> int:
+        """Stream Jira attachment bytes to a caller-owned binary destination."""
+        if isinstance(max_bytes, bool) or not isinstance(max_bytes, int):
+            raise TypeError("max_bytes must be an integer")
+        if max_bytes < 1:
+            raise ValueError("max_bytes must be at least 1")
+        if expected_size is not None:
+            if isinstance(expected_size, bool) or not isinstance(expected_size, int):
+                raise TypeError("expected_size must be an integer or None")
+            if expected_size < 0:
+                raise ValueError("expected_size must not be negative")
+            if expected_size > max_bytes:
+                raise ValueError("expected_size must not exceed max_bytes")
+
+        merged_params = {
+            key: value
+            for key, value in {**(params or {}), **(extra_params or {})}.items()
+            if value is not None
+        }
+        request_kwargs: dict[str, Any] = {"follow_redirects": follow_redirects}
+        if merged_params:
+            request_kwargs["params"] = merged_params
+
+        status_code: int | None = None
+        retry_after: float | None = None
+        connection_error: str | None = None
+        protocol_error = False
+        destination_error = False
+        try:
+            for attempt in Retrying(
+                stop=stop_after_attempt(self._max_retries + 1),
+                wait=self._wait_for_retry,
+                retry=retry_if_exception(self._is_retryable),
+                before_sleep=self._log_retry,
+                reraise=True,
+            ):
+                with attempt:
+                    status_code = None
+                    retry_after = None
+                    connection_error = None
+                    protocol_error = False
+                    destination_error = False
+                    observed = 0
+                    try:
+                        with self._get_persistent_client().stream(
+                            "GET", context_path, **request_kwargs
+                        ) as response:
+                            try:
+                                status_code = response.status_code
+                                if status_code == _STATUS_RATE_LIMITED:
+                                    retry_after = self._parse_retry_after(
+                                        response.headers.get(_HEADER_RETRY_AFTER)
+                                    )
+                                elif status_code == 200:
+                                    chunk: bytes | None = None
+                                    try:
+                                        for chunk in response.iter_bytes(
+                                            chunk_size=_ATTACHMENT_TRANSFER_CHUNK_SIZE
+                                        ):
+                                            if not isinstance(chunk, bytes):
+                                                protocol_error = True
+                                                break
+                                            next_observed = observed + len(chunk)
+                                            if next_observed > max_bytes or (
+                                                expected_size is not None
+                                                and next_observed > expected_size
+                                            ):
+                                                protocol_error = True
+                                                break
+                                            try:
+                                                self._write_attachment_chunk(
+                                                    destination, chunk
+                                                )
+                                            except Exception:
+                                                destination_error = True
+                                                break
+                                            observed = next_observed
+                                    except httpx.HTTPError as error:
+                                        self._scrub_redirect_transport_request(error)
+                                        connection_error = "Network error."
+                                        del error
+                                    except Exception:
+                                        connection_error = "Network error."
+                                    finally:
+                                        chunk = None
+                                    if (
+                                        expected_size is not None
+                                        and observed != expected_size
+                                    ):
+                                        protocol_error = True
+                                elif 200 <= status_code < 400:
+                                    protocol_error = True
+                            finally:
+                                del response
+                    except httpx.TimeoutException as error:
+                        connection_error = "Request timed out."
+                        self._scrub_redirect_transport_request(error)
+                        del error
+                    except httpx.TransportError as error:
+                        connection_error = "Network error."
+                        self._scrub_redirect_transport_request(error)
+                        del error
+                    except httpx.HTTPError as error:
+                        connection_error = "HTTP error occurred."
+                        self._scrub_redirect_transport_request(error)
+                        del error
+
+                    if connection_error is not None:
+                        raise _AttachmentTransferTransportError(connection_error)
+                    if status_code == _STATUS_RATE_LIMITED:
+                        raise _AttachmentTransferResponseError(status_code, retry_after)
+                    if status_code is not None and status_code >= 400:
+                        raise _AttachmentTransferResponseError(status_code, retry_after)
+                    if destination_error:
+                        raise _AttachmentTransferDestinationError()
+                    if protocol_error:
+                        raise _AttachmentTransferProtocolError()
+                    if status_code == 200:
+                        return observed
+                    raise _AttachmentTransferProtocolError()
+        except _AttachmentTransferResponseError as error:
+            status_code = error.status_code
+            retry_after = error.retry_after
+            del error
+        except _AttachmentTransferTransportError as error:
+            connection_error = str(error)
+            del error
+        except _AttachmentTransferProtocolError as error:
+            del error
+            protocol_error = True
+        except _AttachmentTransferDestinationError as error:
+            del error
+            destination_error = True
+
+        del merged_params
+        del request_kwargs
+        del context_path
+        del params
+        del extra_params
+
+        if connection_error is not None:
+            raise JiraConnectionError(connection_error)
+        if status_code is not None and status_code >= 400:
+            self._raise_content_status_error(status_code, retry_after)
+        if destination_error:
+            raise JiraError("Failed to write attachment content to destination.")
+        if protocol_error:
+            raise JiraError("Jira attachment content response failed validation.")
+        raise JiraError(
+            "Unexpected error: attachment content request completed without a response"
         )
-        return response.content
+
+    @staticmethod
+    def _write_attachment_chunk(destination: BinaryIO, chunk: bytes) -> None:
+        """Write a complete chunk, rejecting short or non-progressing writes."""
+        offset = 0
+        while offset < len(chunk):
+            written = destination.write(chunk[offset:])
+            if (
+                isinstance(written, bool)
+                or not isinstance(written, int)
+                or written < 1
+                or written > len(chunk) - offset
+            ):
+                raise OSError("Binary destination did not accept attachment bytes")
+            offset += written
 
     def _request_jira_bounded_content(
         self,
@@ -263,8 +435,8 @@ class JiraClientSync:
     ) -> _BoundedJiraContent:
         """Read authenticated Jira-host content under a strict byte contract.
 
-        This is intentionally private: public attachment downloads retain their
-        established redirect-following, fully buffered behavior.
+        This is intentionally private: public attachment downloads instead use the
+        separate redirect-following streaming transfer contract.
         """
         if (
             isinstance(expected_size, bool)
@@ -432,7 +604,7 @@ class JiraClientSync:
         if connection_error is not None:
             raise JiraConnectionError(connection_error)
         if status_code is not None:
-            self._raise_bounded_content_status_error(status_code, retry_after)
+            self._raise_content_status_error(status_code, retry_after)
         raise JiraError(
             "Unexpected error: bounded content request completed without a response"
         )
@@ -515,10 +687,10 @@ class JiraClientSync:
             return None
 
     @staticmethod
-    def _raise_bounded_content_status_error(
+    def _raise_content_status_error(
         status_code: int, retry_after: float | None
     ) -> NoReturn:
-        """Raise a typed status error without retaining an HTTP response."""
+        """Raise a typed attachment-content status error without a response."""
         if status_code == 401:
             raise JiraAuthenticationError(
                 "Authentication failed. Check your credentials.",
@@ -583,7 +755,7 @@ class JiraClientSync:
 
         This private seam intentionally performs a headers-only request.  It is used
         only to identify Jira-managed attachment media; public attachment downloads
-        continue to follow redirects and return bytes.
+        separately follow redirects while streaming to caller-owned destinations.
         """
         merged_params = {
             key: value
@@ -743,7 +915,14 @@ class JiraClientSync:
             isinstance(error, httpx.HTTPStatusError)
             and error.response.status_code == _STATUS_RATE_LIMITED
         ) or (
-            isinstance(error, (_RedirectResponseError, _BoundedContentResponseError))
+            isinstance(
+                error,
+                (
+                    _RedirectResponseError,
+                    _BoundedContentResponseError,
+                    _AttachmentTransferResponseError,
+                ),
+            )
             and error.status_code == _STATUS_RATE_LIMITED
         )
 
@@ -852,7 +1031,14 @@ class JiraClientSync:
             retry_after = self._parse_retry_after(
                 exc.response.headers.get(_HEADER_RETRY_AFTER)
             )
-        elif isinstance(exc, (_RedirectResponseError, _BoundedContentResponseError)):
+        elif isinstance(
+            exc,
+            (
+                _RedirectResponseError,
+                _BoundedContentResponseError,
+                _AttachmentTransferResponseError,
+            ),
+        ):
             retry_after = exc.retry_after
         if retry_after is not None:
             wait = retry_after
@@ -877,7 +1063,14 @@ class JiraClientSync:
         if isinstance(exc, httpx.HTTPStatusError):
             retry_after = exc.response.headers.get(_HEADER_RETRY_AFTER)
             reason = exc.response.headers.get(_HEADER_RATELIMIT_REASON)
-        elif isinstance(exc, (_RedirectResponseError, _BoundedContentResponseError)):
+        elif isinstance(
+            exc,
+            (
+                _RedirectResponseError,
+                _BoundedContentResponseError,
+                _AttachmentTransferResponseError,
+            ),
+        ):
             retry_after = exc.retry_after
 
         logger.warning(

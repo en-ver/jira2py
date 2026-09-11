@@ -1,5 +1,7 @@
 """Tests for Attachments API."""
 
+import io
+
 import httpx
 import pytest
 
@@ -97,15 +99,19 @@ class TestAttachments:
         assert result["filename"] == "screenshot.png"
         assert result["size"] == 12345
 
-    def test_download_attachment_content(self, make_client):
+    def test_download_attachment_content_streams_to_destination(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:
             assert request.url.path == "/rest/api/3/attachment/content/10000"
             return httpx.Response(200, content=b"hello world")
 
         api = Attachments(make_client(handler))
-        result = api.download_attachment_content("10000")
+        destination = io.BytesIO()
+        result = api.download_attachment_content(
+            "10000", destination, max_bytes=11, expected_size=11
+        )
 
-        assert result == b"hello world"
+        assert result == 11
+        assert destination.getvalue() == b"hello world"
 
     def test_managed_media_redirect_is_headers_only_and_never_followed(
         self, make_client

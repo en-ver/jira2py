@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -408,25 +406,12 @@ class FieldMeta(JiraModel):
         return self.fieldId or self.key or self.id or "?"
 
 
-@dataclass(slots=True, frozen=True)
-class AttachmentDownloadPlan:
-    """Attachment metadata plus the planned output destination."""
-
-    attachment_id: str
-    filename: str
-    output_file: str
-    resolved_output: Path
-    meta: AttachmentMeta
-    content_url: str
-
-
 def user_display(user: JiraUser | None) -> str:
     """Display a user name or a friendly unassigned fallback."""
     return user.displayName if user else "Unassigned"
 
 
 __all__ = [
-    "AttachmentDownloadPlan",
     "AttachmentMeta",
     "ChangelogPage",
     "CommentPage",

@@ -37,22 +37,28 @@ metadata = jira.attachments.get_attachment_metadata("10001")
 ## `download_attachment_content`
 
 ```python
-content = jira.attachments.download_attachment_content("10001")
-with open("download.bin", "wb") as fh:
-    fh.write(content)
+with open("download.bin", "wb") as destination:
+    observed = jira.attachments.download_attachment_content(
+        "10001", destination, max_bytes=100 * 1024 * 1024
+    )
 ```
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `attachment_id` | `str` | required | Attachment ID |
+| `destination` | `BinaryIO` | required | Caller-owned binary destination |
+| `max_bytes` | `int` | required | Positive cumulative byte limit |
+| `expected_size` | `int \| None` | `None` | Optional exact byte count; zero requires empty content |
 | `redirect` | `bool \| None` | `None` | Optional explicit redirect parameter |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
 
-**Returns:** `bytes`
+**Returns:** `int` observed bytes written.
 
-This public download continues to follow Jira redirects and returns fully buffered bytes.
-It is unchanged by high-level managed Markdown image writes, which use a separate private,
-authenticated no-follow bounded read for dimension acquisition.
+The transfer starts at the configured Jira endpoint, follows Jira redirects, and enforces
+cumulative and optional expected-size limits while streaming. It does not close, flush,
+rewind, truncate, or clean up `destination`; callers own any partial output after a
+failure. High-level managed Markdown image writes retain their separate private,
+authenticated no-follow bounded reader for dimension acquisition.
 
 ---
 
@@ -93,6 +99,6 @@ jira.attachments.delete_attachment("10001")
 **Returns:** `None`
 
 !!! tip
-    For download planning and local file writes, see the helper-layer attachment methods in [High-level Helpers](helpers.md).
+    For atomic local file downloads, see the helper-layer attachment methods in [High-level Helpers](helpers.md).
 
 :link: [Jira REST API — Attachments](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-attachments/)
