@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `Attachments.download_attachment_content()` no longer returns buffered bytes. It now
+  requires a binary destination and positive `max_bytes`, streams bounded content, and
+  returns observed bytes. Optional `expected_size` enforces an exact count.
+- Removed `AttachmentDownloadPlan` and `AttachmentHelpers.plan_download()`. Use
+  `AttachmentHelpers.download(attachment_id, *, directory=".", filename=None,
+  max_download=...)`, which owns metadata lookup, filename handling, temporary files,
+  and atomic replacement. Result data now reports observed `size` and no longer exposes
+  `content_url`.
+
+### Security and reliability
+
+- Public attachment transfers start at the configured Jira endpoint, follow redirects
+  without forwarding credentials cross-origin, enforce limits cumulatively, retry 429
+  only before output starts, and report sanitized failures. Missing metadata `size` uses
+  only the cap; supplied zero requires an empty transfer. The separate managed-media
+  bounded reader is unchanged.
+
 ## v0.15.0
 
 ### Added

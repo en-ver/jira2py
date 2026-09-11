@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 
 import jira2py.helpers as helpers
 from jira2py.helpers import (
     AttachmentDownloadError,
-    AttachmentDownloadPlan,
     AttachmentError,
     AttachmentHelpers,
     AuthHelpers,
@@ -40,7 +38,6 @@ from jira2py.helpers import (
     format_issue,
 )
 from jira2py.helpers.errors import JiraHelperError
-from jira2py.helpers.models import AttachmentMeta
 
 
 def test_helper_result_supports_text_only_and_raw_payloads() -> None:
@@ -108,21 +105,6 @@ def test_field_meta_accepts_python_construction_by_jira_schema_name() -> None:
     assert field.jira_schema == FieldSchema(type="string")
 
 
-def test_attachment_download_plan_is_available_as_foundational_model() -> None:
-    resolved_output = Path("debug.log").resolve()
-    plan = AttachmentDownloadPlan(
-        attachment_id="10001",
-        filename="debug.log",
-        output_file=str(resolved_output),
-        resolved_output=resolved_output,
-        meta=AttachmentMeta(id=10001, filename="debug.log", size=1536),
-        content_url="https://example.atlassian.net/rest/api/3/attachment/content/10001",
-    )
-
-    assert plan.filename == "debug.log"
-    assert plan.meta.size == 1536
-
-
 def test_public_helpers_exports_grouped_helper_api_without_private_internals() -> None:
     assert "HelperResult" in helpers.__all__
     assert "format_issue" in helpers.__all__
@@ -141,6 +123,8 @@ def test_public_helpers_exports_grouped_helper_api_without_private_internals() -
     assert "JiraWorklog" in helpers.__all__
     assert "WorklogPage" in helpers.__all__
     assert "AttachmentHelpers" in helpers.__all__
+    assert "AttachmentDownloadPlan" not in helpers.__all__
+    assert not hasattr(helpers, "AttachmentDownloadPlan")
     assert "LinkHelpers" in helpers.__all__
     assert "MetadataHelpers" in helpers.__all__
     assert helpers.format_issue is format_issue

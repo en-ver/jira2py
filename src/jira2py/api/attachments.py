@@ -1,7 +1,7 @@
 """Attachments API implementation."""
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, BinaryIO
 
 from jira2py.client.client_sync import _BoundedJiraContent
 
@@ -67,26 +67,37 @@ class Attachments(ApiBase):
     def download_attachment_content(
         self,
         attachment_id: str,
+        destination: BinaryIO,
         *,
+        max_bytes: int,
+        expected_size: int | None = None,
         redirect: bool | None = None,
         extra_params: Mapping[str, Any] | None = None,
-    ) -> bytes:
-        """Download raw bytes for a Jira attachment.
+    ) -> int:
+        """Stream a Jira attachment to a caller-owned binary destination.
 
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-attachments/#api-rest-api-3-attachment-content-id-get
 
+        The destination is not closed, flushed, rewound, truncated, or cleaned up.
+        A failed transfer can leave partial data in it.
+
         Args:
             attachment_id: The ID of the attachment (e.g., "10000").
+            destination: Open binary destination that receives attachment bytes.
+            max_bytes: Required positive cumulative transfer limit.
+            expected_size: Optional exact expected byte count; zero requires empty content.
             redirect: Optional explicit ``redirect`` query parameter.
             extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
-            Raw attachment content bytes.
+            The observed number of bytes written to ``destination``.
         """
         params = {"redirect": redirect} if redirect is not None else None
-        return self._client._request_jira_bytes(
-            method="GET",
+        return self._client._request_jira_stream_to(
             context_path=f"attachment/content/{attachment_id}",
+            destination=destination,
+            max_bytes=max_bytes,
+            expected_size=expected_size,
             params=params,
             extra_params=extra_params,
             follow_redirects=True,

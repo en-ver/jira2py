@@ -37,7 +37,7 @@ helpers.filters
 | `helpers.comments` | Comment list/add/update/delete |
 | `helpers.changelogs` | Complete issue changelog retrieval and known-ID retrieval |
 | `helpers.worklogs` | Worklog list/add/update/delete/report |
-| `helpers.attachments` | Attachment list/read/plan/download/upload/delete |
+| `helpers.attachments` | Attachment list/read/download/upload/delete |
 | `helpers.metadata` | Field catalog, create/edit metadata, transitions, projects, statuses, priorities, and users |
 | `helpers.links` | Issue-link list/types/create/delete |
 | `helpers.filters` | Saved filter list/search/run |
@@ -167,8 +167,8 @@ corroborate tenant rendering with authorized live end-to-end testing.
 
 After dimensions are acquired, the internal no-follow `303` redirect validation checks
 Jira's current observed Media Services redirect shape. It is compatibility-sensitive
-rather than a public Jira mapping API. The public attachment bytes download contract is
-unchanged. If a direct issue, comment, or worklog mutation fails with a connection error
+rather than a public Jira mapping API. Public attachment downloads stream with a required
+byte cap; the managed-media reader remains separate. If a direct issue, comment, or worklog mutation fails with a connection error
 or Jira 5xx, it may already have been applied. Its helper error sets
 `details["mutation_may_have_succeeded"]`; callers must reread before retrying. jira2py
 does not retry or roll back after that uncertain failure.
@@ -209,8 +209,11 @@ helpers.comments.delete("PROJ-123", "10001")
 ```python
 print(helpers.attachments.list("PROJ-123").text)
 print(helpers.attachments.read("10001").text)
-print(helpers.attachments.plan_download("10001", output_path="downloads/").text)
-print(helpers.attachments.download("10001", output_path="downloads/").text)
+result = helpers.attachments.download(
+    "10001", directory="downloads/", filename="report.csv"
+)
+print(result.text)
+print(result.data["output_file"])  # absolute path; size is observed bytes
 print(helpers.attachments.upload("PROJ-123", "./error.log").text)
 ```
 

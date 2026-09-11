@@ -78,5 +78,5 @@ Most methods accept:
 
 ### Return types
 
-- Low-level `JiraAPI` methods return parsed Jira REST response bodies (`dict`, `list`, or `None`)
+- Low-level `JiraAPI` methods return parsed Jira REST response bodies (`dict`, `list`, or `None`); attachment content streams to a supplied binary destination and returns observed bytes.
 - High-level helpers return [`HelperResult`](helpers.md#helperresult)

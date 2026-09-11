@@ -19,7 +19,6 @@ from .issues import IssueHelpers
 from .links import LinkHelpers
 from .metadata import MetadataHelpers
 from .models import (
-    AttachmentDownloadPlan,
     AttachmentMeta,
     ChangelogPage,
     FieldMeta,
@@ -51,7 +50,6 @@ from .worklogs import WorklogHelpers
 
 __all__ = [
     "AttachmentDownloadError",
-    "AttachmentDownloadPlan",
     "AttachmentError",
     "AttachmentHelpers",
     "AuthHelpers",

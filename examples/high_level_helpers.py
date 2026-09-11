@@ -78,16 +78,16 @@ def report_worklogs(jql: str, start_date: str, end_date: str) -> None:
     print(result.text)
 
 
-def plan_attachment_download(attachment_id: str) -> None:
-    """Plan an attachment download destination."""
+def download_attachment(attachment_id: str) -> None:
+    """Download an attachment atomically into the chosen directory."""
     helpers = build_helpers()
-    result = helpers.attachments.plan_download(
+    result = helpers.attachments.download(
         attachment_id,
-        output_path="downloads/",
+        directory="downloads/",
     )
     print(result.text)
     if result.data:
-        print(f"Planned file: {result.data.output_file}")
+        print(f"Downloaded file: {result.data['output_file']}")
 
 
 def show_metadata(project_key: str, issue_type: str, issue_key: str) -> None:
@@ -120,6 +120,6 @@ if __name__ == "__main__":
     list_changelogs_by_ids(issue_key)
     list_field_catalog("PROJECT")
     report_worklogs("project = PROJECT", "2026-01-01", "2026-01-31")
-    plan_attachment_download("10001")
+    download_attachment("10001")
     show_metadata("PROJECT", "Task", issue_key)
     show_link_types()
