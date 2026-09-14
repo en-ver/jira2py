@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Create-metadata helpers now aggregate complete valid paginated responses. `issue_types()` preserves Jira's ordered bare raw list, while `create_fields()` stops issue-type discovery at the first case-insensitive match and aggregates all field pages. Later failures raise `JiraHelperOperationError` rather than returning partial lists.
+
 ## v0.16.0 - 2026-09-11
 
 ### Breaking changes

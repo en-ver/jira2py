@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, cast
 
 from jira2py.api import JiraAPI
@@ -93,48 +93,46 @@ class MetadataHelpers:
         )
 
     def issue_types(self, project_key: str) -> HelperResult:
-        """List only the first create-issue-type page as a bare list.
+        """List every available create issue type as ordered raw mappings.
 
-        The helper starts at Jira's default offset with its default page size of 50
-        and discards page metadata. Use
-        ``api.issues.get_create_issue_types(..., start_at=..., max_results=...)``
-        and inspect its raw pages for complete discovery.
+        The helper aggregates valid Jira pages while preserving Jira order and raw
+        item mappings in its bare-list data. A metadata-free ``issueTypes`` response
+        remains a compatibility-terminal response.
         """
         project_key = require_non_empty_string(project_key, field_name="project_key")
         issue_types_raw = self._get_issue_types_raw(project_key)
-        issue_types = [
-            IssueType.model_validate(issue_type) for issue_type in issue_types_raw
-        ]
+        issue_types = _validate_issue_type_models(issue_types_raw)
         return HelperResult.with_data(
             format_issue_type_list(project_key, issue_types),
             issue_types_raw,
         )
 
     def create_fields(self, project_key: str, issue_type: str) -> HelperResult:
-        """Get only the first create-field page as a bare list.
+        """Resolve the first matching type and list every available create field.
 
-        The case-insensitive issue-type lookup searches only the first
-        create-issue-type page requested with the default page size of 50, so a
-        later-page type can be reported absent. After resolution, it reads only the
-        first create-field page requested with that same default and discards its
-        metadata. Use the low-level create-metadata methods with offsets for complete
-        discovery.
+        The case-insensitive lookup scans issue-type pages in Jira order and stops
+        after the first match. It then aggregates all valid field pages, preserving
+        Jira order and raw item mappings in its bare-list data.
         """
         project_key = require_non_empty_string(project_key, field_name="project_key")
         issue_type = require_non_empty_string(issue_type, field_name="issue_type")
-        issue_types_raw = self._get_issue_types_raw(project_key)
-        issue_types = [
-            IssueType.model_validate(issue_type_data)
-            for issue_type_data in issue_types_raw
-        ]
-        matched = next(
-            (
-                available_type
-                for available_type in issue_types
-                if available_type.name.lower() == issue_type.lower()
-            ),
-            None,
-        )
+
+        issue_types: list[IssueType] = []
+        matched: IssueType | None = None
+        for issue_type_page in self._iter_issue_type_pages(project_key):
+            page_issue_types = _validate_issue_type_models(issue_type_page)
+            issue_types.extend(page_issue_types)
+            matched = next(
+                (
+                    available_type
+                    for available_type in page_issue_types
+                    if available_type.name.lower() == issue_type.lower()
+                ),
+                None,
+            )
+            if matched is not None:
+                break
+
         if matched is None:
             available = ", ".join(available_type.name for available_type in issue_types)
             raise JiraHelperValidationError(
@@ -142,18 +140,12 @@ class MetadataHelpers:
                 f"Available: {available}"
             )
 
-        try:
-            fields_data = self.api.issues.get_create_fields(
-                project_id_or_key=project_key,
-                issue_type_id=matched.id,
-            )
-        except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to fetch create fields for {project_key}/{matched.name}: {exc}"
-            ) from exc
-
-        fields_raw = fields_data.get("values", fields_data.get("fields", []))
-        fields_list = [FieldMeta.model_validate(field) for field in fields_raw]
+        fields_raw = self._get_create_fields_raw(
+            project_key,
+            matched.id,
+            matched.name,
+        )
+        fields_list = _validate_field_meta_models(fields_raw)
         return HelperResult.with_data(
             format_field_metadata(project_key, matched.name, fields_list),
             fields_raw,
@@ -323,17 +315,170 @@ class MetadataHelpers:
             lines.append(f"- {user.displayName}{status} — accountId: {user.accountId}")
         return HelperResult.with_data("\n".join(lines), data)
 
-    def _get_issue_types_raw(self, project_key: str) -> list[dict[str, object]]:
-        try:
-            type_data = self.api.issues.get_create_issue_types(
-                project_id_or_key=project_key
+    def _get_issue_types_raw(
+        self,
+        project_key: str,
+    ) -> list[Mapping[str, Any]]:
+        issue_types: list[Mapping[str, Any]] = []
+        for issue_type_page in self._iter_issue_type_pages(project_key):
+            issue_types.extend(issue_type_page)
+        return issue_types
+
+    def _iter_issue_type_pages(
+        self,
+        project_key: str,
+    ) -> Iterator[list[Mapping[str, Any]]]:
+        start_at = 0
+        while True:
+            try:
+                type_data = self.api.issues.get_create_issue_types(
+                    project_id_or_key=project_key,
+                    start_at=start_at,
+                )
+            except Exception as exc:
+                raise JiraHelperOperationError(
+                    f"Failed to fetch create issue-type page for {project_key}: {exc}"
+                ) from exc
+
+            values, returned_start_at, is_last = _parse_create_metadata_page(
+                type_data,
+                fallback_key="issueTypes",
+                page_label="create issue-type page",
             )
-        except Exception as exc:
-            raise JiraHelperOperationError(
-                f"Failed to fetch issue types for {project_key}: {exc}"
-            ) from exc
-        issue_types = type_data.get("values", type_data.get("issueTypes", []))
-        return list(issue_types)
+            if is_last:
+                yield values
+                break
+            if returned_start_at is None:
+                raise JiraHelperOperationError(
+                    "Jira returned a malformed create issue-type page."
+                )
+            next_start_at = _next_create_metadata_start(
+                requested_start_at=start_at,
+                returned_start_at=returned_start_at,
+                values=values,
+                page_label="create issue-type page",
+            )
+            yield values
+            start_at = next_start_at
+
+    def _get_create_fields_raw(
+        self,
+        project_key: str,
+        issue_type_id: str,
+        issue_type_name: str,
+    ) -> list[Mapping[str, Any]]:
+        fields: list[Mapping[str, Any]] = []
+        start_at = 0
+        while True:
+            try:
+                fields_data = self.api.issues.get_create_fields(
+                    project_id_or_key=project_key,
+                    issue_type_id=issue_type_id,
+                    start_at=start_at,
+                )
+            except Exception as exc:
+                raise JiraHelperOperationError(
+                    "Failed to fetch create-field page for "
+                    f"{project_key}/{issue_type_name}: {exc}"
+                ) from exc
+
+            values, returned_start_at, is_last = _parse_create_metadata_page(
+                fields_data,
+                fallback_key="fields",
+                page_label="create-field page",
+            )
+            fields.extend(values)
+            if is_last:
+                return fields
+            if returned_start_at is None:
+                raise JiraHelperOperationError(
+                    "Jira returned a malformed create-field page."
+                )
+            start_at = _next_create_metadata_start(
+                requested_start_at=start_at,
+                returned_start_at=returned_start_at,
+                values=values,
+                page_label="create-field page",
+            )
+
+
+def _parse_create_metadata_page(
+    data: object,
+    *,
+    fallback_key: str,
+    page_label: str,
+) -> tuple[list[Mapping[str, Any]], int | None, bool]:
+    if not isinstance(data, Mapping):
+        raise JiraHelperOperationError(f"Jira returned a malformed {page_label}.")
+    page_data = cast(Mapping[str, Any], data)
+
+    if "values" in page_data:
+        raw_values = page_data["values"]
+        requires_pagination = True
+    elif fallback_key in page_data:
+        raw_values = page_data[fallback_key]
+        requires_pagination = any(
+            key in page_data for key in ("startAt", "isLast", "total", "maxResults")
+        )
+    else:
+        raise JiraHelperOperationError(f"Jira returned a malformed {page_label}.")
+
+    if not isinstance(raw_values, list) or not all(
+        isinstance(value, Mapping) for value in raw_values
+    ):
+        raise JiraHelperOperationError(f"Jira returned a malformed {page_label}.")
+    values = cast(list[Mapping[str, Any]], raw_values)
+
+    if not requires_pagination:
+        return values, None, True
+
+    start_at = page_data.get("startAt")
+    is_last = page_data.get("isLast")
+    if (
+        not isinstance(start_at, int)
+        or isinstance(start_at, bool)
+        or start_at < 0
+        or not isinstance(is_last, bool)
+    ):
+        raise JiraHelperOperationError(f"Jira returned a malformed {page_label}.")
+    return values, start_at, is_last
+
+
+def _next_create_metadata_start(
+    *,
+    requested_start_at: int,
+    returned_start_at: int,
+    values: list[Mapping[str, Any]],
+    page_label: str,
+) -> int:
+    next_start = returned_start_at + len(values)
+    if next_start <= requested_start_at:
+        raise JiraHelperOperationError(
+            f"Jira returned a non-final {page_label} that did not advance."
+        )
+    return next_start
+
+
+def _validate_issue_type_models(
+    issue_types_raw: list[Mapping[str, Any]],
+) -> list[IssueType]:
+    try:
+        return [IssueType.model_validate(issue_type) for issue_type in issue_types_raw]
+    except Exception as exc:
+        raise JiraHelperOperationError(
+            "Jira returned a malformed create issue-type page."
+        ) from exc
+
+
+def _validate_field_meta_models(
+    fields_raw: list[Mapping[str, Any]],
+) -> list[FieldMeta]:
+    try:
+        return [FieldMeta.model_validate(field) for field in fields_raw]
+    except Exception as exc:
+        raise JiraHelperOperationError(
+            "Jira returned a malformed create-field page."
+        ) from exc
 
 
 def _validate_optional_project_key(project_key: str | None) -> str | None:

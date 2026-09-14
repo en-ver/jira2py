@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -126,19 +126,54 @@ def test_list_fields_rejects_malformed_project_or_field_page() -> None:
 def test_issue_types_formats_project_create_types() -> None:
     api = _make_api()
     api.issues.get_create_issue_types.return_value = {
+        "startAt": 0,
+        "isLast": True,
         "values": [
             {"id": "10000", "name": "Task"},
             {"id": "10001", "name": "Sub-task", "subtask": True},
-        ]
+        ],
     }
 
     result = MetadataHelpers(cast(JiraAPI, api)).issue_types("PROJ")
 
-    api.issues.get_create_issue_types.assert_called_once_with(project_id_or_key="PROJ")
+    api.issues.get_create_issue_types.assert_called_once_with(
+        project_id_or_key="PROJ",
+        start_at=0,
+    )
     assert result.data == api.issues.get_create_issue_types.return_value["values"]
     assert "Issue types for PROJ:" in result.text
     assert "Task (id: 10000)" in result.text
     assert "Sub-task (id: 10001) (subtask)" in result.text
+
+
+def test_issue_types_aggregates_canonical_pages_in_jira_order() -> None:
+    api = _make_api()
+    first = {"id": "10000", "name": "Task", "unknown": {"preserved": True}}
+    second = {"id": "10001", "name": "Bug"}
+    api.issues.get_create_issue_types.side_effect = [
+        {
+            "startAt": 10,
+            "isLast": False,
+            "total": 1,
+            "values": [first],
+        },
+        {
+            "startAt": 11,
+            "isLast": True,
+            "total": 1,
+            "values": [second],
+        },
+    ]
+
+    result = MetadataHelpers(cast(JiraAPI, api)).issue_types("PROJ")
+
+    assert result.data == [first, second]
+    assert isinstance(result.data, list)
+    assert result.data[0] is first
+    assert api.issues.get_create_issue_types.call_args_list == [
+        call(project_id_or_key="PROJ", start_at=0),
+        call(project_id_or_key="PROJ", start_at=11),
+    ]
 
 
 def test_create_fields_resolves_issue_type_case_insensitively() -> None:
@@ -158,6 +193,7 @@ def test_create_fields_resolves_issue_type_case_insensitively() -> None:
     api.issues.get_create_fields.assert_called_once_with(
         project_id_or_key="PROJ",
         issue_type_id="10001",
+        start_at=0,
     )
     assert result.data == api.issues.get_create_fields.return_value["fields"]
     assert "Fields for PROJ / Bug:" in result.text
@@ -165,14 +201,254 @@ def test_create_fields_resolves_issue_type_case_insensitively() -> None:
     assert "Optional:" in result.text
 
 
-def test_create_fields_rejects_unknown_issue_type() -> None:
+def test_create_fields_stops_after_the_first_matching_type_page() -> None:
+    api = _make_api()
+    first_field = {"fieldId": "summary", "name": "Summary", "required": True}
+    second_field = {"fieldId": "priority", "name": "Priority", "required": False}
+    api.issues.get_create_issue_types.side_effect = [
+        {
+            "startAt": 0,
+            "isLast": False,
+            "values": [{"id": "10000", "name": "Bug"}],
+        },
+        {
+            "startAt": 1,
+            "isLast": False,
+            "values": [{"id": "10001", "name": "Task"}],
+        },
+    ]
+    api.issues.get_create_fields.side_effect = [
+        {"startAt": 0, "isLast": False, "values": [first_field]},
+        {"startAt": 1, "isLast": True, "values": [second_field]},
+    ]
+
+    result = MetadataHelpers(cast(JiraAPI, api)).create_fields("PROJ", "tAsK")
+
+    assert result.data == [first_field, second_field]
+    assert api.issues.get_create_issue_types.call_args_list == [
+        call(project_id_or_key="PROJ", start_at=0),
+        call(project_id_or_key="PROJ", start_at=1),
+    ]
+    assert api.issues.get_create_fields.call_args_list == [
+        call(project_id_or_key="PROJ", issue_type_id="10001", start_at=0),
+        call(project_id_or_key="PROJ", issue_type_id="10001", start_at=1),
+    ]
+
+
+def test_create_fields_rejects_a_matching_non_advancing_issue_type_page() -> None:
+    api = _make_api()
+    api.issues.get_create_issue_types.side_effect = [
+        {
+            "startAt": 0,
+            "isLast": False,
+            "values": [{"id": "10000", "name": "Bug"}],
+        },
+        {
+            "startAt": 0,
+            "isLast": False,
+            "values": [{"id": "10001", "name": "Task"}],
+        },
+    ]
+
+    with pytest.raises(
+        JiraHelperOperationError, match="create issue-type page.*did not advance"
+    ):
+        MetadataHelpers(cast(JiraAPI, api)).create_fields("PROJ", "Task")
+
+    assert api.issues.get_create_issue_types.call_args_list == [
+        call(project_id_or_key="PROJ", start_at=0),
+        call(project_id_or_key="PROJ", start_at=1),
+    ]
+    api.issues.get_create_fields.assert_not_called()
+
+
+def test_create_fields_aggregates_paginated_fields_fallback() -> None:
+    api = _make_api()
+    first = {"fieldId": "summary", "name": "Summary", "required": True}
+    second = {"fieldId": "priority", "name": "Priority", "required": False}
+    api.issues.get_create_issue_types.return_value = {
+        "issueTypes": [{"id": "10001", "name": "Task"}]
+    }
+    api.issues.get_create_fields.side_effect = [
+        {"startAt": 0, "isLast": False, "fields": [first]},
+        {"startAt": 1, "isLast": True, "fields": [second]},
+    ]
+
+    result = MetadataHelpers(cast(JiraAPI, api)).create_fields("PROJ", "Task")
+
+    assert result.data == [first, second]
+    assert api.issues.get_create_fields.call_args_list == [
+        call(project_id_or_key="PROJ", issue_type_id="10001", start_at=0),
+        call(project_id_or_key="PROJ", issue_type_id="10001", start_at=1),
+    ]
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        {"issueTypes": [], "total": 0},
+        {"issueTypes": [], "startAt": 0},
+        {"issueTypes": [], "startAt": 0, "isLast": "true"},
+    ],
+    ids=["total-only", "start-at-only", "invalid-is-last"],
+)
+def test_issue_types_rejects_partial_fallback_pagination(page: object) -> None:
+    api = _make_api()
+    api.issues.get_create_issue_types.return_value = page
+
+    with pytest.raises(JiraHelperOperationError, match="create issue-type page"):
+        MetadataHelpers(cast(JiraAPI, api)).issue_types("PROJ")
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        {"values": []},
+        {
+            "values": "not-a-list",
+            "issueTypes": [{"id": "10001", "name": "Task"}],
+        },
+        {"values": [], "startAt": True, "isLast": True},
+        {"values": ["not-a-mapping"], "startAt": 0, "isLast": True},
+    ],
+    ids=[
+        "missing-pagination-metadata",
+        "canonical-values-are-authoritative",
+        "boolean-start-at",
+        "non-mapping-item",
+    ],
+)
+def test_issue_types_rejects_malformed_canonical_pages(page: object) -> None:
+    api = _make_api()
+    api.issues.get_create_issue_types.return_value = page
+
+    with pytest.raises(JiraHelperOperationError, match="create issue-type page"):
+        MetadataHelpers(cast(JiraAPI, api)).issue_types("PROJ")
+
+
+@pytest.mark.parametrize(
+    ("second_page", "error_message"),
+    [
+        (RuntimeError("boom"), "Failed to fetch create issue-type page"),
+        ({"values": []}, "malformed create issue-type page"),
+    ],
+    ids=["request-failure", "response-failure"],
+)
+def test_issue_types_fails_atomically_after_a_later_page_error(
+    second_page: object,
+    error_message: str,
+) -> None:
+    api = _make_api()
+    api.issues.get_create_issue_types.side_effect = [
+        {
+            "startAt": 0,
+            "isLast": False,
+            "values": [{"id": "10001", "name": "Task"}],
+        },
+        second_page,
+    ]
+
+    with pytest.raises(JiraHelperOperationError, match=error_message):
+        MetadataHelpers(cast(JiraAPI, api)).issue_types("PROJ")
+
+    assert api.issues.get_create_issue_types.call_count == 2
+
+
+def test_create_fields_rejects_a_non_advancing_page() -> None:
     api = _make_api()
     api.issues.get_create_issue_types.return_value = {
-        "issueTypes": [{"id": "10001", "name": "Bug"}]
+        "startAt": 0,
+        "isLast": True,
+        "values": [{"id": "10001", "name": "Task"}],
     }
+    api.issues.get_create_fields.side_effect = [
+        {
+            "startAt": 0,
+            "isLast": False,
+            "values": [{"fieldId": "summary", "name": "Summary"}],
+        },
+        {"startAt": 1, "isLast": False, "values": []},
+    ]
+
+    with pytest.raises(
+        JiraHelperOperationError, match="create-field page.*did not advance"
+    ):
+        MetadataHelpers(cast(JiraAPI, api)).create_fields("PROJ", "Task")
+
+    assert api.issues.get_create_fields.call_count == 2
+
+
+def test_create_fields_rejects_unknown_issue_type_after_terminal_discovery() -> None:
+    api = _make_api()
+    api.issues.get_create_issue_types.side_effect = [
+        {
+            "startAt": 0,
+            "isLast": False,
+            "values": [{"id": "10001", "name": "Bug"}],
+        },
+        {
+            "startAt": 1,
+            "isLast": True,
+            "values": [{"id": "10002", "name": "Story"}],
+        },
+    ]
 
     with pytest.raises(JiraHelperValidationError, match='Issue type "Task" not found'):
         MetadataHelpers(cast(JiraAPI, api)).create_fields("PROJ", "Task")
+
+    assert api.issues.get_create_issue_types.call_args_list == [
+        call(project_id_or_key="PROJ", start_at=0),
+        call(project_id_or_key="PROJ", start_at=1),
+    ]
+    api.issues.get_create_fields.assert_not_called()
+
+
+def test_create_metadata_rejects_invalid_arguments_before_requests() -> None:
+    api = _make_api()
+    helper = MetadataHelpers(cast(JiraAPI, api))
+
+    with pytest.raises(JiraHelperValidationError, match="project_key"):
+        helper.issue_types(" ")
+    with pytest.raises(JiraHelperValidationError, match="project_key"):
+        helper.create_fields(" ", "Task")
+    with pytest.raises(JiraHelperValidationError, match="issue_type"):
+        helper.create_fields("PROJ", " ")
+
+    api.issues.get_create_issue_types.assert_not_called()
+    api.issues.get_create_fields.assert_not_called()
+
+
+def test_create_metadata_wraps_model_validation_errors() -> None:
+    api = _make_api()
+    api.issues.get_create_issue_types.return_value = {
+        "startAt": 0,
+        "isLast": True,
+        "values": [{"id": "10001", "name": ["not-a-name"]}],
+    }
+
+    with pytest.raises(
+        JiraHelperOperationError, match="create issue-type page"
+    ) as exc_info:
+        MetadataHelpers(cast(JiraAPI, api)).issue_types("PROJ")
+
+    assert exc_info.value.__cause__ is not None
+
+    api = _make_api()
+    api.issues.get_create_issue_types.return_value = {
+        "startAt": 0,
+        "isLast": True,
+        "values": [{"id": "10001", "name": "Task"}],
+    }
+    api.issues.get_create_fields.return_value = {
+        "startAt": 0,
+        "isLast": True,
+        "values": [{"fieldId": ["not-an-id"]}],
+    }
+
+    with pytest.raises(JiraHelperOperationError, match="create-field page") as exc_info:
+        MetadataHelpers(cast(JiraAPI, api)).create_fields("PROJ", "Task")
+
+    assert exc_info.value.__cause__ is not None
 
 
 def test_edit_fields_formats_edit_metadata() -> None:

@@ -152,21 +152,15 @@ This is Jira's `/field/search` **project-context** filter, documented for Classi
 
 ## Create metadata pagination
 
-`helpers.metadata.issue_types(project_key)` makes one low-level create-issue-types request at offset zero with the low-level default page size of 50. Its `data` contains only that response page's `values` list (or `issueTypes` fallback); Jira page metadata is discarded.
+`helpers.metadata.issue_types(project_key)` aggregates every valid create-issue-type page. `HelperResult.data` remains a bare ordered list of Jira's raw item mappings: it does not expose a new envelope, sort or deduplicate entries, or discard unknown item properties.
 
-`helpers.metadata.create_fields(project_key, issue_type)` resolves the case-insensitive issue-type name from only that same first issue-type page. An issue type that Jira places on a later page can therefore be reported as absent. After resolution, it makes one create-fields request at offset zero with the same low-level default page size of 50 and returns only that page's `values` list (or `fields` fallback), again without page metadata. Neither high-level bare list has a continuation mechanism.
+`helpers.metadata.create_fields(project_key, issue_type)` scans issue-type pages in Jira order and resolves the first case-insensitive name match. It stops issue-type discovery as soon as that match is found, then aggregates every valid create-field page for the matched ID. This early stop means an irrelevant later issue-type page is not requested. Its `data` is likewise a bare ordered list of raw field mappings.
 
-For complete discovery, call the low-level methods page by page and inspect each raw Jira page envelope:
+A canonical `values` response must contain a non-negative integer `startAt` and Boolean `isLast`; the helpers advance from the returned offset plus the number of returned values and stop only when `isLast` is true. `total` and `maxResults` never determine termination. Repository-supported `issueTypes` and `fields` fallbacks without any pagination indicators are compatibility-terminal. If a fallback signals pagination, it must provide the same complete valid `startAt`/`isLast` pair.
 
-```python
-types_page = api.issues.get_create_issue_types(
-    "PROJ", start_at=0, max_results=50
-)
-fields_page = api.issues.get_create_fields(
-    "PROJ", "10001", start_at=0, max_results=50
-)
-# Advance start_at while inspecting each page's Jira metadata.
-```
+A request failure, malformed collection or page envelope, non-advancing non-final page, or create-metadata model-validation failure raises `JiraHelperOperationError` rather than returning partial data. Invalid arguments and an unknown issue type after terminal discovery raise `JiraHelperValidationError`.
+
+The low-level `api.issues.get_create_issue_types()` and `api.issues.get_create_fields()` methods remain one-page APIs with explicit `start_at` and `max_results` controls when callers need raw page envelopes.
 
 ## Project pagination
 
@@ -391,8 +385,8 @@ The helper resolves and owns the destination directory. An explicit `filename` m
 ### `helpers.metadata`
 
 - `list_fields(project_key=None, *, query=None, field_ids=None, field_types=None, start_at=0, max_results=20)`
-- `issue_types(project_key)` — first create-issue-types page only; see [Create metadata pagination](#create-metadata-pagination)
-- `create_fields(project_key, issue_type)` — first issue-type and create-fields pages only; see [Create metadata pagination](#create-metadata-pagination)
+- `issue_types(project_key)` — all create-issue-type pages as an ordered bare list; see [Create metadata pagination](#create-metadata-pagination)
+- `create_fields(project_key, issue_type)` — first matching type and all create-field pages as an ordered bare list; see [Create metadata pagination](#create-metadata-pagination)
 - `edit_fields(issue_key)`
 - `transitions(issue_key, *, transition_id=None, include_unavailable_transitions=None)`
 - `project(project_id_or_key)`
