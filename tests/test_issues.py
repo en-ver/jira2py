@@ -56,14 +56,22 @@ SAMPLE_CREATE_ISSUE_TYPES = {
     "issueTypes": [
         {"id": "10000", "name": "Task"},
         {"id": "10001", "name": "Bug"},
-    ]
+    ],
+    "startAt": 0,
+    "maxResults": 50,
+    "total": 2,
+    "unknownEnvelope": {"preserved": True},
 }
 
 SAMPLE_CREATE_FIELDS = {
     "fields": [
         {"fieldId": "summary", "required": True},
         {"fieldId": "issuetype", "required": True},
-    ]
+    ],
+    "startAt": 0,
+    "maxResults": 50,
+    "total": 2,
+    "unknownEnvelope": {"preserved": True},
 }
 
 SAMPLE_TRANSITIONS = {
@@ -301,24 +309,35 @@ class TestIssues:
 
         assert result is None
 
-    def test_get_create_issue_types(self, make_client):
+    def test_get_create_issue_types_returns_one_raw_official_page(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "GET"
+            assert request.url.path == "/rest/api/3/issue/createmeta/TEST/issuetypes"
+            assert request.url.params["startAt"] == "0"
+            assert request.url.params["maxResults"] == "50"
             return httpx.Response(200, json=SAMPLE_CREATE_ISSUE_TYPES)
 
         api = Issues(make_client(handler))
         result = api.get_create_issue_types("TEST")
 
-        assert len(result["issueTypes"]) == 2
-        assert result["issueTypes"][0]["name"] == "Task"
+        assert result == SAMPLE_CREATE_ISSUE_TYPES
+        assert result["unknownEnvelope"] == {"preserved": True}
 
-    def test_get_create_fields(self, make_client):
+    def test_get_create_fields_returns_one_raw_official_page(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "GET"
+            assert (
+                request.url.path == "/rest/api/3/issue/createmeta/TEST/issuetypes/10000"
+            )
+            assert request.url.params["startAt"] == "0"
+            assert request.url.params["maxResults"] == "50"
             return httpx.Response(200, json=SAMPLE_CREATE_FIELDS)
 
         api = Issues(make_client(handler))
         result = api.get_create_fields("TEST", "10000")
 
-        assert len(result["fields"]) == 2
+        assert result == SAMPLE_CREATE_FIELDS
+        assert result["unknownEnvelope"] == {"preserved": True}
 
     def test_create_issue(self, make_client):
         def handler(request: httpx.Request) -> httpx.Response:

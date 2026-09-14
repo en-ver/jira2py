@@ -72,7 +72,7 @@ JiraHelperError
 
 `JiraHelperError` does not inherit from `JiraError`. Local credential, input, and response checks can raise built-in `ValueError` or `TypeError`, and helper model parsing can raise model-validation errors. Catch the hierarchy or built-in error appropriate to the operation rather than assuming `JiraError` covers every failure.
 
-Create-metadata discovery is scoped more narrowly: `helpers.metadata.issue_types()` and `create_fields()` raise `JiraHelperValidationError` for invalid arguments and for an unknown type after terminal discovery. Jira request failures, malformed create-metadata pages or collections, non-advancing pagination, and create-metadata model-validation failures raise `JiraHelperOperationError`; request and model-validation failures preserve their underlying cause. They never return a partial aggregate.
+Create-metadata discovery is scoped more narrowly: `helpers.metadata.issue_types()` and `create_fields()` raise `JiraHelperValidationError` for invalid arguments and for an unknown type after terminal discovery. Jira request failures, malformed official create-metadata envelopes or collections, non-advancing pagination, an invalid matched raw issue-type ID, and create-metadata model-validation failures raise `JiraHelperOperationError`; request and model-validation failures preserve their underlying cause. They never return a partial aggregate.
 
 `helpers.auth.status()` converts a failure from the current-user endpoint into `HelperResult.data` with `ok=False`; inspect that flag. This conversion does not guarantee that unrelated post-response processing cannot raise.
 

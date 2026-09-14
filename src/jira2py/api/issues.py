@@ -325,7 +325,9 @@ class Issues(ApiBase):
             extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
-            One raw Jira issue-type page, including its values and page metadata.
+            Raw parsed Jira page unchanged, including its official ``issueTypes``
+            collection and any ``startAt``, ``maxResults``, ``total``, or unknown
+            properties.
         """
         return self._as_dict(
             self._client._request_jira(
@@ -360,7 +362,9 @@ class Issues(ApiBase):
             extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
-            One raw Jira create-field page, including its values and page metadata.
+            Raw parsed Jira page unchanged, including its official ``fields``
+            collection and any ``startAt``, ``maxResults``, ``total``, or unknown
+            properties.
         """
         return self._as_dict(
             self._client._request_jira(

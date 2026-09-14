@@ -4,7 +4,8 @@
 
 ### Fixed
 
-- Create-metadata helpers now aggregate complete valid paginated responses. `issue_types()` preserves Jira's ordered bare raw list, while `create_fields()` stops issue-type discovery at the first case-insensitive match and aggregates all field pages. Later failures raise `JiraHelperOperationError` rather than returning partial lists.
+- Create-metadata helpers now aggregate official Jira REST API v3 `issueTypes` and `fields` pages using `startAt` and the current page's `total`. `issue_types()` preserves Jira's ordered bare raw list, while `create_fields()` stops issue-type discovery at the first case-insensitive match with a nonblank raw ID and aggregates all field pages. Later failures raise `JiraHelperOperationError` rather than returning partial lists.
+- Tightened undocumented test/mock compatibility: metadata-free pages and `values`/`isLast`-only create-metadata pages are no longer accepted by the high-level helpers. Low-level create-metadata methods remain unchanged one-page raw pass-throughs.
 
 ## v0.16.0 - 2026-09-11
 

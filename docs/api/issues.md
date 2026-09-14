@@ -213,7 +213,7 @@ types = jira.issues.get_create_issue_types("PROJ")
 | `max_results` | `int` | `50` | Maximum items |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
 
-This method returns exactly one raw Jira page. Use `start_at` and `max_results` on later calls and inspect Jira's returned page metadata to discover all issue types.
+This method returns exactly one raw parsed Jira page unchanged. Jira's v3 response uses the `issueTypes` collection and may include `startAt`, `maxResults`, `total`, and unknown properties; this low-level method neither validates the envelope nor aggregates pages. Use `start_at` and `max_results` on later calls when you need additional raw pages.
 
 **Returns:** `dict[str, Any]`
 
@@ -233,7 +233,7 @@ fields = jira.issues.get_create_fields("PROJ", "10001")
 | `max_results` | `int` | `50` | Maximum items |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
 
-This method returns exactly one raw Jira page. Use `start_at` and `max_results` on later calls and inspect Jira's returned page metadata to discover all create fields.
+This method returns exactly one raw parsed Jira page unchanged. Jira's v3 response uses the `fields` collection and may include `startAt`, `maxResults`, `total`, and unknown properties; this low-level method neither validates the envelope nor aggregates pages. Use `start_at` and `max_results` on later calls when you need additional raw pages.
 
 **Returns:** `dict[str, Any]`
 
