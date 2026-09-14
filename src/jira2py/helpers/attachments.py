@@ -23,7 +23,7 @@ from .errors import (
 from .models import AttachmentMeta
 from .results import HelperResult
 
-DEFAULT_MAX_DOWNLOAD = 100 * 1024 * 1024  # 100 MB
+DEFAULT_MAX_DOWNLOAD = 100 * 1024 * 1024  # 100 MiB
 _INVALID_FILENAME_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f-\x9f]')
 
 
@@ -83,7 +83,16 @@ class AttachmentHelpers:
         filename: str | None = None,
         max_download: int = DEFAULT_MAX_DOWNLOAD,
     ) -> HelperResult:
-        """Download an attachment atomically into a directory-owned destination."""
+        """Download an attachment atomically with a 100 MiB default byte cap.
+
+        ``max_download`` defaults to 104,857,600 bytes, must be a positive integer,
+        and can be overridden. The helper validates its inputs before metadata lookup.
+        Valid metadata larger than the cap raises ``AttachmentError`` before transfer
+        or final-path replacement; without metadata size, streaming still enforces
+        the cumulative cap. Transfer and protocol failures are wrapped as
+        ``AttachmentDownloadError``. Failed transfers remove the temporary file and
+        do not replace the final destination.
+        """
         self.validate_id(attachment_id)
         _validate_max_download(max_download)
         resolved_directory = _resolve_download_directory(directory)

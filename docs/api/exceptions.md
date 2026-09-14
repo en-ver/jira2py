@@ -1,6 +1,8 @@
 # Exceptions
 
-All exceptions are importable from the top-level package:
+The top-level imports below are jira2py's custom low-level HTTP, transport, and attachment-protocol error hierarchy. `JiraError` is not a catch-all for every exception a jira2py call can raise; high-level helper errors are independent. See [Helper errors](helpers.md#helper-errors) for that hierarchy.
+
+All low-level exceptions are importable from the top-level package:
 
 ```python
 from jira2py import (
@@ -16,7 +18,7 @@ from jira2py import (
 
 For usage patterns and examples, see [Error Handling](../guide/error-handling.md).
 
-## Hierarchy
+## Low-level hierarchy
 
 ```
 JiraError
@@ -30,12 +32,12 @@ JiraError
 
 ## `JiraError`
 
-Base exception for all jira2py errors.
+Base exception for jira2py's custom low-level HTTP, transport, and attachment-protocol errors. It does not cover independent helper errors, built-in validation failures, or helper model-validation errors.
 
 | Attribute | Type | Description |
 |---|---|---|
 | `message` | `str` | Human-readable error description |
-| `response` | `Response \| None` | The raw HTTP response, when available |
+| `response` | `Response \| None` | The raw HTTP response, when available; sanitized attachment and managed-media paths expose no response object |
 
 ## `JiraAuthenticationError`
 

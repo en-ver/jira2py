@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.16.0 - 2026-09-11
+
 ### Breaking changes
 
 - `Attachments.download_attachment_content()` no longer returns buffered bytes. It now
@@ -21,7 +23,7 @@
   only the cap; supplied zero requires an empty transfer. The separate managed-media
   bounded reader is unchanged.
 
-## v0.15.0
+## v0.15.0 - 2026-09-09
 
 ### Added
 
@@ -45,14 +47,67 @@
   length before parsing in-memory bytes. Malformed, oversized, incomplete, or redirected
   responses are rejected; attachment bytes are not persisted.
 
-## v0.14.0
+## v0.14.0 - 2026-09-07
+
+### Added
+
+- Replaced direct `marklassian` and `pyadf` use with `adf-bridge>=0.1.2`. Formatted ADF
+  presentation uses adf-bridge's identity-preserving `[~accountId:<id>]` mention tokens
+  and remains readable and presentation-only; managed media attachment-content URLs cannot
+  be recovered from formatted Markdown or leak Media Services IDs.
+- Added automatic Jira-managed Markdown images on existing-issue high-level writes:
+  issue edit rich fields, comment add/update, and worklog add/update. Only canonical
+  configured-Jira attachment-content URLs for associated `image/*` attachments qualify;
+  source query and fragment delimiters, including bare `?` and `#`, are rejected. Create
+  remains create → upload → complete-field edit, never an implicit upload. Jira's private
+  no-follow `303` Media Services mapping is compatibility-sensitive observed behavior;
+  public bytes downloads remain unchanged. Verification reads raw persisted ADF structure,
+  not rendered response expansions.
+- Direct issue, comment, and worklog mutations now flag connection and Jira 5xx failures
+  as potentially delivered with `mutation_may_have_succeeded`; callers must reread before
+  retrying, and jira2py does not retry or roll back after that uncertain failure.
+
+## v0.13.0 - 2026-09-04
+
+### Breaking changes
+
+- High-level Markdown inputs shaped as `[~accountId:<id>]` now create Jira mentions rather than literal text.
+
+### Added
+
+- Added universal Jira account mentions to high-level Markdown writes: issue create/edit descriptions, `environment`, compatible custom textarea fields, comment add/update bodies, and worklog add/update comments. Input accepts case-insensitive `accountId`, including IDs containing `:`. Formatted ADF reads remain presentation-only through pyadf and can lose mention identity if edited and written back; raw ADF is required for identity-safe edits until dedicated formatted read/edit/write support is added.
+
+## v0.12.0 - 2026-09-01
+
+### Added
+
+- Added named low-level transition-discovery controls for `includeUnavailableTransitions`, `skipRemoteOnlyCondition`, and `sortByOpsBarAndStatus`, while retaining the existing positional arguments and `extra_params` precedence.
+- Added focused transition discovery through `MetadataHelpers.transitions(..., transition_id=..., include_unavailable_transitions=...)`. It always expands `transitions.fields`, keeps Jira's complete raw transition envelope in helper data, and presents destination IDs/names, availability and workflow indicators, plus screen field keys/names/requirements/operations.
+- Added Jira-native `fields` and `update` mappings to `IssueHelpers.transition()`. The helper rejects exact overlap between their field keys, forwards neither submitted body in its result, and leaves Jira as the validator for screen requirements and field values. Successful helper transition results now add `verified: false`: Jira accepted the request, but jira2py did not perform a verification read and reports the destination only as expected.
+
+## v0.11.0 - 2026-08-28
+
+### Added
+
+- Added one-page `IssueFields.search_fields()` support for Jira's stable `/field/search` endpoint, including canonical field IDs, system/custom type filters, project IDs, ordering, expansions, and raw query overrides. `IssueFields.get_fields()` is unchanged.
+- Added `MetadataHelpers.list_fields()` for one searchable raw field page with concise canonical-ID text and optional project-key-to-numeric-ID context resolution. Jira documents field search for Classic projects; project context does not determine issue-type or create/edit-screen applicability.
+- Added exact case-sensitive raw `fieldId` filtering to ordinary and known-ID changelog helpers. Ordinary changelog retrieval also supports optional post-filter event pagination with `result_page` metadata after all Jira pages, timestamp filtering, item pruning, and empty-event removal.
+
+## v0.10.0 - 2026-08-27
+
+### Added
+
+- Added `Issues.get_changelogs_by_ids()` for Jira's official issue-scoped changelog-list POST endpoint.
+- Added `JiraHelpers.changelogs` for complete changelog retrieval with optional UTC-normalized half-open creation bounds, plus one-request known-ID retrieval.
+- Added permissive changelog/page models and concise changelog helper text while retaining complete original Jira mappings in structured helper output.
+
+## v0.9.0 - 2026-08-23
 
 ### Breaking changes
 
 - `Issues.get_issue()` now accepts `Sequence[str] | None` for `fields`. A supplied sequence is validated and serialized only at the Get Issue endpoint; comma-delimited scalar strings are no longer accepted.
 - Removed `IssueHelpers.read()` and its fixed retrieval profile. Retrieve issues directly with `JiraAPI`, which now remains the sole full-issue retrieval authority.
 - `fields=None` omits the parameter for Jira's default behavior unless raw `extra_params["fields"]` overrides it. Selectors are forwarded exactly, without implicit fields or `expand`; wildcard and negative selectors may be broad.
-- High-level Markdown inputs shaped as `[~accountId:<id>]` now create Jira mentions rather than literal text.
 
 ```python
 # Before (removed)
@@ -77,39 +132,31 @@ text = format_issue(
 
 ### Added
 
-- Replaced direct `marklassian` and `pyadf` use with `adf-bridge>=0.1.2`. Formatted ADF
-  presentation uses adf-bridge tokens and remains readable and presentation-only; managed
-  media attachment-content URLs cannot be recovered from formatted Markdown or leak Media
-  Services IDs.
-- Added automatic Jira-managed Markdown images on existing-issue high-level writes:
-  issue edit rich fields, comment add/update, and worklog add/update. Only canonical
-  configured-Jira attachment-content URLs for associated `image/*` attachments qualify;
-  source query and fragment delimiters, including bare `?` and `#`, are rejected. Create
-  remains create → upload → complete-field edit, never an implicit upload. Jira's private
-  no-follow `303` Media Services mapping is compatibility-sensitive observed behavior;
-  public bytes downloads remain unchanged. Verification reads raw persisted ADF structure,
-  not rendered response expansions.
-- Direct issue, comment, and worklog mutations now flag connection and Jira 5xx failures
-  as potentially delivered with `mutation_may_have_succeeded`; callers must reread before
-  retrying, and jira2py does not retry or roll back after that uncertain failure.
-- Added Jira account mentions to high-level Markdown writes: issue create/edit descriptions, `environment`, compatible custom textarea fields, comment add/update bodies, and worklog add/update comments. Input accepts case-insensitive `accountId`, including IDs containing `:`. Bold, italic, and strikethrough wrappers around a valid mention are discarded because Jira mentions are unmarked. Formatted ADF reads present adf-bridge's identity-preserving `[~accountId:<id>]` token without jira2py mention traversal or rendered-Markdown rewriting; raw ADF remains unchanged.
-
-- Added named low-level transition-discovery controls for `includeUnavailableTransitions`, `skipRemoteOnlyCondition`, and `sortByOpsBarAndStatus`, while retaining the existing positional arguments and `extra_params` precedence.
-- Added focused transition discovery through `MetadataHelpers.transitions(..., transition_id=..., include_unavailable_transitions=...)`. It always expands `transitions.fields`, keeps Jira's complete raw transition envelope in helper data, and presents destination IDs/names, availability and workflow indicators, plus screen field keys/names/requirements/operations.
-- Added Jira-native `fields` and `update` mappings to `IssueHelpers.transition()`. The helper rejects exact overlap between their field keys, forwards neither submitted body in its result, and leaves Jira as the validator for screen requirements and field values. Successful helper transition results now add `verified: false`: Jira accepted the request, but jira2py did not perform a verification read and reports the destination only as expected.
-
-- Added one-page `IssueFields.search_fields()` support for Jira's stable `/field/search` endpoint, including canonical field IDs, system/custom type filters, project IDs, ordering, expansions, and raw query overrides. `IssueFields.get_fields()` is unchanged.
-- Added `MetadataHelpers.list_fields()` for one searchable raw field page with concise canonical-ID text and optional project-key-to-numeric-ID context resolution. Jira documents field search for Classic projects; project context does not determine issue-type or create/edit-screen applicability.
-- Added exact case-sensitive raw `fieldId` filtering to ordinary and known-ID changelog helpers. Ordinary changelog retrieval also supports optional post-filter event pagination with `result_page` metadata after all Jira pages, timestamp filtering, item pruning, and empty-event removal.
-- Added `Issues.get_changelogs_by_ids()` for Jira's official issue-scoped changelog-list POST endpoint.
-- Added `JiraHelpers.changelogs` for complete changelog retrieval with optional UTC-normalized half-open creation bounds, plus one-request known-ID retrieval.
-- Added permissive changelog/page models and concise changelog helper text while retaining complete original Jira mappings in structured helper output.
-
 - Added public pure `jira2py.helpers.format_issue(data, *, browse_url=None)` for optional presence-aware issue text presentation without I/O, mutation, or retrieval policy.
+
+## v0.8.1 - 2026-08-22
+
+### Fixed
+
+- Fixed cursor continuation for enhanced search and saved-filter runs by accepting `next_page_token` in `SearchHelpers.issues()` and `FiltersHelpers.run()` and forwarding it to `IssueSearch.enhanced_search()`. Each call returns one raw Jira page; callers must pass the returned `nextPageToken` to request the next page.
+
+## v0.8.0 - 2026-06-28
+
+### Added
+
+- Added opt-in complete JSON credential files through `credentials_file`, with explicit constructor values taking precedence over file values and environment variables. No default credential-file path is used.
+- Expanded Jira Cloud operation coverage with current-user/auth status, issue transitions, comment update/delete, attachment list/metadata/download/upload/delete, issue-link listing, project lookup, status and priority metadata, and saved-filter list/search/run operations.
+- Added low-level worklog add/update/delete operations and high-level worklog list/add/update/delete workflows on the paginated retrieval API introduced in `v0.6.0`.
+- Added agent-readable authentication failures and explicit attachment upload/delete result contracts.
+
+## v0.7.0 - 2026-06-25
+
+### Added
 
 - Added `jira2py.helpers.JiraHelpers`, a grouped high-level workflow facade around the unchanged low-level `JiraAPI`.
 - Added grouped helper entry points for `issues`, `search`, `comments`, `worklogs`, `attachments`, `metadata`, and `links`.
 - Added `HelperResult` and helper-layer errors for readable workflow output plus structured data.
+- Added validation that rejects supplying an issue description both through `IssueHelpers.create(description=...)` and through its `fields` mapping, avoiding an ambiguous create payload.
 
 ### Documentation
 
@@ -117,7 +164,13 @@ text = format_issue(
 - Added high-level helper guide/API reference pages and a repository example.
 - Documented that private helper internals such as `jira2py.helpers._adf` and `jira2py.helpers._text` are internal implementation details, not supported public API.
 
-## v0.5.0
+## v0.6.0 - 2026-06-25
+
+### Added
+
+- Added the low-level `IssueWorklogs` API at `JiraAPI.worklogs` for paginated issue-worklog retrieval.
+
+## v0.5.0 - 2026-06-23
 
 Compatibility-honest minor release for accepted caller-visible behavior changes that should not be framed as a patch-only update.
 

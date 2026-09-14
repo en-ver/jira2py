@@ -258,7 +258,25 @@ class WorklogHelpers:
         max_issues: int = 100,
         include_details: bool = False,
     ) -> HelperResult:
-        """Build a worklog report for issues selected by JQL."""
+        """Build a UTC-inclusive worklog report for JQL-selected issues.
+
+        ``start_date`` and ``end_date`` are strict ``YYYY-MM-DD`` UTC dates; both
+        named dates are inclusive. Output encodes the interval as inclusive
+        ``startedAtOrAfter`` and exclusive ``startedBefore`` at the next midnight.
+        The report searches at most ``max_issues``. When
+        ``data["issueSelector"]["truncated"]`` is true, its rows and totals cover
+        only scanned issues; a next-page token or known total can establish that.
+        It pages worklogs per selected issue, retaining parseable timestamps in the
+        UTC interval; ``account_id`` matches an exact author account ID.
+
+        Result data includes ``rowCount``, ``totalSeconds``, ``totalHours``,
+        ``rows``, and ``issueSelector``. Rows sort lexicographically by the
+        returned/formatted ``started`` string, then issue key and worklog ID;
+        differing fractional-second precision means that order is not reliably
+        chronological. Every row always includes ``updateAuthor``, ``visibility``,
+        ``comment``, and ``properties``; ``include_details=True`` populates them,
+        while ``False`` leaves them null without changing date or author inclusion.
+        """
         jql = require_non_empty_string(jql, field_name="jql")
         if account_id is not None:
             account_id = require_non_empty_string(account_id, field_name="account_id")

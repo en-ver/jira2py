@@ -64,6 +64,8 @@ print(helpers.auth.status().text)
 print(helpers.auth.me().text)
 ```
 
+`helpers.auth.status()` turns a failure from the current-user endpoint into `HelperResult.data` with `ok=False`; inspect that flag. It is not a universal no-raise guarantee, because unrelated post-response processing can still raise.
+
 ### Issues and transitions
 
 ```python
@@ -97,6 +99,14 @@ observed = api.issues.get_issue("PROJ-123", fields=["status", "resolution", "lab
 A successful transition helper result means Jira accepted the request, not that the destination was observed. It explicitly reports `verified: false`, describes the destination as expected, and never includes submitted request bodies. Read the issue explicitly when verification matters.
 
 `format_issue` is pure: it does not fetch or mutate the issue. It shows only field keys Jira returned, so missing fields are omitted and present empty values remain visible.
+
+For `helpers.issues.edit()`, the default `raw=False` produces text only; it does not provide `data` or `raw_content`. With `raw=True`, Jira's returned issue mapping is `data`; an empty response instead has `raw_content="null"`. Empty `summary` and `description` are omitted, and the helper rejects those keys in `fields`, so it cannot clear a description. To send Jira JSON null, use the low-level API:
+
+```python
+api.issues.edit_issue("PROJ-123", fields={"description": None})
+```
+
+That request does not promise tenant-specific persisted presentation. `raw=True` does not itself add a verification read; managed-media verification is separate.
 
 ### Jira account mentions
 
@@ -204,6 +214,10 @@ helpers.comments.update("PROJ-123", "10001", "Updated note")
 helpers.comments.delete("PROJ-123", "10001")
 ```
 
+### Search and saved filters
+
+`helpers.search.issues()` and `helpers.filters.run()` return one raw enhanced-search page. Their default `fields=None` requests exactly `summary`, `status`, `assignee`, `priority`, `issuetype`, `created`, and `updated`; it does not omit fields. Both default to 20 results and silently cap larger values at 50. Continue with the opaque `nextPageToken` while keeping the JQL and fields unchanged. `filters.run()` resolves saved JQL and delegates to the same search path. Use low-level `api.search.enhanced_search()` when `fields=None` must be omitted.
+
 ### Attachments
 
 ```python
@@ -217,6 +231,8 @@ print(result.data["output_file"])  # absolute path; size is observed bytes
 print(helpers.attachments.upload("PROJ-123", "./error.log").text)
 ```
 
+`download()` defaults to 100 MiB (104,857,600 bytes). Its positive-integer `max_download` limit is overrideable and applies both to a known metadata size before transfer and cumulatively while streaming when size is absent. It writes a temporary file and replaces the final path only after success; failures clean up the temporary file and raise `AttachmentDownloadError` for transfer/protocol failures.
+
 ### Worklogs
 
 ```python
@@ -224,7 +240,17 @@ print(helpers.worklogs.list("PROJ-123").text)
 helpers.worklogs.add("PROJ-123", "1h", comment="Investigation")
 helpers.worklogs.update("PROJ-123", "10010", time_spent="90m")
 helpers.worklogs.delete("PROJ-123", "10010")
+
+report = helpers.worklogs.report(
+    start_date="2026-01-01",
+    end_date="2026-01-31",
+    jql="project = PROJ",
+)
+if report.data["issueSelector"]["truncated"]:
+    print("Totals cover only scanned issues")
 ```
+
+`report()` uses strict UTC `YYYY-MM-DD` dates and includes both named dates. It pages worklogs for each selected issue and filters parseable `started` timestamps to that UTC interval. Rows are ordered lexicographically by the returned/formatted `started` string, then issue key and worklog ID; differing fractional-second precision means this is not reliably chronological. `max_issues` limits issue search, so inspect `issueSelector.truncated` before treating `rowCount`, `totalSeconds`, or `totalHours` as complete. `account_id` is an exact author account-ID filter; every row always includes update author, visibility, comment, and properties, which `include_details=True` populates and `False` leaves null without changing inclusion.
 
 ### Metadata, links, and filters
 
@@ -247,14 +273,26 @@ print(helpers.filters.run("12345").text)
 
 `helpers.metadata.list_fields()` returns one raw Jira `/field/search` page. A project key is resolved to Jira's numeric project ID and passed as a project-context filter. Jira documents this endpoint for Classic projects; it has no issue-type or screen-applicability guarantee. Use `create_fields()` and `edit_fields()` when you need create-screen or existing-issue edit metadata.
 
+`helpers.metadata.issue_types()` uses only the first low-level create-issue-types page (offset zero, default 50) and returns its list without page metadata. `create_fields()` resolves its case-insensitive type name from that same first page, then returns only the first create-fields list; a later-page type can be reported absent. Use `api.issues.get_create_issue_types()` and `api.issues.get_create_fields()` with `start_at`/`max_results` and their raw page envelopes for complete discovery.
+
+`helpers.metadata.projects()` trims its optional query, requests up to 100 entries ordered by name, and returns Jira's unchanged first project-search page envelope. Its text can signal more results, but it has no continuation argument; use `api.projects.search_projects(start_at=..., max_results=..., query=..., extra_params={"orderBy": "name"})` to continue.
+
 `helpers.filters.run()` resolves the saved filter's JQL and returns the same search-style result shape as `helpers.search.issues()`.
 
 ## Helper errors
 
-- `JiraHelperValidationError`
-- `JiraHelperOperationError`
-- `AttachmentError`
-- `AttachmentDownloadError`
+Helper errors are independent of the low-level `JiraError` hierarchy and are imported from `jira2py.helpers`:
+
+```text
+JiraHelperError
+├── JiraHelperValidationError
+├── JiraHelperConfigError
+├── JiraHelperOperationError
+└── AttachmentError
+    └── AttachmentDownloadError
+```
+
+`JiraHelperError` does not inherit from `JiraError`. Local credential, input, and response checks can raise built-in `ValueError` or `TypeError`, and helper model parsing can raise model-validation errors.
 
 ## Public vs private helper API
 

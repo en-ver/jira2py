@@ -64,6 +64,14 @@ updated = jira.issues.edit_issue(
 
 Use this generic field-edit pathway if you need to set assignee fields supported by your Jira screens. jira2py does **not** add a dedicated assign API.
 
+To send Jira an explicit JSON null, pass Python `None` in `fields`:
+
+```python
+jira.issues.edit_issue("PROJ-123", fields={"description": None})
+```
+
+This documents the request payload only; jira2py does not promise how a particular Jira tenant persists or presents that value.
+
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `issue_id` | `str` | required | Issue ID or key |
@@ -205,6 +213,8 @@ types = jira.issues.get_create_issue_types("PROJ")
 | `max_results` | `int` | `50` | Maximum items |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
 
+This method returns exactly one raw Jira page. Use `start_at` and `max_results` on later calls and inspect Jira's returned page metadata to discover all issue types.
+
 **Returns:** `dict[str, Any]`
 
 ---
@@ -222,6 +232,8 @@ fields = jira.issues.get_create_fields("PROJ", "10001")
 | `start_at` | `int` | `0` | First item index |
 | `max_results` | `int` | `50` | Maximum items |
 | `extra_params` | `Mapping[str, Any] \| None` | `None` | Additional query parameters |
+
+This method returns exactly one raw Jira page. Use `start_at` and `max_results` on later calls and inspect Jira's returned page metadata to discover all create fields.
 
 **Returns:** `dict[str, Any]`
 

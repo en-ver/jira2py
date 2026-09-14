@@ -63,7 +63,12 @@ class FiltersHelpers:
         fields: Sequence[str] | None = None,
         next_page_token: str | None = None,
     ) -> HelperResult:
-        """Resolve a saved filter's JQL and search one page of matching issues."""
+        """Resolve saved JQL and delegate one page to :meth:`SearchHelpers.issues`.
+
+        The delegated search requests its seven-field default projection when
+        ``fields=None``, defaults to 20 results, silently caps values over 50, and
+        continues through the opaque ``nextPageToken``.
+        """
         filter_id = require_non_empty_string(filter_id, field_name="filter_id")
 
         try:

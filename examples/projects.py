@@ -6,7 +6,7 @@ from jira2py import JiraAPI
 
 
 def search_all_projects() -> None:
-    """Search all projects."""
+    """Search one project-search page."""
     jira = JiraAPI()
     result = jira.projects.search_projects()
     for project in result["values"]:
@@ -38,7 +38,7 @@ def search_with_expand() -> None:
 
 if __name__ == "__main__":
     # Set these environment variables before running:
-    # JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN
+    # JIRA_URL, JIRA_USER, JIRA_API_TOKEN
     assert os.environ.get("JIRA_URL"), "Set JIRA_URL environment variable"
 
     search_all_projects()

@@ -150,6 +150,39 @@ A supplied project key is resolved once to Jira's numeric project ID before the 
 
 This is Jira's `/field/search` **project-context** filter, documented for Classic Jira projects. It has no issue-type parameter and does not establish create-screen or edit-screen applicability. Continue to use `create_fields()` for a project's create-screen metadata and `edit_fields()` for an existing issue's edit metadata.
 
+## Create metadata pagination
+
+`helpers.metadata.issue_types(project_key)` makes one low-level create-issue-types request at offset zero with the low-level default page size of 50. Its `data` contains only that response page's `values` list (or `issueTypes` fallback); Jira page metadata is discarded.
+
+`helpers.metadata.create_fields(project_key, issue_type)` resolves the case-insensitive issue-type name from only that same first issue-type page. An issue type that Jira places on a later page can therefore be reported as absent. After resolution, it makes one create-fields request at offset zero with the same low-level default page size of 50 and returns only that page's `values` list (or `fields` fallback), again without page metadata. Neither high-level bare list has a continuation mechanism.
+
+For complete discovery, call the low-level methods page by page and inspect each raw Jira page envelope:
+
+```python
+types_page = api.issues.get_create_issue_types(
+    "PROJ", start_at=0, max_results=50
+)
+fields_page = api.issues.get_create_fields(
+    "PROJ", "10001", start_at=0, max_results=50
+)
+# Advance start_at while inspecting each page's Jira metadata.
+```
+
+## Project pagination
+
+`helpers.metadata.projects(query=None)` trims a supplied query and makes one project-search request at Jira's default offset, requesting up to 100 entries ordered by name. `HelperResult.data` is Jira's unchanged first-page envelope. Its text notes that more projects exist when Jira reports that condition, but the helper has no continuation argument.
+
+For more pages, use the low-level offset controls with the same ordering:
+
+```python
+page = api.projects.search_projects(
+    start_at=100,
+    max_results=100,
+    query="backend",
+    extra_params={"orderBy": "name"},
+)
+```
+
 ## Transition discovery and execution
 
 `helpers.metadata.transitions(issue_key, *, transition_id=None, include_unavailable_transitions=None)` always requests `expand="transitions.fields"`. Its structured `data` is the complete raw Jira transitions envelope; the concise text lists transition IDs, destination status IDs/names, availability, screen/conditional/global/looped indicators, and transition-screen field keys/names/requirements/operations. Schema, allowed/default values, autocomplete URLs, configuration, and unknown members remain Jira-native in `data`.
@@ -159,6 +192,23 @@ Use `transition_id` to inspect one selected transition. Set `include_unavailable
 `helpers.issues.transition(issue_key, transition, *, fields=None, update=None)` accepts a transition ID or, for compatibility, a name. Prefer an ID obtained from fresh discovery. `fields` and `update` are passed as Jira-native mappings; the helper rejects exact field-key overlap but does not locally validate required fields, schemas, allowed values, or operations. `historyMetadata` and issue properties intentionally remain low-level `jira.issues.transition_issue()` parameters.
 
 Its successful `HelperResult.data` retains the existing transition result keys and adds `verified: false`. Jira accepted the request, but the expected destination is not an observed result and no verification read is performed. Submitted `fields` and `update` bodies are not included in the result.
+
+## Issue edits
+
+`helpers.issues.edit(issue_key, *, summary=None, description=None, fields=None, raw=False)` treats empty `summary` and `description` values as absent. If they are the only supplied update values, validation reports “Nothing to update.” The `fields` mapping cannot contain `summary` or `description`, so this helper cannot express an explicit description clear.
+
+With the default `raw=False`, the helper calls the low-level edit endpoint with `return_issue=False` and returns text only: `HelperResult.data` and `raw_content` are both absent. With `raw=True`, it requests `return_issue=True`; a returned issue mapping becomes `HelperResult.data`, while an empty or no-content response produces `raw_content="null"` and no `data`. `raw=True` does not itself perform a separate verification read; managed-media verification is a distinct behavior.
+
+To send Jira an explicit JSON null for a description, use the low-level method instead:
+
+```python
+api.issues.edit_issue(
+    "PROJ-123",
+    fields={"description": None},
+)
+```
+
+This sends JSON null in the Jira request. jira2py does not promise how any particular tenant will persist or present that value.
 
 ## Complete changelogs
 
@@ -183,9 +233,31 @@ For known IDs, `helpers.changelogs.list_by_ids(issue_key, changelog_ids, *, fiel
 
 Malformed bounds, IDs, field IDs, and result pagination inputs raise `JiraHelperValidationError`. Request, response-shape, and non-progressing pagination failures raise `JiraHelperOperationError`; no partial aggregate is returned.
 
+## Worklog reports
+
+`helpers.worklogs.report(*, start_date, end_date, jql, account_id=None, max_issues=100, include_details=False)` accepts strict `YYYY-MM-DD` dates interpreted in UTC. Both named dates are inclusive: structured output records the interval as inclusive `startedAtOrAfter` and exclusive `startedBefore` at midnight after `end_date`.
+
+The issue search stops after `max_issues`. Before treating report totals as complete, inspect `data["issueSelector"]["truncated"]`: when it is true, `rows`, `rowCount`, `totalSeconds`, and `totalHours` cover only scanned issues. `nextPageToken` can establish truncation, and a known `total` can establish it even without a token. For every selected issue, the helper pages through worklogs and retains only entries whose parseable `started` timestamp lies in the UTC interval.
+
+`account_id` is an exact author account-ID filter. Every row always includes the detail fields `updateAuthor`, `visibility`, `comment`, and `properties`; `include_details=True` populates them without changing date or author inclusion, while `False` leaves them null. Core result fields are `rowCount`, `totalSeconds`, `totalHours`, `rows`, and `issueSelector`; rows are ordered lexicographically by the returned/formatted `started` string, then issue key and worklog ID. Differing fractional-second precision means that order is not reliably chronological.
+
 ## Search continuation
 
-`helpers.search.issues()` and `helpers.filters.run()` each make one enhanced-search request and return one raw Jira search page in `HelperResult.data`. When a page supplies `nextPageToken`, pass that opaque value unchanged to fetch the next page. Stop when no token is returned; do not use `total` as the completion condition.
+`helpers.search.issues()` and `helpers.filters.run()` each make one enhanced-search request and return one raw Jira search page in `HelperResult.data`. The high-level default `fields=None` still requests exactly:
+
+```python
+[
+    "summary",
+    "status",
+    "assignee",
+    "priority",
+    "issuetype",
+    "created",
+    "updated",
+]
+```
+
+`max_results` defaults to 20, and values above 50 are silently reduced to 50. `helpers.filters.run()` resolves the saved JQL and delegates to `helpers.search.issues()`, so it has the same projection and cap. This intentionally differs from low-level `api.search.enhanced_search()`, where `fields=None` omits the field selection. When a page supplies `nextPageToken`, pass that opaque value unchanged to fetch the next page. Stop when no token is returned; do not use `total` as the completion condition.
 
 Keep the same JQL and fields for every `helpers.search.issues()` call:
 
@@ -226,14 +298,18 @@ while True:
 
 ## Helper errors
 
-Public helper errors include:
+Helper errors are independent of the low-level [`JiraError`](exceptions.md#jiraerror) hierarchy and are imported from `jira2py.helpers`:
 
-- `JiraHelperError`
-- `JiraHelperValidationError`
-- `JiraHelperConfigError`
-- `JiraHelperOperationError`
-- `AttachmentError`
-- `AttachmentDownloadError`
+```text
+JiraHelperError
+├── JiraHelperValidationError
+├── JiraHelperConfigError
+├── JiraHelperOperationError
+└── AttachmentError
+    └── AttachmentDownloadError
+```
+
+`JiraHelperError` does not inherit from `JiraError`. Local credential, input, and response checks can also raise built-in `ValueError` or `TypeError`; parsing helper models can raise model-validation errors.
 
 ## Public models
 
@@ -265,6 +341,8 @@ Common public helper models include:
 
 - `status()`
 - `me()`
+
+`status()` converts a failure raised by the current-user endpoint into `HelperResult.data` with `ok=False`. It is not a universal no-raise guarantee: unrelated post-response processing can still raise.
 
 ### `helpers.issues`
 
@@ -302,26 +380,23 @@ Common public helper models include:
 
 - `list(issue_key)`
 - `read(attachment_id)`
-- `download(attachment_id, *, directory=".", filename=None, max_download=...)`
+- `download(attachment_id, *, directory=".", filename=None, max_download=100 * 1024 * 1024)`
 
-`download()` resolves and owns the destination directory. An explicit `filename` must be
-a safe basename; otherwise Jira metadata is sanitized to one. It creates the directory if
-needed, streams to a same-directory temporary file, and atomically replaces the final
-entry only after the transfer succeeds. Its data contains status, attachment ID, filename,
-absolute output file, observed size, and MIME type. Missing metadata `size` means only the
-cumulative cap is enforced; a supplied zero requires empty content.
+`download()` defaults to exactly 100 MiB (104,857,600 bytes). `max_download` must be a positive integer and can be overridden. It validates the attachment ID, limit, directory, and any explicit filename before metadata lookup. If valid Jira metadata reports a size above the limit, it raises `AttachmentError` before content transfer or final-path replacement.
+
+The helper resolves and owns the destination directory. An explicit `filename` must be a safe basename; otherwise Jira metadata is sanitized to one. It streams to a same-directory temporary file and atomically replaces the final entry only after success. When metadata has no `size`, the cumulative streaming cap still applies. Transfer or protocol failures are wrapped as `AttachmentDownloadError`; failed high-level transfers remove the temporary file and do not replace the final destination. Its data contains status, attachment ID, filename, absolute output file, observed size, and MIME type.
 - `upload(issue_key, file_path)`
 - `delete(attachment_id)`
 
 ### `helpers.metadata`
 
 - `list_fields(project_key=None, *, query=None, field_ids=None, field_types=None, start_at=0, max_results=20)`
-- `issue_types(project_key)`
-- `create_fields(project_key, issue_type)`
+- `issue_types(project_key)` — first create-issue-types page only; see [Create metadata pagination](#create-metadata-pagination)
+- `create_fields(project_key, issue_type)` — first issue-type and create-fields pages only; see [Create metadata pagination](#create-metadata-pagination)
 - `edit_fields(issue_key)`
 - `transitions(issue_key, *, transition_id=None, include_unavailable_transitions=None)`
 - `project(project_id_or_key)`
-- `projects(query=None)`
+- `projects(query=None)` — requests up to 100 entries ordered by name and returns Jira's unchanged first-page envelope; see [Project pagination](#project-pagination)
 - `statuses()`
 - `priorities()`
 - `users(query, *, max_results=10)`
@@ -339,7 +414,7 @@ cumulative cap is enforced; a supplied zero requires empty content.
 - `search(query, *, start_at=0, max_results=50)`
 - `run(filter_id, *, max_results=20, fields=None, next_page_token=None)`
 
-`helpers.filters.run()` resolves the saved filter's JQL and delegates to the normal search pathway, so its structured output matches `helpers.search.issues()`.
+`helpers.filters.run()` resolves the saved filter's JQL and delegates to the normal search pathway, so its structured output, default projection, page-size cap, and continuation behavior match `helpers.search.issues()`.
 
 ## Public/private boundary
 

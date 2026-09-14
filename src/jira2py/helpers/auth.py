@@ -30,7 +30,12 @@ class AuthHelpers:
         return HelperResult.with_data(self._format_me_text(user, data), data)
 
     def status(self) -> HelperResult:
-        """Probe Jira authentication status via the current-user endpoint."""
+        """Probe authentication via the current-user endpoint.
+
+        Converts an exception raised by that endpoint into ``data`` with
+        ``ok=False``. Unrelated post-response processing, such as model
+        validation, can still raise.
+        """
         try:
             data = self.api.users.get_current_user()
         except Exception as exc:

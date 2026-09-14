@@ -1,8 +1,9 @@
-"""Custom exceptions for jira2py.
+"""Custom low-level exceptions for jira2py.
 
-This module defines a hierarchy of exceptions for jira2py that allow users
-to handle specific error conditions while preserving original tracebacks via
-exception chaining.
+This hierarchy covers HTTP, transport, and attachment-protocol failures; it is
+not a catch-all for every exception a jira2py call can raise. Many wrappers use
+exception chaining, but security-sensitive paths and directly raised errors may
+not retain a cause.
 """
 
 from __future__ import annotations
@@ -11,10 +12,11 @@ import httpx
 
 
 class JiraError(Exception):
-    """Base exception for all jira2py errors.
+    """Base exception for jira2py's custom low-level errors.
 
-    All jira2py exceptions inherit from this class, allowing users to catch
-    any library-specific error with a single except clause.
+    Covers HTTP, transport, and attachment-protocol failures. It is not a
+    catch-all: helper errors use an independent hierarchy, and built-in or
+    model-validation errors may also occur.
 
     Attributes:
         message: Human-readable error message
@@ -22,7 +24,7 @@ class JiraError(Exception):
 
     Example:
         >>> try:
-        ...     jira.get_issue("PROJ-123")
+        ...     jira.issues.get_issue("PROJ-123")
         ... except JiraError as e:
         ...     print(f"JIRA error: {e}")
     """
@@ -41,7 +43,7 @@ class JiraConnectionError(JiraError):
 
     Example:
         >>> try:
-        ...     jira.get_issue("PROJ-123")
+        ...     jira.issues.get_issue("PROJ-123")
         ... except JiraConnectionError:
         ...     print("Network error - check your connection")
     """
@@ -62,7 +64,7 @@ class JiraAPIError(JiraError):
 
     Example:
         >>> try:
-        ...     jira.get_issue("PROJ-123")
+        ...     jira.issues.get_issue("PROJ-123")
         ... except JiraAPIError as e:
         ...     print(f"API error {e.status_code}: {e.error_messages}")
     """
@@ -98,7 +100,7 @@ class JiraAuthenticationError(JiraAPIError):
 
     Example:
         >>> try:
-        ...     jira.get_issue("PROJ-123")
+        ...     jira.issues.get_issue("PROJ-123")
         ... except JiraAuthenticationError as e:
         ...     print(f"Auth failed ({e.status_code}): invalid credentials or insufficient permissions")
     """
@@ -124,7 +126,7 @@ class JiraNotFoundError(JiraAPIError):
 
     Example:
         >>> try:
-        ...     jira.get_issue("NONEXISTENT-123")
+        ...     jira.issues.get_issue("NONEXISTENT-123")
         ... except JiraNotFoundError:
         ...     print("Issue does not exist")
     """
@@ -145,7 +147,7 @@ class JiraRateLimitError(JiraAPIError):
 
     Example:
         >>> try:
-        ...     issues = [jira.get_issue(f"PROJ-{i}") for i in range(1000)]
+        ...     issues = [jira.issues.get_issue(f"PROJ-{i}") for i in range(1000)]
         ... except JiraRateLimitError as e:
         ...     print(f"Rate limited: retry after {e.retry_after}s, reason: {e.rate_limit_reason}")
     """
@@ -179,7 +181,7 @@ class JiraValidationError(JiraAPIError):
 
     Example:
         >>> try:
-        ...     jira.create_issue({"project": None})  # Invalid data
+        ...     jira.issues.create_issue(fields={"project": None})  # Invalid data
         ... except JiraValidationError as e:
         ...     print(f"Validation failed: {e.error_messages}")
     """

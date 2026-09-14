@@ -33,7 +33,7 @@ def search_fields() -> None:
 
 if __name__ == "__main__":
     # Set these environment variables before running:
-    # JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN
+    # JIRA_URL, JIRA_USER, JIRA_API_TOKEN
     assert os.environ.get("JIRA_URL"), "Set JIRA_URL environment variable"
 
     get_fields()

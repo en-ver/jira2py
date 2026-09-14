@@ -149,7 +149,9 @@ class Issues(ApiBase):
 
         Args:
             issue_id: The ID or key of the issue (e.g., "PROJ-123").
-            fields: Fields to update (e.g., {"summary": "New summary"}).
+            fields: Fields to update (e.g., {"summary": "New summary"}). A
+                value of ``None`` is sent as JSON null; jira2py does not promise
+                tenant-specific persistence or presentation for that value.
             notify_users: Whether to send email notifications.
             return_issue: Whether to return the updated issue in the response.
             expand: Comma-separated list of properties to expand.
@@ -308,7 +310,11 @@ class Issues(ApiBase):
         max_results: int = _DEFAULT_PAGE_SIZE,
         extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Get issue types available for creating issues in a project.
+        """Get one raw page of issue types available for project issue creation.
+
+        Defaulting to offset zero and 50 items, use ``start_at`` and
+        ``max_results`` to request later pages; this method neither aggregates pages
+        nor discards Jira page metadata.
 
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-types/#api-rest-api-3-issue-createmeta-projectidorkey-issuetypes-get
 
@@ -319,7 +325,7 @@ class Issues(ApiBase):
             extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
-            Issue types available for the project.
+            One raw Jira issue-type page, including its values and page metadata.
         """
         return self._as_dict(
             self._client._request_jira(
@@ -338,7 +344,11 @@ class Issues(ApiBase):
         max_results: int = _DEFAULT_PAGE_SIZE,
         extra_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Get fields available when creating an issue of a specific type.
+        """Get one raw page of fields for creating a specific issue type.
+
+        Defaulting to offset zero and 50 items, use ``start_at`` and
+        ``max_results`` to request later pages; this method neither aggregates pages
+        nor discards Jira page metadata.
 
         https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-types/#api-rest-api-3-issue-createmeta-projectidorkey-issuetypes-issuetypeid-get
 
@@ -350,7 +360,7 @@ class Issues(ApiBase):
             extra_params: Additional query parameters. Takes priority over named parameters.
 
         Returns:
-            Fields available for creating the issue type.
+            One raw Jira create-field page, including its values and page metadata.
         """
         return self._as_dict(
             self._client._request_jira(

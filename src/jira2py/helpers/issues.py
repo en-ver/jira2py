@@ -95,7 +95,18 @@ class IssueHelpers:
         fields: Mapping[str, Any] | None = None,
         raw: bool = False,
     ) -> HelperResult:
-        """Update an existing Jira issue."""
+        """Update an existing Jira issue with constrained result shapes.
+
+        Empty ``summary`` and ``description`` values are omitted, and ``fields``
+        cannot contain either key; this helper therefore cannot clear a description.
+        ``raw=False`` calls low-level edit with ``return_issue=False`` and returns
+        text only, without ``data`` or ``raw_content``. With ``raw=True``, a
+        returned issue mapping is ``data`` and an empty response is
+        ``raw_content="null"``. ``raw`` does not itself request verification;
+        managed-media verification is separate. Use low-level ``edit_issue`` with
+        ``{"description": None}`` to send Jira JSON null without a tenant-persistence
+        promise.
+        """
         self.validate_edit(
             issue_key,
             summary=summary,

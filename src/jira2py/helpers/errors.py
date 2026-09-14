@@ -9,7 +9,11 @@ from jira2py.exceptions import JiraAPIError, JiraConnectionError
 
 
 class JiraHelperError(Exception):
-    """Base error for jira2py helper-layer failures."""
+    """Base error for helper-layer failures, independent of ``JiraError``.
+
+    Helper errors do not inherit from the custom low-level error hierarchy and
+    must be caught separately when a helper operation can raise them.
+    """
 
     def __init__(
         self,

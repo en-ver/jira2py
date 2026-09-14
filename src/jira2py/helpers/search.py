@@ -37,7 +37,14 @@ class SearchHelpers:
         fields: Sequence[str] | None = None,
         next_page_token: str | None = None,
     ) -> HelperResult:
-        """Search one Jira issue page using JQL and an optional continuation token."""
+        """Search one capped Jira issue page using JQL and a continuation token.
+
+        ``fields=None`` requests ``summary``, ``status``, ``assignee``,
+        ``priority``, ``issuetype``, ``created``, and ``updated`` rather than
+        omitting fields. ``max_results`` defaults to 20 and values over 50 are
+        silently capped. The raw page can be continued with its opaque
+        ``nextPageToken``.
+        """
         jql = require_non_empty_string(jql, field_name="jql")
         limit = min(max_results, 50)
         request_fields = list(fields) if fields is not None else list(_SEARCH_FIELDS)

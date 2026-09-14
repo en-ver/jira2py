@@ -1,6 +1,6 @@
 # Error Handling
 
-All errors raised by jira2py are subclasses of `JiraError`, so you can catch everything with a single `except` clause or handle specific error types individually.
+`JiraError` is the root of jira2py's custom low-level HTTP, transport, and attachment-protocol error hierarchy. It is not a catch-all for every exception a jira2py call can raise.
 
 ## Exception Hierarchy
 
@@ -16,7 +16,7 @@ JiraError
 
 ## Catching Errors
 
-### Catch everything
+### Catch custom low-level errors
 
 ```python
 from jira2py import JiraAPI, JiraError
@@ -57,16 +57,33 @@ except JiraConnectionError:
     print("Network issue — check your connection")
 ```
 
+## Helper, built-in, and non-raising outcomes
+
+High-level helpers use an independent hierarchy, imported from `jira2py.helpers`:
+
+```text
+JiraHelperError
+├── JiraHelperValidationError
+├── JiraHelperConfigError
+├── JiraHelperOperationError
+└── AttachmentError
+    └── AttachmentDownloadError
+```
+
+`JiraHelperError` does not inherit from `JiraError`. Local credential, input, and response checks can raise built-in `ValueError` or `TypeError`, and helper model parsing can raise model-validation errors. Catch the hierarchy or built-in error appropriate to the operation rather than assuming `JiraError` covers every failure.
+
+`helpers.auth.status()` converts a failure from the current-user endpoint into `HelperResult.data` with `ok=False`; inspect that flag. This conversion does not guarantee that unrelated post-response processing cannot raise.
+
 ## Exception Attributes
 
 ### `JiraError` (base)
 
-All exceptions carry these attributes:
+These custom low-level exceptions carry these attributes:
 
 | Attribute | Type | Description |
 |---|---|---|
 | `message` | `str` | Human-readable error description |
-| `response` | `Response \| None` | The raw HTTP response object, when available |
+| `response` | `Response \| None` | The raw HTTP response object, when available; sanitized attachment and managed-media paths expose no response object |
 
 ### `JiraAPIError` and subclasses
 
@@ -128,7 +145,7 @@ The extracted messages are available via the `error_messages` attribute on `Jira
 
 ## Exception Chaining
 
-All exceptions preserve the original cause via Python's exception chaining. You can access the underlying error through `__cause__`:
+Many wrapped errors preserve their original cause through Python exception chaining, but the presence of `__cause__` or `__context__` is path-dependent and must not be relied on. Directly raised errors may have neither. Security-sensitive attachment and managed-media paths suppress or avoid exposing sensitive underlying details and response objects.
 
 ```python
 from jira2py import JiraConnectionError
@@ -137,7 +154,8 @@ try:
     jira.issues.get_issue("PROJ-123")
 except JiraConnectionError as e:
     print(f"jira2py error: {e.message}")
-    print(f"Original cause: {e.__cause__}")
+    if e.__cause__ is not None:
+        print(f"Original cause: {e.__cause__}")
 ```
 
 For the full exception class reference, see [Exceptions](../api/exceptions.md).

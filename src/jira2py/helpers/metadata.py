@@ -93,7 +93,13 @@ class MetadataHelpers:
         )
 
     def issue_types(self, project_key: str) -> HelperResult:
-        """List issue types available for project issue creation."""
+        """List only the first create-issue-type page as a bare list.
+
+        The helper starts at Jira's default offset with its default page size of 50
+        and discards page metadata. Use
+        ``api.issues.get_create_issue_types(..., start_at=..., max_results=...)``
+        and inspect its raw pages for complete discovery.
+        """
         project_key = require_non_empty_string(project_key, field_name="project_key")
         issue_types_raw = self._get_issue_types_raw(project_key)
         issue_types = [
@@ -105,7 +111,15 @@ class MetadataHelpers:
         )
 
     def create_fields(self, project_key: str, issue_type: str) -> HelperResult:
-        """Get create-screen field metadata for a project issue type."""
+        """Get only the first create-field page as a bare list.
+
+        The case-insensitive issue-type lookup searches only the first
+        create-issue-type page requested with the default page size of 50, so a
+        later-page type can be reported absent. After resolution, it reads only the
+        first create-field page requested with that same default and discards its
+        metadata. Use the low-level create-metadata methods with offsets for complete
+        discovery.
+        """
         project_key = require_non_empty_string(project_key, field_name="project_key")
         issue_type = require_non_empty_string(issue_type, field_name="issue_type")
         issue_types_raw = self._get_issue_types_raw(project_key)
@@ -220,7 +234,14 @@ class MetadataHelpers:
         return HelperResult.with_data(format_project(project), data)
 
     def projects(self, query: str | None = None) -> HelperResult:
-        """List Jira projects accessible to the current user."""
+        """Request up to 100 projects ordered by name and return Jira's unchanged first-page envelope.
+
+        A supplied query is trimmed. The request starts at Jira's default offset.
+        ``data`` is Jira's unchanged first-page envelope, and text can signal more
+        results, but this helper has no continuation argument. Use
+        ``api.projects.search_projects`` with offsets and
+        ``extra_params={"orderBy": "name"}`` for later pages.
+        """
         normalized_query = query.strip() if query is not None else None
         normalized_query = normalized_query or None
 

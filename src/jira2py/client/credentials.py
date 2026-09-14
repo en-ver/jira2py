@@ -89,7 +89,7 @@ class JiraCredentials:
                 Takes priority over credentials file and JIRA_URL environment variable.
             username: JIRA username (typically an email address).
                 Takes priority over credentials file and JIRA_USER environment variable.
-            api_token: JIRA API token or password.
+            api_token: Jira API token.
                 Takes priority over credentials file and JIRA_API_TOKEN environment variable.
             credentials_file: Optional path to a JSON credentials file containing
                 ``url``, ``username``, and ``api_token``.

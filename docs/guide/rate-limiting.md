@@ -10,7 +10,7 @@ When a request receives a 429 response:
 
 1. The client checks the `Retry-After` header for a server-specified wait time
 2. It calculates the delay using the appropriate backoff strategy (see below)
-3. A warning is logged with the attempt number, `RateLimit-Reason`, and `Retry-After` values
+3. A warning is logged with the attempt number and available rate-limit details
 4. The request is retried after the delay
 5. If all retries are exhausted, a `JiraRateLimitError` is raised
 
@@ -58,11 +58,9 @@ jira = JiraAPI(max_retries=0)
 
 ## Logging
 
-Retry attempts are logged at `WARNING` level via the `jira2py` logger. Each log message includes:
+Retry attempts are logged at `WARNING` level via the `jira2py` logger. Ordinary Jira REST retries include `RateLimit-Reason` and `Retry-After` when those headers are available.
 
-- Attempt number
-- `RateLimit-Reason` header value (e.g., `jira-burst-based`, `jira-quota-tenant-based`)
-- `Retry-After` header value
+Sanitized no-follow attachment redirect validation, bounded managed-media content reads, and public streaming attachment transfers retain only status and parsed `Retry-After`. Their retry logs therefore use `reason=None`; do not assume every retry log has a reason value.
 
 To see retry logs:
 
