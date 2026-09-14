@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.16.1 - 2026-09-14
+
 ### Fixed
 
 - Create-metadata helpers now aggregate official Jira REST API v3 `issueTypes` and `fields` pages using `startAt` and the current page's `total`. `issue_types()` preserves Jira's ordered bare raw list, while `create_fields()` stops issue-type discovery at the first case-insensitive match with a nonblank raw ID and aggregates all field pages. Later failures raise `JiraHelperOperationError` rather than returning partial lists.
