@@ -38,7 +38,7 @@ new_issue = jira.issues.create_issue(fields={
 })
 ```
 
-Use [`get_create_issue_types`](#get_create_issue_types) and [`get_create_fields`](#get_create_fields) to discover valid create metadata.
+Use [`get_create_issue_types`](#get_create_issue_types) and [`get_create_fields`](#get_create_fields) to discover valid create metadata. Rich-text issue field values are caller-supplied Jira ADF mappings; construct them with a direct `adf_bridge` import when needed. Jira2Py does not re-export that converter; see [ADF Bridge](../adf-bridge/index.md).
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |

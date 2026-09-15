@@ -96,4 +96,5 @@ This documentation is available in machine-readable formats:
 - [Installation](installation.md)
 - [Configuration](guide/configuration.md)
 - [High-level Helpers](guide/high-level-helpers.md)
+- [ADF Bridge](adf-bridge/index.md) for direct `adf_bridge` conversion
 - [API Reference](api/index.md)

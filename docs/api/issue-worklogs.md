@@ -3,7 +3,7 @@
 Accessed via `jira.worklogs`. List, add, update, and delete raw Jira issue worklogs.
 
 !!! note
-    `jira.worklogs` is the low-level endpoint wrapper. For cross-issue reporting, use the helper layer's `helpers.worklogs.report()`.
+    `jira.worklogs` is the low-level endpoint wrapper. For cross-issue reporting, use the helper layer's `helpers.worklogs.report()`. Its ADF comments are caller-supplied; for direct conversion, see [ADF Bridge](../adf-bridge/index.md).
 
 ## `get_worklogs`
 

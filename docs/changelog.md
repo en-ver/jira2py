@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Documentation
+
+- Added a top-level ADF Bridge tab with direct-install, integration-boundary, and curated public API guidance for `adf_bridge` users.
+
+### Tooling
+
+- Added a focused ADF Bridge dependency and documentation contract test, plus contributor guidance for reviewing dependency and integration updates.
+
 ## v0.16.1 - 2026-09-14
 
 ### Fixed

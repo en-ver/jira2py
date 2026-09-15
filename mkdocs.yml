@@ -52,6 +52,9 @@ plugins:
           - installation.md
         User Guide:
           - guide/*.md
+        ADF Bridge:
+          - adf-bridge/index.md
+          - adf-bridge/api.md
         API Reference:
           - api/*.md
 
@@ -87,6 +90,9 @@ nav:
       - Configuration: guide/configuration.md
       - Error Handling: guide/error-handling.md
       - Rate Limiting: guide/rate-limiting.md
+  - ADF Bridge:
+      - Overview: adf-bridge/index.md
+      - API Reference: adf-bridge/api.md
   - API Reference:
       - Overview: api/index.md
       - High-level Helpers: api/helpers.md

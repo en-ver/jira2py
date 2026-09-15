@@ -4,6 +4,11 @@
 
 Use it when you want grouped operations plus readable `HelperResult` output instead of raw Jira REST payloads. Full issue reads stay structured-first on `JiraAPI`; public `format_issue` can render an already-retrieved response when needed.
 
+For direct ADF/Markdown conversion, diagnostics, or strict behavior, install
+`adf-bridge` directly and import `adf_bridge`; see [ADF Bridge](../adf-bridge/index.md).
+The helper behavior below uses Jira2Py private adapters and is not a re-exported
+ADF Bridge API.
+
 ## Import path
 
 ```python
