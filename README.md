@@ -52,6 +52,8 @@ jira = JiraAPI(credentials_file="./jira-credentials.json")
 - **`JiraHelpers`** provides grouped workflows and readable `HelperResult` values, with optional structured data, for common tasks.
 - **`format_issue`** is an optional pure presentation function for an issue response you already retrieved.
 
+For standalone ADF/Markdown conversion, declare `adf-bridge` as a direct dependency and import `adf_bridge`. Jira2Py uses it only through private helper adapters and does not re-export it; see [ADF Bridge](https://jira2py.org/adf-bridge/).
+
 Use `JiraAPI` when you want direct REST payloads and endpoint control. Full issue retrieval is performed only by `jira.issues.get_issue()`:
 
 ```python
@@ -214,6 +216,7 @@ assert accepted.data["verified"] is False
 - [Installation](https://jira2py.org/installation/)
 - [Configuration and credential details](https://jira2py.org/guide/configuration/)
 - [High-level helpers](https://jira2py.org/guide/high-level-helpers/)
+- [ADF Bridge: direct `adf_bridge` conversion](https://jira2py.org/adf-bridge/)
 - [API reference](https://jira2py.org/api/)
 - [Full documentation](https://jira2py.org/)
 - [Machine-readable documentation](https://jira2py.org/llms.txt) and [complete reference](https://jira2py.org/llms-full.txt)

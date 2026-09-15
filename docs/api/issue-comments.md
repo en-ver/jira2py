@@ -24,7 +24,9 @@ comments = jira.comments.get_comments("PROJ-123", order_by="-created")
 
 ## `add_comment`
 
-The `body` must be Jira ADF.
+The `body` must be Jira ADF. For direct Markdown-to-ADF conversion, install
+`adf-bridge` as a direct dependency and import `adf_bridge`; Jira2Py does not
+re-export it. See [ADF Bridge](../adf-bridge/index.md).
 
 ```python
 comment = jira.comments.add_comment("PROJ-123", body={

@@ -2,6 +2,10 @@
 
 `jira2py.helpers.JiraHelpers` is the public high-level helper facade for **Jira Cloud** workflows.
 
+ADF conversion is not a public helpers API: these helpers use private adapters. For
+standalone `adf_bridge` conversion, diagnostics, or strict behavior, see
+[ADF Bridge](../adf-bridge/index.md).
+
 ```python
 from jira2py import JiraAPI
 from jira2py.helpers import JiraHelpers
